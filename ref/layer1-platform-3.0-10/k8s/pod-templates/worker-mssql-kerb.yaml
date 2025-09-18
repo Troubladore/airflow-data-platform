@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: worker-mssql-kerb
+spec:
+  containers:
+  - name: worker-mssql-kerb
+    image: registry.localhost/platform/airflow-base:3.0-10
+    resources:
+      requests: { cpu: "1000m", memory: "2Gi" }
+      limits:   { cpu: "2", memory: "4Gi" }
+  volumeMounts:
+    - name: krb-ccache
+      mountPath: /ccache
+  env:
+    - name: AIRFLOW__KERBEROS__CCACHE
+      value: /ccache/krb5cc
+    - name: KRB5CCNAME
+      value: /ccache/krb5cc
+  volumes:
+    - name: krb-ccache
+      emptyDir: {}
