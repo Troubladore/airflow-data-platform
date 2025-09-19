@@ -329,7 +329,7 @@ main() {
         # Non-interactive full clean
         log_warning "Full clean: removing all volumes and images..."
         docker volume rm pagila-source-data data-warehouse-data 2>/dev/null || true
-        docker images --format "{{.ID}}" | grep -E "($REGISTRY_HOST/datakits|postgres:15.8)" | xargs docker rmi -f 2>/dev/null || true
+        docker images --format "table {{.Repository}}:{{.Tag}} {{.ID}}" | grep -E "($REGISTRY_HOST/datakits|postgres:15.8)" | awk '{print $2}' | xargs docker rmi -f 2>/dev/null || true
     elif [ "$PRESERVE_DATA" = true ]; then
         # Skip interactive volume and image cleanup
         log_info "Preserving data volumes and images for fast rebuild"
