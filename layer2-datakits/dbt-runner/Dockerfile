@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends     git build-e
 RUN pip install uv
 
 # dbt-core & dbt-postgres (pin as desired)
-RUN uv pip install --system "dbt-core>=1.7,<1.9" "dbt-postgres>=1.7,<1.9"
+RUN uv pip install --system "dbt-core==1.8.2" "dbt-postgres==1.8.2"
 
 # Optional: OpenLineage for dbt (uncomment to emit lineage)
 # RUN uv pip install --system "openlineage-integration-common>=1,<2" "openlineage-dbt>=1,<2"

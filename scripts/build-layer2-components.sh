@@ -173,7 +173,7 @@ setup_dbt_projects() {
     # Check if DBT is available
     if ! command -v dbt >/dev/null 2>&1; then
         log_info "Installing DBT..."
-        pip install --user "dbt-postgres>=1.7,<1.9" "dbt-core>=1.7,<1.9" || {
+        pip install --user "dbt-postgres==1.8.2" "dbt-core==1.8.2" || {
             log_error "Failed to install DBT"
             return 1
         }
