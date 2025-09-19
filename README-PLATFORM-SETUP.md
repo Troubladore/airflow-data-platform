@@ -66,26 +66,32 @@ curl -k https://traefik.localhost/api/http/services
 
 ## 🪟 Corporate/Non-Admin Environment Setup
 
-**For environments where you don't have local admin rights**
+**Great news: Most tasks work without admin rights!**
 
-### Manual Prerequisites (One-time setup)
-You'll need to request these from your IT team or use approved tools:
+### What Ansible Does Automatically (No Admin Required)
+- ✅ Install Scoop package manager
+- ✅ Install mkcert via Scoop
+- ✅ Install local CA (`mkcert -install`)
+- ✅ Generate development certificates
+- ✅ Copy certificates to WSL2
+- ✅ Deploy and configure all services
 
-1. **Install mkcert** (via approved software center)
-2. **Install local CA**: Run `mkcert -install`
-3. **Update hosts file** (via corporate host management tool):
-   ```
-   127.0.0.1 registry.localhost
-   127.0.0.1 traefik.localhost
-   ```
-4. **Enable Docker Desktop WSL2 integration**
+### Only Manual Step Required
+**Update hosts file** (requires admin rights OR corporate tool):
+```
+127.0.0.1 registry.localhost
+127.0.0.1 traefik.localhost
+```
 
-### Automated Setup (After manual prerequisites)
+### Recommended Workflow
 ```bash
-# Skip admin-required tasks
-ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml --skip-tags "admin-required"
+# Run full automation (will handle everything except hosts file)
+ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
 
-# Ansible will validate manual steps were completed correctly
+# If hosts file update fails, Ansible will provide clear guidance
+# Add entries via your corporate host management tool
+# Re-run to validate
+ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml
 ```
 
 ---

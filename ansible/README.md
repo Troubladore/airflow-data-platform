@@ -70,9 +70,14 @@ ansible-playbook -i inventory/local-dev.ini setup-wsl2.yml
 - **WSL2 package installation**
 
 ### ⚠️ Graceful Admin Attempts
-- **mkcert installation** (tries Scoop, falls back to manual)
-- **Windows hosts file** (attempts update, provides manual steps)
-- **Docker Desktop settings** (detects and guides user)
+- **Windows hosts file** (attempts update, provides manual steps if failed)
+
+### 🎯 Non-Admin Friendly (Works Automatically)
+- **Scoop installation** (no admin required)
+- **mkcert installation** (via Scoop, no admin required)
+- **Local CA installation** (`mkcert -install`, no admin required)
+- **Certificate generation** (works with user-level CA)
+- **Docker Desktop settings** (user can configure GUI settings)
 
 ## 🎭 Permission Detection
 
@@ -84,38 +89,33 @@ The playbooks automatically detect:
 
 ## 📋 Manual Steps (When Required)
 
-If you see warnings for manual steps, complete these as local admin:
+**Good news: Only ONE step typically requires admin rights!**
 
-### 1. Install mkcert (Windows)
-```powershell
-# Using Scoop (recommended)
-scoop install mkcert
+### Hosts File Update (ONLY admin-required step)
 
-# Or download from: https://github.com/FiloSottile/mkcert/releases
-```
+If Ansible can't update the hosts file, add these entries:
 
-### 2. Install Local CA
-```powershell
-mkcert -install
-```
-
-### 3. Update Hosts File
 **Option A: PowerShell (Admin session)**
 ```powershell
 Add-Content C:\Windows\System32\drivers\etc\hosts "127.0.0.1 registry.localhost"
 Add-Content C:\Windows\System32\drivers\etc\hosts "127.0.0.1 traefik.localhost"
 ```
 
-**Option B: Admin Tool (Corporate environments)**
+**Option B: Manual Edit (Admin session)**
+1. Open notepad as Administrator
+2. Open C:\Windows\System32\drivers\etc\hosts
+3. Add the two lines above
+4. Save the file
+
+**Option C: Corporate Host Management Tool**
 Add these entries via your organization's host management tool:
 - `127.0.0.1 registry.localhost`
 - `127.0.0.1 traefik.localhost`
 
-### 4. Docker Desktop WSL2 Integration
-1. Open Docker Desktop Settings
-2. Go to Resources → WSL Integration
-3. Enable integration for your WSL2 distro
-4. Apply & Restart
+### Everything Else is Automated!
+- ✅ Scoop, mkcert, certificates: Handled automatically
+- ✅ Docker Desktop settings: User can configure via GUI (no admin needed)
+- ✅ All services: Deployed and validated automatically
 
 ## 🧪 Validation
 

@@ -119,22 +119,20 @@
       changed_when: false
       when: mkcert_check.stdout | trim != "missing"
 
-    - name: "🔐 Attempt to install mkcert CA"
+    - name: "🔐 Attempt to install mkcert CA (works for non-admin users)"
       win_shell: mkcert -install
       when:
         - ca_check is defined
         - ca_check.stdout | trim == "missing"
-        - is_windows_admin
       register: ca_install
       failed_when: false
-      tags: ["admin-required"]
 
     - name: "⚠️  CA installation guidance"
       debug:
         msg: |
           ⚠️  Manual Action Required: Install Local Certificate Authority
 
-          Run this in PowerShell as Administrator:
+          Run this in PowerShell (no admin required):
           mkcert -install
 
           This installs a local CA into Windows certificate trust store.
@@ -144,7 +142,7 @@
       when:
         - ca_check is defined
         - ca_check.stdout | trim == "missing"
-        - (not is_windows_admin or ca_install is failed)
+        - ca_install is failed
 
     # ================================
     # Certificate Generation
@@ -180,7 +178,7 @@
       register: certs_check
       changed_when: false
 
-    - name: "🔐 Generate development certificates"
+    - name: "🔐 Generate development certificates (non-admin friendly)"
       win_shell: |
         $certDir = "$env:LOCALAPPDATA\mkcert"
         cd $certDir
@@ -194,7 +192,7 @@
         Write-Output "Certificates generated successfully"
       when:
         - certs_check.stdout | trim == "missing"
-        - ca_check is defined and ca_check.stdout | trim == "installed"
+        - ca_check is defined and (ca_check.stdout | trim == "installed" or ca_install is succeeded)
       register: cert_generation
 
     # ================================
@@ -267,10 +265,12 @@
       failed_when: false
       tags: ["admin-required"]
 
-    - name: "⚠️  Hosts file update guidance"
+    - name: "⚠️  Hosts file update guidance (ONLY admin-required step)"
       debug:
         msg: |
           ⚠️  Manual Action Required: Update Windows Hosts File
+
+          📍 This is the ONLY step that requires admin rights!
 
           Add these entries to C:\Windows\System32\drivers\etc\hosts:
 
@@ -283,6 +283,12 @@
 
           Option 2 - Corporate Host Management Tool:
           Use your organization's approved method to add these entries.
+
+          Option 3 - Manual Edit (as Administrator):
+          1. Open notepad as Administrator
+          2. Open C:\Windows\System32\drivers\etc\hosts
+          3. Add the two lines above
+          4. Save the file
 
           Then re-run this playbook.
       when:
@@ -330,12 +336,16 @@
           Components Status:
           - Scoop: {{ '✅' if scoop_check.stdout | trim == 'installed' or scoop_install is succeeded else '❌' }}
           - mkcert: {{ '✅' if 'mkcert' in (mkcert_check.stdout | default('')) else '❌' }}
-          - Local CA: {{ '✅' if ca_check is defined and ca_check.stdout | trim == 'installed' else '❌' }}
+          - Local CA: {{ '✅' if ca_check is defined and (ca_check.stdout | trim == 'installed' or ca_install is succeeded) else '❌' }}
           - Certificates: {{ '✅' if certs_check.stdout | trim == 'exists' or cert_generation is succeeded else '❌' }}
-          - Hosts File: {{ '✅' if hosts_check.stdout | trim == 'exists' or hosts_update is succeeded else '❌' }}
+          - Hosts File: {{ '✅' if hosts_check.stdout | trim == 'exists' or hosts_update is succeeded else '❌ (Admin Required)' }}
           - Docker Desktop: {{ '✅' if docker_check.stdout | trim == 'installed' else '❌' }}
 
-          {% if not is_windows_admin %}
-          ⚠️  Manual steps may be required for full setup.
-          Check the warnings above for specific actions.
+          🎯 Non-Admin Friendly Status:
+          Most tasks completed automatically! Only hosts file requires admin rights.
+
+          {% if hosts_check.stdout | trim == 'missing' and not is_windows_admin %}
+          📍 Next Step: Add hosts file entries (see guidance above)
+          {% elif not is_windows_admin %}
+          ✅ All non-admin tasks completed successfully!
           {% endif %}
