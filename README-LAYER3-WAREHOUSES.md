@@ -61,12 +61,18 @@ Using Components from Layer 2:
 ## 🔧 Component Integration
 
 ### How Layer 3 Uses Layer 2
-Layer 3 orchestrates the validated Layer 2 components:
+Layer 3 orchestrates the validated Layer 2 components and reuses the deployment framework:
 
+**Component Reuse**:
 - **bronze-pagila:v1.0.0**: Ingests raw data from source systems
 - **dbt-runner:v1.0.0**: Executes SQL transformations (Silver → Gold)
 - **postgres-runner:v1.0.0**: Manages database operations and utilities
 - **sqlserver-runner:v1.0.0**: Handles SQL Server specific operations
+
+**Framework Reuse**:
+- **layer2-datakits-framework**: Deploy all datakit objects to integration environments
+- **Multi-database targeting**: Test pipelines against PostgreSQL, MySQL, etc.
+- **Disposable environments**: Create/destroy pipeline testing environments
 
 ### Database Environments
 - **Source Database**: PostgreSQL with Pagila sample data
@@ -118,14 +124,69 @@ examples/                   # Complete examples
     └── dags/pagila_pipeline.py
 ```
 
-## 🚨 Coming Soon
+## 🔄 Framework Integration
 
-Layer 3 is currently in planning/early development. The scripts and configurations are placeholders that will be implemented based on the validated Layer 2 components.
+### Layer 3 Uses Layer 2 Framework
+
+Layer 3 imports and reuses the deployment framework from Layer 2:
+
+```python
+# In Layer 3 setup scripts
+from layer2_datakits_framework.utils.deployment import (
+    discover_datakit_modules,
+    discover_sqlmodel_classes,
+    deploy_data_objects
+)
+from layer2_datakits_framework.config.targets import (
+    get_integration_target,
+    create_custom_target
+)
+
+def setup_pipeline_environment():
+    """Deploy all datakit components to integration environment"""
+    target = get_integration_target()  # PostgreSQL container
+
+    datakit_paths = [
+        "/path/to/bronze-pagila",
+        "/path/to/postgres-runner",
+        "/path/to/dbt-runner"
+    ]
+
+    for datakit_path in datakit_paths:
+        modules = discover_datakit_modules(datakit_path)
+        tables = discover_sqlmodel_classes(modules)
+        deploy_data_objects(tables, target)
+
+    return target  # Ready for pipeline testing
+```
+
+### Multi-Tenant Configuration
+
+```python
+def setup_tenant_warehouse(tenant_name: str):
+    """Create isolated warehouse for specific tenant"""
+    target = create_custom_target(
+        "postgres",
+        f"warehouse_{tenant_name}",
+        host="warehouse-db",
+        port=5432,
+        user=f"tenant_{tenant_name}"
+    )
+
+    # Deploy all datakit objects to tenant-specific database
+    deploy_all_datakits(target)
+    return target
+```
+
+## 🚀 Implementation Status
+
+Layer 3 will be implemented using the validated Layer 2 components and framework:
 
 **Current Status**:
 - ✅ Architecture defined
 - ✅ Directory structure created
 - ✅ Reference materials organized
+- ✅ Layer 2 framework available for reuse
 - 🚧 Implementation in progress
 
 ## 🚀 Next Steps

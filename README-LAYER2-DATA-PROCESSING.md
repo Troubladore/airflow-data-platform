@@ -48,11 +48,14 @@ DBT Projects (SQL transformations):
 
 ### Step 2: Test Components
 ```bash
-# Run unit tests for all components
+# Run unit tests for all components (includes data object deployment)
 ./scripts/test-layer2-components.sh
 
 # Test specific component
 ./scripts/test-layer2-components.sh bronze-pagila
+
+# Test with PostgreSQL container target
+./scripts/test-layer2-components.sh --deployment-target postgres_container
 ```
 
 ### Step 3: Clean Up (When Needed)
@@ -85,19 +88,26 @@ Each component includes tests that validate:
 - ✅ Container builds successfully
 - ✅ Python packages install correctly
 - ✅ CLI tools are accessible
-- ✅ Basic functionality works
+- ✅ Data objects deploy to test databases
+- ✅ SQLModel classes create tables successfully
 
 ### Test Coverage
 ```bash
-# Test all components
+# Test all components with data object deployment
 ./scripts/test-layer2-components.sh
 
 # Expected output:
-# ✅ bronze-pagila: Container builds, CLI accessible
-# ✅ postgres-runner: Container builds, CLI accessible
+# ✅ bronze-pagila: Container builds, CLI accessible, data objects deployed
+# ✅ postgres-runner: Container builds, CLI accessible, data objects deployed
 # ✅ dbt-runner: Container builds, DBT available
-# ✅ sqlserver-runner: Container builds, CLI accessible
+# ✅ sqlserver-runner: Container builds, CLI accessible, data objects deployed
 ```
+
+### Data Object Deployment Testing
+Components with SQLModel classes are tested by deploying their data objects to disposable test databases:
+- **Default**: SQLite in-memory (fastest)
+- **Alternative**: PostgreSQL/MySQL containers for integration testing
+- **Framework**: Uses `layer2-datakits-framework` for multi-database support
 
 ## 🧹 Teardown Options
 

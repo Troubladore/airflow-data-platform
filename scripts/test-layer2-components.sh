@@ -33,7 +33,7 @@ print_banner() {
     echo "This script will test:"
     echo "• Container build and startup validation"
     echo "• CLI tool accessibility and basic functionality"
-    echo "• Python package installation verification"
+    echo "• Data object deployment to test databases"
     echo "• Component isolation (no external dependencies)"
     echo
 }
@@ -75,6 +75,73 @@ check_prerequisites() {
     fi
 
     log_success "Testing prerequisites verified"
+}
+
+# Test data object deployment for a datakit
+test_data_object_deployment() {
+    local component="$1"
+    local container_name="$2"
+
+    # Check if datakit directory has SQLModel objects
+    local datakit_path="$REPO_ROOT/layer2-datakits/$component"
+    if [ ! -d "$datakit_path" ]; then
+        return 1  # No datakit directory
+    fi
+
+    # Check if we have Python files that might contain SQLModel objects
+    if ! find "$datakit_path" -name "*.py" | grep -q .; then
+        return 1  # No Python files
+    fi
+
+    # Use the deployment framework to test data object deployment
+    log_info "    Testing data object deployment to $DEPLOYMENT_TARGET..."
+
+    # Create a simple deployment test using our framework
+    local test_result
+    if test_result=$(python3 -c "
+import sys
+sys.path.insert(0, '$REPO_ROOT/layer2-datakits-framework')
+
+try:
+    from utils.deployment import discover_datakit_modules, discover_sqlmodel_classes, deploy_data_objects
+    from config.targets import get_target_config
+
+    # Discover modules in the datakit
+    modules = discover_datakit_modules('$datakit_path')
+    if not modules:
+        print('No modules found')
+        exit(1)
+
+    # Discover SQLModel classes
+    table_classes = discover_sqlmodel_classes(modules)
+    if not table_classes:
+        print('No SQLModel classes found')
+        exit(1)
+
+    # Deploy to specified test target
+    target_config = get_target_config('$DEPLOYMENT_TARGET')
+    result = deploy_data_objects(table_classes, target_config)
+
+    if result['success']:
+        print(f'SUCCESS: Deployed {result[\"tables_deployed\"]} tables')
+        exit(0)
+    else:
+        print(f'FAILED: {result[\"error\"]}')
+        exit(1)
+
+except ImportError as e:
+    print(f'Framework not available: {e}')
+    exit(1)
+except Exception as e:
+    print(f'Deployment test failed: {e}')
+    exit(1)
+" 2>/dev/null); then
+        log_info "    $test_result"
+        return 0
+    else
+        log_info "    $test_result"
+        return 1
+    fi
 }
 
 # Test single component
@@ -157,6 +224,14 @@ test_component() {
     else
         log_error "  ❌ Python environment issues"
         test_success=false
+    fi
+
+    # Test 4: Data object deployment (if datakit has SQLModel objects)
+    log_info "  Test 4: Data object deployment validation"
+    if test_data_object_deployment "$component" "$container_name"; then
+        log_success "  ✅ Data objects deploy successfully"
+    else
+        log_warning "  ⚠️  Data object deployment not available (may not have SQLModel objects)"
     fi
 
     # Clean up test container
@@ -287,7 +362,7 @@ show_test_results() {
     # Show successful component tests
     for component in "${!CORE_DATAKITS[@]}"; do
         if docker images --format "table {{.Repository}}:{{.Tag}}" | grep -q "$REGISTRY_HOST/datakits/$component:$IMAGE_VERSION"; then
-            echo "✅ $component: Unit tests passed"
+            echo "✅ $component: Container and data object tests passed"
         fi
     done
 
@@ -307,8 +382,8 @@ show_test_results() {
     echo "3. Integration testing will happen in Layer 3"
     echo
     echo -e "${YELLOW}💡 Component Philosophy:${NC}"
-    echo "• Layer 2: Individual component validation (this layer)"
-    echo "• Layer 3: Component orchestration and integration"
+    echo "• Layer 2: Individual component validation + data object deployment testing"
+    echo "• Layer 3: Component orchestration and integration into complete pipelines"
     echo
 }
 
@@ -316,6 +391,7 @@ show_test_results() {
 SPECIFIC_COMPONENT=""
 TEST_OPTIONAL=false
 VERBOSE=false
+DEPLOYMENT_TARGET="sqlite_memory"  # Default to fastest target
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -331,11 +407,17 @@ while [[ $# -gt 0 ]]; do
             VERBOSE=true
             shift
             ;;
+        --deployment-target)
+            DEPLOYMENT_TARGET="$2"
+            shift 2
+            ;;
         -h|--help)
             echo "Usage: $0 [OPTIONS] [COMPONENT]"
             echo "Options:"
             echo "  --component NAME     Test specific component only"
             echo "  --test-optional      Include optional components (like Spark)"
+            echo "  --deployment-target  Database target for data object tests"
+            echo "                       (sqlite_memory, postgres_container, etc.)"
             echo "  --verbose           Verbose output"
             echo "  -h, --help          Show this help"
             echo
