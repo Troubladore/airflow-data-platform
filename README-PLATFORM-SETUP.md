@@ -4,28 +4,45 @@
 
 This guide provides clear workflows for setting up your development environment from scratch. Choose the method that fits your environment and permissions.
 
+## 🖥️ Environment Support
+
+**Current Target**: Windows + WSL2 (Ubuntu 24.04)
+- All commands clearly marked with 🪟 (Windows PowerShell) or 🐧 (WSL2 Ubuntu terminal)
+- Cross-platform automation from WSL2 manages both Windows and Linux components
+
+**Future Support**: Pure Ubuntu environments
+- Ansible playbooks designed to work on native Ubuntu (no Windows components)
+- Path prepared for full Linux development environments
+
 ## 🚀 Recommended Setup (Ansible Automation)
 
 **Best choice: Handles both admin and non-admin environments gracefully**
 
 ### Prerequisites
 ```bash
-# Install Ansible in WSL2
-pip install ansible ansible-core pywinrm
+# 🐧 Run in WSL2 Ubuntu terminal
+# Use pipx for clean global installs (recommended)
+sudo apt update && sudo apt install -y pipx
+pipx ensurepath
+pipx install ansible-core
+pipx inject ansible-core pywinrm
+
+# Or fallback to pip
+# pip install --user ansible ansible-core pywinrm
 ```
 
 ### Complete Setup
 ```bash
-# Clone and navigate to repository
+# 🐧 Run in WSL2 Ubuntu terminal
 cd /path/to/workstation-setup
 
-# Run comprehensive setup (tries admin tasks, provides guidance when needed)
+# Run comprehensive setup (automates Windows + WSL2)
 ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
 ```
 
 ### Validation
 ```bash
-# Verify everything works
+# 🐧 Run in WSL2 Ubuntu terminal
 ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml
 ```
 
@@ -40,7 +57,7 @@ ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml
 
 ### Complete Environment Reset
 ```bash
-# Clean teardown everything
+# 🐧 Run in WSL2 Ubuntu terminal
 ./scripts/teardown.sh
 
 # Choose certificate cleanup level:
@@ -54,6 +71,7 @@ ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
 
 ### Quick Validation After Changes
 ```bash
+# 🐧 Run in WSL2 Ubuntu terminal
 # Test specific components
 ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml
 
@@ -85,12 +103,13 @@ curl -k https://traefik.localhost/api/http/services
 
 ### Recommended Workflow
 ```bash
+# 🐧 Run in WSL2 Ubuntu terminal
 # Run full automation (will handle everything except hosts file)
 ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
 
 # If hosts file update fails, Ansible will provide clear guidance
-# Add entries via your corporate host management tool
-# Re-run to validate
+# 🪟 Add entries via your corporate host management tool (Windows side)
+# 🐧 Re-run to validate (back in WSL2 terminal)
 ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml
 ```
 
@@ -101,6 +120,7 @@ ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml
 **If Ansible is not available or preferred**
 
 ```bash
+# 🐧 Run in WSL2 Ubuntu terminal
 # Traditional script-based setup
 ./scripts/setup.sh
 

@@ -56,7 +56,12 @@ check_ansible_setup() {
             log_warning "Ansible automation available but not installed"
             echo
             echo "To use the improved automation:"
-            echo "  pip install ansible ansible-core pywinrm"
+            echo "  # 🐧 Install pipx for isolated Python tools"
+            echo "  sudo apt update && sudo apt install -y pipx"
+            echo "  pipx ensurepath"
+            echo "  pipx install ansible-core"
+            echo "  pipx inject ansible-core pywinrm"
+            echo "  # Run automation"
             echo "  ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml"
             echo
             echo "Continuing with legacy manual setup..."

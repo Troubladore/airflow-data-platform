@@ -10,15 +10,26 @@ This automation uses a **"try to fix, fail gracefully"** approach:
 
 ## 📋 Prerequisites
 
-### Install Ansible (WSL2 Only)
+### Install Ansible (WSL2 Ubuntu Terminal)
 ```bash
-# Install in WSL2 - works for both Windows and WSL2 targets
-pip install ansible ansible-core
-pip install pywinrm  # For Windows automation
+# 🐧 Run in WSL2 Ubuntu terminal
+# Use pipx for isolated global installs (avoids dependency conflicts)
+
+# Install pipx if not already present
+sudo apt update && sudo apt install -y pipx
+pipx ensurepath
+
+# Install Ansible with pipx (clean global install)
+pipx install ansible-core
+pipx inject ansible-core pywinrm  # Add Windows automation support
+
+# Or fallback to pip if preferred
+# pip install --user ansible ansible-core pywinrm
 ```
 
 ### Verify Installation
 ```bash
+# 🐧 Run in WSL2 Ubuntu terminal
 ansible --version
 ansible-playbook --version
 ```
@@ -27,28 +38,29 @@ ansible-playbook --version
 
 ### 1. Complete Automated Setup (Recommended)
 ```bash
-# Run full automation - attempts admin tasks, fails gracefully
+# 🐧 Run in WSL2 Ubuntu terminal
+cd /path/to/workstation-setup
 ansible-playbook -i inventory/local-dev.ini site.yml
 ```
-**What it does**: Tries everything, provides clear guidance for manual steps when needed
+**What it does**: Automates Windows + WSL2 setup, provides guidance for manual steps when needed
 
 ### 2. Comprehensive Validation
 ```bash
-# Verify everything works after setup
+# 🐧 Run in WSL2 Ubuntu terminal
 ansible-playbook -i inventory/local-dev.ini validate-all.yml
 ```
 **Expected results**: All services accessible via HTTPS, registry functional
 
 ### 3. Complete Environment Reset
 ```bash
-# Clean teardown for testing
+# 🐧 Run in WSL2 Ubuntu terminal
 ansible-playbook -i inventory/local-dev.ini teardown.yml
 ```
 **What it does**: Removes all services, optionally cleans certificates, provides rebuild guidance
 
 ### 4. Corporate/Non-Admin Setup
 ```bash
-# Skip admin-required tasks (after manual prerequisites)
+# 🐧 Run in WSL2 Ubuntu terminal (after manual hosts file update)
 ansible-playbook -i inventory/local-dev.ini site.yml --skip-tags "admin-required"
 ```
 **When to use**: When you don't have local admin rights but completed manual prerequisites
@@ -97,15 +109,19 @@ If Ansible can't update the hosts file, add these entries:
 
 **Option A: PowerShell (Admin session)**
 ```powershell
+# 🪟 Run in Windows PowerShell as Administrator
 Add-Content C:\Windows\System32\drivers\etc\hosts "127.0.0.1 registry.localhost"
 Add-Content C:\Windows\System32\drivers\etc\hosts "127.0.0.1 traefik.localhost"
 ```
 
 **Option B: Manual Edit (Admin session)**
+```
+# 🪟 Windows GUI (as Administrator)
 1. Open notepad as Administrator
 2. Open C:\Windows\System32\drivers\etc\hosts
 3. Add the two lines above
 4. Save the file
+```
 
 **Option C: Corporate Host Management Tool**
 Add these entries via your organization's host management tool:
