@@ -58,9 +58,25 @@ if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
 Write-Info "Checking for mkcert..."
 if (-not (Get-Command mkcert -ErrorAction SilentlyContinue)) {
     Write-Info "Installing mkcert via Scoop..."
+
+    # Check for previous failed installations and clean up
+    $mkcertStatus = scoop status mkcert 2>&1
+    if ($mkcertStatus -match "failed|broken|corrupt") {
+        Write-Warning "Detected previous failed mkcert installation, cleaning up..."
+        scoop uninstall mkcert 2>$null
+        scoop cache rm mkcert 2>$null
+    }
+
     try {
-        scoop install mkcert
-        Write-Success "mkcert installed successfully"
+        # Try Scoop installation
+        $scoopOutput = scoop install mkcert 2>&1
+        Write-Info "Scoop install output: $scoopOutput"
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Scoop installation failed with exit code $LASTEXITCODE"
+        }
+
+        Write-Success "mkcert installation completed"
 
         # Refresh PATH environment variable to pick up newly installed tools
         Write-Info "Refreshing PATH environment..."
@@ -72,17 +88,54 @@ if (-not (Get-Command mkcert -ErrorAction SilentlyContinue)) {
             $scoopShims = "$env:USERPROFILE\scoop\shims"
             if (Test-Path "$scoopShims\mkcert.exe") {
                 $env:PATH = "$scoopShims;$env:PATH"
-                Write-Info "Added Scoop shims directory to PATH: $scoopShims"
+                Write-Success "Added Scoop shims directory to PATH: $scoopShims"
             } else {
-                Write-Error "mkcert.exe not found in expected Scoop location: $scoopShims"
-                exit 1
+                throw "mkcert.exe not found in expected Scoop location: $scoopShims"
             }
+        } else {
+            Write-Success "mkcert is now available in PATH"
         }
+
     } catch {
-        Write-Error "Failed to install mkcert: $($_.Exception.Message)"
-        Write-Warning "This may be due to PowerShell version compatibility issues with Scoop"
-        Write-Warning "Try running this script in a newer PowerShell version (5.1 or 7+)"
-        exit 1
+        Write-Warning "Scoop installation failed: $($_.Exception.Message)"
+        Write-Warning "Attempting alternative installation methods..."
+
+        # Alternative 1: Try direct download
+        Write-Info "Trying direct download from GitHub releases..."
+        $mkcertUrl = "https://github.com/FiloSottile/mkcert/releases/latest/download/mkcert-v1.4.4-windows-amd64.exe"
+        $mkcertPath = "$env:USERPROFILE\mkcert.exe"
+
+        try {
+            Invoke-WebRequest -Uri $mkcertUrl -OutFile $mkcertPath -UseBasicParsing
+            if (Test-Path $mkcertPath) {
+                # Add to PATH for this session
+                $env:PATH = "$env:USERPROFILE;$env:PATH"
+                Write-Success "mkcert downloaded successfully to: $mkcertPath"
+            } else {
+                throw "Download failed - file not found"
+            }
+        } catch {
+            Write-Warning "Direct download failed: $($_.Exception.Message)"
+
+            # Alternative 2: Provide manual instructions
+            Write-Error "Automated installation failed. Manual installation required."
+            Write-Info ""
+            Write-Info "Manual Installation Steps:"
+            Write-Info "1. Download mkcert from: https://github.com/FiloSottile/mkcert/releases"
+            Write-Info "2. Download 'mkcert-v1.4.4-windows-amd64.exe'"
+            Write-Info "3. Rename it to 'mkcert.exe'"
+            Write-Info "4. Place it in a folder in your PATH (e.g., C:\Windows\System32)"
+            Write-Info "5. Or place in $env:USERPROFILE and add that to your PATH"
+            Write-Info ""
+            Write-Info "Then continue with certificate generation:"
+            Write-Info "  mkcert -install"
+            Write-Info "  mkdir `$env:LOCALAPPDATA\mkcert"
+            Write-Info "  cd `$env:LOCALAPPDATA\mkcert"
+            Write-Info "  mkcert -cert-file dev-localhost-wild.crt -key-file dev-localhost-wild.key *.localhost localhost"
+            Write-Info "  mkcert -cert-file dev-registry.localhost.crt -key-file dev-registry.localhost.key registry.localhost"
+            Write-Info ""
+            exit 1
+        }
     }
 } else {
     Write-Success "mkcert is already installed"
