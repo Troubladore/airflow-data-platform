@@ -45,6 +45,11 @@
 
               You'll be prompted for your password during these operations.
 
+              💡 If tasks appear to hang waiting for password:
+              - Press Ctrl+C to cancel
+              - Run: sudo echo "sudo test" (to verify password caching)
+              - Then re-run this playbook
+
               Press ENTER to continue, or Ctrl+C to cancel and set up passwordless sudo first.
           when: sudo_check.rc != 0
 
@@ -76,10 +81,37 @@
     # System Packages
     # ================================
     - name: "📦 Update package cache"
-      apt:
-        update_cache: yes
-        cache_valid_time: 3600
-      become: yes  # Admin required: System package cache updates need root privileges
+      block:
+        - name: Update apt cache with timeout
+          apt:
+            update_cache: yes
+            cache_valid_time: 3600
+          become: yes
+          async: 300  # 5 minute timeout
+          poll: 5     # Check every 5 seconds
+          register: apt_update_result
+
+        - name: Display cache update status
+          debug:
+            msg: |
+              📦 Package Cache Update:
+              {% if apt_update_result.changed %}
+              ✅ Package cache updated successfully
+              {% else %}
+              ℹ️  Package cache was already up to date (within 1 hour)
+              {% endif %}
+      rescue:
+        - name: Fallback package cache update
+          shell: sudo apt update
+          register: apt_update_fallback
+          failed_when: apt_update_fallback.rc != 0
+
+        - name: Display fallback result
+          debug:
+            msg: |
+              📦 Fallback Cache Update:
+              ⚠️  Standard apt module had issues, used direct command instead
+              Exit code: {{ apt_update_fallback.rc }}
 
     - name: "📦 Install base packages"
       apt:
