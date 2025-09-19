@@ -111,7 +111,7 @@ setup_source_database() {
             -e POSTGRES_USER=postgres \
             -e POSTGRES_PASSWORD=postgres \
             -v pagila-source-data:/var/lib/postgresql/data \
-            postgres:15.8
+            registry.localhost/datakits/postgres-runner:$IMAGE_VERSION
     fi
 
     # Wait for database to be ready
@@ -156,7 +156,7 @@ setup_warehouse_database() {
             -e POSTGRES_USER=warehouse \
             -e POSTGRES_PASSWORD=warehouse \
             -v data-warehouse-data:/var/lib/postgresql/data \
-            postgres:15.8
+            registry.localhost/datakits/postgres-runner:$IMAGE_VERSION
     fi
 
     # Wait for database to be ready
@@ -219,11 +219,11 @@ load_sample_data() {
 create_development_compose() {
     log_info "Creating development Docker Compose configuration..."
 
-    cat > "$REPO_ROOT/docker-compose.layer2.yml" << 'EOF'
+    cat > "$REPO_ROOT/docker-compose.layer2.yml" << EOF
 version: '3.8'
 services:
   pagila-source:
-    image: postgres:15.8
+    image: registry.localhost/datakits/postgres-runner:$IMAGE_VERSION
     container_name: pagila-source
     environment:
       POSTGRES_DB: pagila
@@ -237,7 +237,7 @@ services:
       - data-processing
 
   data-warehouse:
-    image: postgres:15.8
+    image: registry.localhost/datakits/postgres-runner:$IMAGE_VERSION
     container_name: data-warehouse
     environment:
       POSTGRES_DB: data_warehouse
@@ -251,7 +251,7 @@ services:
       - data-processing
 
   bronze-processor:
-    image: registry.localhost/datakits/bronze-pagila:v1.0.0
+    image: registry.localhost/datakits/bronze-pagila:$IMAGE_VERSION
     container_name: bronze-processor
     depends_on:
       - pagila-source
@@ -265,7 +265,7 @@ services:
       - processing
 
   dbt-runner:
-    image: registry.localhost/datakits/dbt-runner:v1.0.0
+    image: registry.localhost/datakits/dbt-runner:$IMAGE_VERSION
     container_name: dbt-runner
     depends_on:
       - data-warehouse
