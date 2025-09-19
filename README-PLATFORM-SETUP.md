@@ -40,7 +40,7 @@ ansible-galaxy install -r ansible/requirements.yml
 
 ### Complete Setup
 
-**Option A: Non-Admin Friendly (Recommended)**
+**Option A: Non-Windows-Admin (Recommended)**
 ```bash
 # 🐧 Run in WSL2 Ubuntu terminal - no Windows admin privileges required
 cd <<your_repo_folder>>/workstation-setup
@@ -50,7 +50,7 @@ cd <<your_repo_folder>>/workstation-setup
 ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
 ```
 
-**Option B: Admin Users with WinRM**
+**Option B: Windows Admin Users with WinRM**
 ```bash
 # 🐧 Run in WSL2 Ubuntu terminal (requires Windows admin + WinRM setup)
 cd <<your_repo_folder>>/workstation-setup
