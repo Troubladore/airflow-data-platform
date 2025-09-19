@@ -92,6 +92,19 @@ run_ansible_teardown() {
 cleanup_docker_services() {
     log_info "Cleaning up Docker services..."
 
+    # Check if Docker is available and running
+    if ! command -v docker &> /dev/null; then
+        log_warning "Docker command not found - skipping Docker cleanup"
+        return 0
+    fi
+
+    # Check if Docker daemon is running
+    if ! docker info &> /dev/null; then
+        log_warning "Docker daemon not running - skipping Docker cleanup"
+        log_info "To clean up Docker resources later, start Docker and re-run this script"
+        return 0
+    fi
+
     # Stop and remove Traefik/Registry services
     if [ -f "$PLATFORM_SERVICES_DIR/traefik/docker-compose.yml" ]; then
         log_info "Stopping platform services..."
@@ -412,8 +425,13 @@ verify_teardown() {
 
     local issues_found=0
 
-    # Check for remaining containers
-    local remaining_containers=$(docker ps -aq 2>/dev/null | xargs -r docker inspect --format '{{.Name}} {{.Config.Labels}}' 2>/dev/null | grep -E "(traefik|registry)" | wc -l)
+    # Check for remaining containers (skip if Docker not available)
+    local remaining_containers=0
+    if command -v docker &> /dev/null && docker info &> /dev/null; then
+        remaining_containers=$(docker ps -aq 2>/dev/null | xargs -r docker inspect --format '{{.Name}} {{.Config.Labels}}' 2>/dev/null | grep -E "(traefik|registry)" | wc -l)
+    else
+        log_info "Skipping container verification - Docker not available"
+    fi
     if [ "$remaining_containers" -gt 0 ]; then
         log_warning "Found $remaining_containers remaining platform containers:"
         docker ps -a --format "table {{.Names}}\t{{.Status}}" 2>/dev/null | grep -E "(traefik|registry)" || true
@@ -423,7 +441,10 @@ verify_teardown() {
     fi
 
     # Check for remaining volumes (using grep to catch compose-generated names)
-    local remaining_volumes=$(docker volume ls -q 2>/dev/null | grep -E "(traefik|registry)" | wc -l)
+    local remaining_volumes=0
+    if command -v docker &> /dev/null && docker info &> /dev/null; then
+        remaining_volumes=$(docker volume ls -q 2>/dev/null | grep -E "(traefik|registry)" | wc -l)
+    fi
     if [ "$remaining_volumes" -gt 0 ]; then
         log_warning "Found $remaining_volumes remaining platform volumes:"
         docker volume ls 2>/dev/null | grep -E "(traefik|registry)" | awk '{print "  " $2}' || true
@@ -433,7 +454,10 @@ verify_teardown() {
     fi
 
     # Check for remaining images
-    local remaining_images=$(docker images --format "{{.Repository}}:{{.Tag}}" 2>/dev/null | grep -E "(^traefik|^registry[^.]|^registry\.localhost)" | wc -l)
+    local remaining_images=0
+    if command -v docker &> /dev/null && docker info &> /dev/null; then
+        remaining_images=$(docker images --format "{{.Repository}}:{{.Tag}}" 2>/dev/null | grep -E "(^traefik|^registry[^.]|^registry\.localhost)" | wc -l)
+    fi
     if [ "$remaining_images" -gt 0 ]; then
         log_warning "Found $remaining_images remaining platform images:"
         docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" 2>/dev/null | grep -E "(^traefik|^registry[^.]|^registry\.localhost)" || true
@@ -451,14 +475,18 @@ verify_teardown() {
 
     # Test connectivity (should fail after teardown)
     log_info "Testing service connectivity (should fail after teardown)..."
-    if curl -k -s --connect-timeout 3 https://registry.localhost/v2/_catalog &>/dev/null; then
-        log_warning "Registry still responding - teardown may be incomplete"
-        issues_found=$((issues_found + 1))
-    fi
+    if command -v curl &> /dev/null; then
+        if curl -k -s --connect-timeout 3 https://registry.localhost/v2/_catalog &>/dev/null; then
+            log_warning "Registry still responding - teardown may be incomplete"
+            issues_found=$((issues_found + 1))
+        fi
 
-    if curl -k -s --connect-timeout 3 https://traefik.localhost/api/http/services &>/dev/null; then
-        log_warning "Traefik still responding - teardown may be incomplete"
-        issues_found=$((issues_found + 1))
+        if curl -k -s --connect-timeout 3 https://traefik.localhost/api/http/services &>/dev/null; then
+            log_warning "Traefik still responding - teardown may be incomplete"
+            issues_found=$((issues_found + 1))
+        fi
+    else
+        log_info "curl not available - skipping connectivity test"
     fi
 
     if [ $issues_found -eq 0 ]; then

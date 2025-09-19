@@ -26,36 +26,55 @@
 
     - name: "🛑 Stop and remove Docker services"
       block:
-        - name: Check if platform services exist
-          stat:
-            path: "{{ traefik_config_dir }}/docker-compose.yml"
-          register: compose_file_check
-
-        - name: Stop platform services
-          command: docker compose down --volumes --remove-orphans
-          args:
-            chdir: "{{ traefik_config_dir }}"
-          when: compose_file_check.stat.exists
-          register: services_stop
-
-        - name: Remove any remaining containers
-          shell: |
-            docker ps -aq --filter "name=traefik-bundle" | xargs -r docker rm -f
+        - name: Check if Docker is available
+          command: docker info
+          register: docker_check
           failed_when: false
+          changed_when: false
 
-        - name: Remove Docker networks
-          shell: |
-            docker network ls --filter "name=traefik-bundle" -q | xargs -r docker network rm
-          failed_when: false
+        - name: Skip Docker cleanup if Docker not available
+          debug:
+            msg: |
+              ⚠️  Docker not available - skipping Docker cleanup
 
-        - name: Remove unused Docker volumes
-          command: docker volume prune -f
-          failed_when: false
+              If Docker is installed but not running:
+              1. Start Docker Desktop
+              2. Re-run this teardown script
+          when: docker_check.rc != 0
 
-        - name: Clean up Docker images (registry test images)
-          shell: |
-            docker images --filter "reference=registry.localhost/*" -q | xargs -r docker rmi -f
-          failed_when: false
+        - name: Docker cleanup tasks
+          block:
+            - name: Check if platform services exist
+              stat:
+                path: "{{ traefik_config_dir }}/docker-compose.yml"
+              register: compose_file_check
+
+            - name: Stop platform services
+              command: docker compose down --volumes --remove-orphans
+              args:
+                chdir: "{{ traefik_config_dir }}"
+              when: compose_file_check.stat.exists
+              register: services_stop
+
+            - name: Remove any remaining containers
+              shell: |
+                docker ps -aq --filter "name=traefik-bundle" | xargs -r docker rm -f
+              failed_when: false
+
+            - name: Remove Docker networks
+              shell: |
+                docker network ls --filter "name=traefik-bundle" -q | xargs -r docker network rm
+              failed_when: false
+
+            - name: Remove unused Docker volumes
+              command: docker volume prune -f
+              failed_when: false
+
+            - name: Clean up Docker images (registry test images)
+              shell: |
+                docker images --filter "reference=registry.localhost/*" -q | xargs -r docker rmi -f
+              failed_when: false
+          when: docker_check.rc == 0
 
     - name: "📁 Remove configuration files"
       block:
@@ -130,15 +149,23 @@
 
     - name: "🧪 Verify teardown completion"
       block:
+        - name: Check Docker availability for verification
+          command: docker info
+          register: docker_verify_check
+          failed_when: false
+          changed_when: false
+
         - name: Check for remaining containers
           shell: docker ps --filter "name=traefik-bundle" --format "table {{.Names}}\t{{.Status}}"
           register: remaining_containers
           changed_when: false
+          when: docker_verify_check.rc == 0
 
         - name: Check for remaining volumes
           shell: docker volume ls --filter "name=traefik-bundle" -q
           register: remaining_volumes
           changed_when: false
+          when: docker_verify_check.rc == 0
 
         - name: Check configuration directories
           stat:
@@ -150,8 +177,13 @@
             msg: |
               🧹 Teardown Verification:
 
+              {% if docker_verify_check.rc == 0 %}
               Docker Containers: {{ '✅ None remaining' if remaining_containers.stdout == '' else '⚠️  Found: ' + remaining_containers.stdout }}
               Docker Volumes: {{ '✅ Cleaned' if remaining_volumes.stdout == '' else '⚠️  Remaining: ' + remaining_volumes.stdout }}
+              {% else %}
+              Docker Containers: ⚠️  Docker not available - verification skipped
+              Docker Volumes: ⚠️  Docker not available - verification skipped
+              {% endif %}
               Config Directory: {{ '✅ Removed' if not config_dir_check.stat.exists else '⚠️  Still exists' }}
 
     - name: "📊 Teardown Summary"
