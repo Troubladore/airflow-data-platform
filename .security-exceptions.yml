@@ -74,20 +74,6 @@ exceptions:
     expires: "2025-12-19"  # 3 months - review documentation patterns
     review_frequency: "quarterly"
 
-  # Exception 6: DBT development dependencies in Layer 2 scripts
-  - pattern: "pip install --user dbt-postgres dbt-core"
-    category: "unpinned_dependencies"
-    justification: |
-      WHAT: Layer 2 setup scripts installing dbt-postgres and dbt-core without version pins
-      WHY FLAGGED: Scanner detects unpinned pip install commands
-      WHY ACCEPTED: DBT tools need to be current for development compatibility with latest data features
-      RISK LEVEL: Low - development-only tools installed in user space, not system-wide
-      CONTEXT: Data processing layer setup for local development, runs in isolated environment
-      MITIGATION: Runs in user space (--user flag), not affecting system Python installation
-    accepted_by: "Platform Team"
-    accepted_date: "2025-09-19"
-    expires: "2026-03-19"  # 6 months - review when DBT versions stabilize
-    review_frequency: "biannual"
 
 # Global settings
 settings:
