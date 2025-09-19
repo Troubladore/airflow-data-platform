@@ -250,14 +250,37 @@
       changed_when: false
 
     - name: "🌐 Attempt to update Windows hosts file"
-      ansible.windows.win_lineinfile:
-        path: "{{ ansible_env.SystemRoot }}\\System32\\drivers\\etc\\hosts"
-        line: "{{ item }}"
-        create: yes
-        backup: yes
-      loop:
-        - "127.0.0.1 registry.localhost"
-        - "127.0.0.1 traefik.localhost"
+      ansible.windows.win_shell: |
+        $hostsFile = "$env:SystemRoot\System32\drivers\etc\hosts"
+        $entries = @(
+          "127.0.0.1 registry.localhost",
+          "127.0.0.1 traefik.localhost"
+        )
+
+        # Create backup
+        Copy-Item $hostsFile "$hostsFile.backup" -Force -ErrorAction SilentlyContinue
+
+        # Read current content
+        $content = Get-Content $hostsFile -ErrorAction SilentlyContinue
+        if (-not $content) { $content = @() }
+
+        # Add entries if they don't exist
+        $changed = $false
+        foreach ($entry in $entries) {
+          if ($content -notcontains $entry) {
+            $content += $entry
+            $changed = $true
+            Write-Output "Added: $entry"
+          }
+        }
+
+        # Write back if changed
+        if ($changed) {
+          $content | Set-Content $hostsFile -Force
+          Write-Output "Hosts file updated"
+        } else {
+          Write-Output "No changes needed"
+        }
       when:
         - hosts_check.stdout | trim == "missing"
         - is_windows_admin
