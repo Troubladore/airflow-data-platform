@@ -1,0 +1,52 @@
+# Pre-commit hooks for supply chain security and code quality
+# Install with: pip install pre-commit && pre-commit install
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--multi]
+      - id: check-added-large-files
+      - id: check-merge-conflict
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.4
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  # - repo: https://github.com/PyCQA/bandit
+  #   rev: 1.7.5
+  #   hooks:
+  #     - id: bandit
+  #       args: ["-r", "scripts/", "-ll"]
+  #       exclude: "^scripts/scan-supply-chain.sh$"
+  #       additional_dependencies: ['pbr']
+
+  # - repo: https://github.com/ansible/ansible-lint
+  #   rev: v6.22.2  # Use older compatible version
+  #   hooks:
+  #     - id: ansible-lint
+  #       files: \.(yaml|yml)$
+  #       args: ["ansible/"]
+
+  - repo: local
+    hooks:
+      - id: supply-chain-scan
+        name: Supply Chain Security Scan
+        entry: scripts/scan-supply-chain.sh
+        language: script
+        stages: [pre-push]  # Run on push, not every commit
+        pass_filenames: false
+        verbose: true
+
+      - id: security-reminder
+        name: Security Review Reminder
+        entry: echo "🛡️  Remember - security scanning identifies risks for human review, it does not certify code as safe!"
+        language: system
+        stages: [pre-push]
+        pass_filenames: false

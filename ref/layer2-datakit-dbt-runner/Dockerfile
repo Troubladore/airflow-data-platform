@@ -1,5 +1,5 @@
 # dbt Core + Postgres adapter
-FROM python:3.11-slim
+FROM python:3.11.9-slim
 
 ENV PIP_NO_CACHE_DIR=1     DBT_TARGET=dev
 

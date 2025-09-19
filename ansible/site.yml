@@ -1,0 +1,95 @@
+---
+# Main orchestration playbook for platform setup
+# Attempts full automation, fails gracefully for admin tasks
+
+- name: "🔍 Detect Environment and Permissions"
+  hosts: localhost
+  gather_facts: yes
+  become: no
+  vars:
+    ansible_become_pass: "{{ ansible_sudo_pass | default(omit) }}"
+  tasks:
+    - name: Display setup banner
+      debug:
+        msg: |
+          🚀 Starting Astronomer Airflow Platform Setup
+
+          Strategy: Try to automate everything, fail gracefully
+          - ✅ Local admins: Full automation
+          - ⚠️  Non-admins: Clear guidance for manual steps
+
+          Platform Components:
+          - Windows prerequisites (mkcert, hosts, Docker Desktop)
+          - WSL2 environment setup
+          - Certificate management
+          - Traefik reverse proxy
+          - Docker container registry
+          - End-to-end validation
+
+    - name: Check if running in WSL2
+      shell: uname -r | grep -i microsoft
+      register: wsl2_check
+      failed_when: false
+      changed_when: false
+
+    - name: Verify WSL2 environment
+      fail:
+        msg: |
+          ❌ This must be run from within WSL2
+
+          Please:
+          1. Open WSL2 terminal
+          2. cd to this repository
+          3. Run: ansible-playbook -i inventory/local-dev.ini site.yml
+      when: wsl2_check.rc != 0
+
+    - name: Check Windows WinRM accessibility
+      uri:
+        url: "http://127.0.0.1:5985/wsman"
+        method: GET
+        timeout: 5
+      register: winrm_check
+      failed_when: false
+      changed_when: false
+
+    - name: Set Windows accessibility based on WinRM availability
+      set_fact:
+        windows_accessible: "{{ winrm_check.status is defined and winrm_check.status in [200, 401, 500] }}"
+
+    - name: Set execution strategy
+      set_fact:
+        windows_available: "{{ windows_accessible }}"
+        execution_mode: "{{ 'cross-platform' if windows_accessible else 'wsl2-only' }}"
+
+    - name: Display execution mode
+      debug:
+        msg: |
+          🚀 Execution Mode: {{ execution_mode }}
+          🪟 Windows Host: {{ 'Available' if windows_available else 'WSL2-only (non-admin friendly)' }}
+
+          {% if not windows_available %}
+          ℹ️  Running in WSL2-only mode - Perfect for non-admin environments!
+
+          📝 What this means:
+            ✅ All platform services will run in WSL2
+            ✅ No admin privileges required
+            ✅ Certificates managed in WSL2 user space
+            ✅ Manual Windows setup guidance provided when needed
+
+          🚀 Quick Windows Setup (from WSL2):
+            Run the Windows prerequisites setup:
+            1. 🐧 In WSL2: ./scripts/setup-windows-prereqs.sh
+            2. 🐧 Then re-run: ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
+
+            This crosses the Windows/WSL2 boundary to handle Scoop, mkcert, certificates, and hosts file!
+          {% endif %}
+
+- name: "🪟 Windows Prerequisites and Setup"
+  import_playbook: validate-windows.yml
+  when: windows_available | default(false)
+
+- name: "🐧 WSL2 Environment Setup"
+  import_playbook: setup-wsl2.yml
+
+- name: "✅ End-to-End Validation"
+  import_playbook: validate-all.yml

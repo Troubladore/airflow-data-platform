@@ -1,0 +1,71 @@
+---
+# Global configuration variables for platform setup
+
+# Certificate configuration
+cert_dir: "{{ ansible_env.HOME }}/.local/share/certs"
+
+# Local development domains
+local_domains:
+  - registry.localhost
+  - traefik.localhost
+  - whoami.localhost
+
+# Docker service versions
+traefik_version: "v3.0"
+registry_version: "2"
+
+# Platform directories
+platform_base_dir: "{{ ansible_env.HOME }}/platform-services"
+traefik_config_dir: "{{ platform_base_dir }}/traefik"
+dynamic_config_dir: "{{ traefik_config_dir }}/dynamic"
+
+# Windows paths (will be resolved dynamically)
+windows_mkcert_dir: "/mnt/c/Users/{{ windows_username | default(ansible_env.USER) }}/AppData/Local/mkcert"
+windows_hosts_file: "/mnt/c/Windows/System32/drivers/etc/hosts"
+
+# Validation settings
+validation_timeout: 30
+retry_count: 3
+retry_delay: 5
+
+# Admin detection settings
+admin_required_tasks:
+  - mkcert_install
+  - ca_install
+  - hosts_update
+  - docker_desktop_config
+
+# Service health check endpoints
+health_check_endpoints:
+  traefik:
+    http: "http://traefik.localhost"
+    https: "https://traefik.localhost/api/http/services"
+    port: 443
+  registry:
+    http: "http://registry.localhost"
+    https: "https://registry.localhost/v2/_catalog"
+    port: 443
+
+# Certificate generation settings
+certificate_config:
+  wildcard_domains:
+    - "localhost"
+    - "*.localhost"
+  specific_domains:
+    - "registry.localhost"
+    - "traefik.localhost"
+  key_size: 2048
+  validity_days: 365
+
+# Docker registry test settings
+registry_test:
+  test_image: "busybox:latest"
+  test_tag: "registry.localhost/test/busybox:validation"
+  timeout: 60
+
+# Platform readiness criteria
+readiness_criteria:
+  required_certificates: 4
+  required_services: 2
+  required_health_checks: 2
+  required_registry_operations: 2
