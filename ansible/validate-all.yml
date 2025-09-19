@@ -1,0 +1,311 @@
+---
+# End-to-end validation of the complete platform setup
+- name: "✅ Platform Validation Suite"
+  hosts: localhost
+  gather_facts: yes
+  vars_files:
+    - group_vars/all.yml
+
+  tasks:
+    - name: "🔍 Platform Validation Overview"
+      debug:
+        msg: |
+          ✅ Starting Complete Platform Validation
+
+          Testing Components:
+          - Certificate validation and trust
+          - Network connectivity and DNS resolution
+          - Traefik reverse proxy functionality
+          - Container registry operations
+          - HTTPS/TLS termination
+          - Docker integration and image operations
+
+    # ================================
+    # Certificate Validation
+    # ================================
+    - name: "🔐 Certificate File Validation"
+      block:
+        - name: Check certificate files exist
+          stat:
+            path: "{{ cert_dir }}/{{ item }}"
+          register: cert_files
+          loop:
+            - dev-localhost-wild.crt
+            - dev-localhost-wild.key
+            - dev-registry.localhost.crt
+            - dev-registry.localhost.key
+
+        - name: Validate certificate permissions
+          stat:
+            path: "{{ cert_dir }}/{{ item }}"
+          register: cert_perms
+          loop:
+            - dev-localhost-wild.key
+            - dev-registry.localhost.key
+
+        - name: Check certificate expiration
+          shell: |
+            openssl x509 -in "{{ cert_dir }}/dev-localhost-wild.crt" -noout -dates
+          register: cert_expiry
+          changed_when: false
+
+        - name: Validate certificate SAN entries
+          shell: |
+            openssl x509 -in "{{ cert_dir }}/dev-localhost-wild.crt" -text -noout | grep -A5 "Subject Alternative Name"
+          register: cert_san
+          changed_when: false
+
+        - name: Certificate validation summary
+          debug:
+            msg: |
+              🔐 Certificate Validation:
+              {% for result in cert_files.results %}
+              - {{ result.item }}: {{ '✅' if result.stat.exists else '❌' }}
+              {% endfor %}
+
+              Key Permissions:
+              {% for result in cert_perms.results %}
+              - {{ result.item }}: {{ '✅ 0600' if result.stat.mode == '0600' else '⚠️  ' + result.stat.mode }}
+              {% endfor %}
+
+              Certificate Details:
+              {{ cert_expiry.stdout }}
+
+              SAN Entries:
+              {{ cert_san.stdout }}
+
+    # ================================
+    # Network Connectivity
+    # ================================
+    - name: "🌐 Network Connectivity Tests"
+      block:
+        - name: Test local DNS resolution
+          shell: nslookup {{ item }}
+          register: dns_resolution
+          failed_when: false
+          loop:
+            - registry.localhost
+            - traefik.localhost
+
+        - name: Test ping connectivity
+          shell: ping -c 1 {{ item }}
+          register: ping_test
+          failed_when: false
+          loop:
+            - registry.localhost
+            - traefik.localhost
+
+        - name: Network connectivity summary
+          debug:
+            msg: |
+              🌐 Network Connectivity:
+              DNS Resolution:
+              {% for result in dns_resolution.results %}
+              - {{ result.item }}: {{ '✅' if result.rc == 0 else '❌' }}
+              {% endfor %}
+
+              Ping Tests:
+              {% for result in ping_test.results %}
+              - {{ result.item }}: {{ '✅' if result.rc == 0 else '❌' }}
+              {% endfor %}
+
+    # ================================
+    # Service Health Checks
+    # ================================
+    - name: "🚀 Service Health Validation"
+      block:
+        - name: Check Docker containers
+          shell: docker ps --format "table {{.Names}}\t{{.Status}}"
+          register: container_status
+          changed_when: false
+
+        - name: Test HTTP endpoints (insecure)
+          uri:
+            url: "http://{{ item }}"
+            method: GET
+            timeout: 10
+            validate_certs: no
+          register: http_tests
+          failed_when: false
+          loop:
+            - traefik.localhost
+            - registry.localhost
+
+        - name: Test HTTPS endpoints
+          uri:
+            url: "https://{{ item.url }}"
+            method: GET
+            timeout: 10
+            validate_certs: no
+            return_content: yes
+          register: https_tests
+          failed_when: false
+          loop:
+            - { url: "traefik.localhost/api/http/services", name: "Traefik API" }
+            - { url: "registry.localhost/v2/_catalog", name: "Registry Catalog" }
+
+        - name: Service health summary
+          debug:
+            msg: |
+              🚀 Service Health Status:
+
+              Docker Containers:
+              {{ container_status.stdout }}
+
+              HTTPS Endpoints:
+              {% for result in https_tests.results %}
+              - {{ result.item.name }}: {{ '✅' if result.status == 200 else '❌ Status: ' + (result.status|string) }}
+              {% endfor %}
+
+    # ================================
+    # Docker Registry Operations
+    # ================================
+    - name: "📦 Docker Registry Functionality"
+      block:
+        - name: Pull test image
+          command: docker pull busybox:latest
+          register: pull_busybox
+
+        - name: Tag test image for local registry
+          command: docker tag busybox:latest registry.localhost/test/busybox:validation
+          register: tag_image
+
+        - name: Push to local registry
+          command: docker push registry.localhost/test/busybox:validation
+          register: push_test
+
+        - name: Remove local test image
+          command: docker rmi registry.localhost/test/busybox:validation busybox:latest
+          register: remove_images
+          failed_when: false
+
+        - name: Pull from local registry
+          command: docker pull registry.localhost/test/busybox:validation
+          register: pull_test
+
+        - name: Clean up test image
+          command: docker rmi registry.localhost/test/busybox:validation
+          failed_when: false
+
+        - name: Registry functionality summary
+          debug:
+            msg: |
+              📦 Docker Registry Operations:
+              - Pull external image: {{ '✅' if pull_busybox.rc == 0 else '❌' }}
+              - Tag for local registry: {{ '✅' if tag_image.rc == 0 else '❌' }}
+              - Push to registry: {{ '✅' if push_test.rc == 0 else '❌' }}
+              - Pull from registry: {{ '✅' if pull_test.rc == 0 else '❌' }}
+
+              Registry Status: {{ '✅ Fully Functional' if (push_test.rc == 0 and pull_test.rc == 0) else '❌ Issues Detected' }}
+
+    # ================================
+    # TLS/SSL Validation
+    # ================================
+    - name: "🔒 TLS/SSL Certificate Validation"
+      block:
+        - name: Test TLS connection to Traefik
+          shell: |
+            echo | openssl s_client -connect traefik.localhost:443 -servername traefik.localhost 2>&1 |
+            grep -E "(Certificate chain|Verification|SSL-Session)"
+          register: tls_traefik
+          failed_when: false
+
+        - name: Test TLS connection to Registry
+          shell: |
+            echo | openssl s_client -connect registry.localhost:443 -servername registry.localhost 2>&1 |
+            grep -E "(Certificate chain|Verification|SSL-Session)"
+          register: tls_registry
+          failed_when: false
+
+        - name: TLS validation summary
+          debug:
+            msg: |
+              🔒 TLS/SSL Validation:
+              - Traefik TLS: {{ '✅' if 'SSL-Session' in tls_traefik.stdout else '❌' }}
+              - Registry TLS: {{ '✅' if 'SSL-Session' in tls_registry.stdout else '❌' }}
+
+              Traefik Certificate Details:
+              {{ tls_traefik.stdout }}
+
+              Registry Certificate Details:
+              {{ tls_registry.stdout }}
+
+    # ================================
+    # Platform Readiness Assessment
+    # ================================
+    - name: "📊 Final Platform Readiness Assessment"
+      debug:
+        msg: |
+          🎯 Platform Readiness Assessment
+
+          ✅ VALIDATION COMPLETE
+
+          Critical Components:
+          - Certificates: {{ '✅' if (cert_files.results | selectattr('stat.exists') | list | length) == 4 else '❌' }}
+          - Network Resolution: {{ '✅' if (ping_test.results | selectattr('rc', 'equalto', 0) | list | length) == 2 else '❌' }}
+          - HTTPS Services: {{ '✅' if (https_tests.results | selectattr('status', 'equalto', 200) | list | length) == 2 else '❌' }}
+          - Registry Operations: {{ '✅' if (push_test.rc == 0 and pull_test.rc == 0) else '❌' }}
+
+          Platform Status:
+          {% set cert_ok = (cert_files.results | selectattr('stat.exists') | list | length) == 4 %}
+          {% set network_ok = (ping_test.results | selectattr('rc', 'equalto', 0) | list | length) == 2 %}
+          {% set https_ok = (https_tests.results | selectattr('status', 'equalto', 200) | list | length) == 2 %}
+          {% set registry_ok = (push_test.rc == 0 and pull_test.rc == 0) %}
+          {% if cert_ok and network_ok and https_ok and registry_ok %}
+          🎉 READY FOR DEVELOPMENT
+
+          Your platform is fully configured and operational!
+
+          Access Points:
+          - Traefik Dashboard: https://traefik.localhost
+          - Container Registry: https://registry.localhost
+          - Registry Catalog: https://registry.localhost/v2/_catalog
+
+          Next Steps:
+          1. Deploy your first Airflow project
+          2. Build and push custom images to registry.localhost
+          3. Access via https://<your-app>.localhost
+          {% else %}
+          ⚠️  SETUP INCOMPLETE
+
+          Issues detected - please check the validation results above
+          and resolve any failing components before proceeding.
+          {% endif %}
+
+    # ================================
+    # Troubleshooting Information
+    # ================================
+    - name: "🔧 Troubleshooting Information"
+      debug:
+        msg: |
+          🔧 Troubleshooting Guide
+
+          Common Issues:
+
+          ❌ Certificate Issues:
+          - Ensure mkcert is installed and CA is trusted on Windows
+          - Check certificates exist in {{ cert_dir }}
+          - Verify certificate permissions (keys should be 0600)
+
+          ❌ Network/DNS Issues:
+          - Verify Windows hosts file contains entries for *.localhost domains
+          - Check WSL2 can resolve hostnames: nslookup registry.localhost
+          - Ensure Docker Desktop WSL2 integration is enabled
+
+          ❌ Docker Issues:
+          - Verify Docker daemon is running: docker info
+          - Check containers are up: docker ps
+          - Restart services: cd ~/platform-services/traefik && docker compose restart
+
+          ❌ HTTPS/TLS Issues:
+          - Check certificate trust chain
+          - Verify Traefik dynamic configuration is loaded
+          - Check container logs: docker compose logs traefik
+
+          🆘 Get Help:
+          1. Check container logs: docker compose logs -f
+          2. Verify certificate validity: openssl x509 -in {{ cert_dir }}/dev-localhost-wild.crt -text -noout
+          3. Test manual connections: curl -k https://registry.localhost/v2/_catalog
+          4. Review Traefik dashboard for routing issues
+
+      when: false  # Only show on explicit request or failure

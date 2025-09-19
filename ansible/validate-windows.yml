@@ -1,0 +1,341 @@
+---
+# Windows validation and setup with graceful admin handling
+- name: "🪟 Windows Prerequisites Management"
+  hosts: windows-host
+  gather_facts: yes
+  vars_files:
+    - group_vars/all.yml
+
+  tasks:
+    - name: "🔍 Detect Windows Admin Privileges"
+      win_shell: |
+        $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+        $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+      register: admin_check
+      failed_when: false
+      changed_when: false
+
+    - name: Set admin status
+      set_fact:
+        is_windows_admin: "{{ admin_check.stdout | trim | bool }}"
+
+    - name: Display admin status
+      debug:
+        msg: |
+          Windows Admin Status: {{ 'Administrator' if is_windows_admin else 'Standard User' }}
+          {% if not is_windows_admin %}
+          ⚠️  Some tasks will require manual intervention
+          {% endif %}
+
+    # ================================
+    # Scoop Package Manager
+    # ================================
+    - name: "📦 Check if Scoop is installed"
+      win_shell: |
+        if (Get-Command scoop -ErrorAction SilentlyContinue) {
+          Write-Output "installed"
+        } else {
+          Write-Output "missing"
+        }
+      register: scoop_check
+      changed_when: false
+
+    - name: "📦 Attempt to install Scoop"
+      win_shell: |
+        Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+        Invoke-RestMethod get.scoop.sh | Invoke-Expression
+      when: scoop_check.stdout | trim == "missing"
+      register: scoop_install
+      failed_when: false
+      tags: ["admin-attempted"]
+
+    - name: "⚠️  Scoop installation guidance"
+      debug:
+        msg: |
+          ⚠️  Manual Action Required: Install Scoop Package Manager
+
+          Run this in PowerShell as regular user:
+          Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+          Invoke-RestMethod get.scoop.sh | Invoke-Expression
+
+          Then re-run this playbook.
+      when:
+        - scoop_check.stdout | trim == "missing"
+        - scoop_install is failed
+
+    # ================================
+    # mkcert Installation
+    # ================================
+    - name: "🔐 Check if mkcert is installed"
+      win_shell: |
+        if (Get-Command mkcert -ErrorAction SilentlyContinue) {
+          mkcert -version
+        } else {
+          Write-Output "missing"
+        }
+      register: mkcert_check
+      changed_when: false
+      failed_when: false
+
+    - name: "🔐 Attempt to install mkcert via Scoop"
+      win_shell: scoop install mkcert
+      when:
+        - mkcert_check.stdout | trim == "missing" or "mkcert" not in mkcert_check.stdout
+        - scoop_check.stdout | trim == "installed" or scoop_install is succeeded
+      register: mkcert_install
+      failed_when: false
+      tags: ["admin-attempted"]
+
+    - name: "⚠️  mkcert installation guidance"
+      debug:
+        msg: |
+          ⚠️  Manual Action Required: Install mkcert
+
+          Option 1 - Via Scoop (recommended):
+          scoop install mkcert
+
+          Option 2 - Direct download:
+          1. Download from: https://github.com/FiloSottile/mkcert/releases
+          2. Extract mkcert.exe to a folder in your PATH
+          3. Verify: mkcert -version
+
+          Then re-run this playbook.
+      when:
+        - mkcert_check.stdout | trim == "missing" or "mkcert" not in mkcert_check.stdout
+        - mkcert_install is failed or mkcert_install is skipped
+
+    # ================================
+    # Local CA Installation
+    # ================================
+    - name: "🔐 Check if mkcert CA is installed"
+      win_shell: |
+        $caRoot = "$env:LOCALAPPDATA\mkcert"
+        if (Test-Path "$caRoot\rootCA.pem") {
+          Write-Output "installed"
+        } else {
+          Write-Output "missing"
+        }
+      register: ca_check
+      changed_when: false
+      when: mkcert_check.stdout | trim != "missing"
+
+    - name: "🔐 Attempt to install mkcert CA"
+      win_shell: mkcert -install
+      when:
+        - ca_check is defined
+        - ca_check.stdout | trim == "missing"
+        - is_windows_admin
+      register: ca_install
+      failed_when: false
+      tags: ["admin-required"]
+
+    - name: "⚠️  CA installation guidance"
+      debug:
+        msg: |
+          ⚠️  Manual Action Required: Install Local Certificate Authority
+
+          Run this in PowerShell as Administrator:
+          mkcert -install
+
+          This installs a local CA into Windows certificate trust store.
+          Required for HTTPS development certificates.
+
+          Then re-run this playbook.
+      when:
+        - ca_check is defined
+        - ca_check.stdout | trim == "missing"
+        - (not is_windows_admin or ca_install is failed)
+
+    # ================================
+    # Certificate Generation
+    # ================================
+    - name: "📁 Check certificate directory"
+      win_shell: |
+        $certDir = "$env:LOCALAPPDATA\mkcert"
+        if (Test-Path $certDir) {
+          Write-Output "exists"
+        } else {
+          Write-Output "missing"
+        }
+      register: cert_dir_check
+      changed_when: false
+
+    - name: "📁 Create certificate directory"
+      win_file:
+        path: "{{ ansible_env.LOCALAPPDATA }}\\mkcert"
+        state: directory
+      when: cert_dir_check.stdout | trim == "missing"
+
+    - name: "🔐 Check existing certificates"
+      win_shell: |
+        $certDir = "$env:LOCALAPPDATA\mkcert"
+        $wildcardCert = "$certDir\dev-localhost-wild.crt"
+        $registryCert = "$certDir\dev-registry.localhost.crt"
+
+        if ((Test-Path $wildcardCert) -and (Test-Path $registryCert)) {
+          Write-Output "exists"
+        } else {
+          Write-Output "missing"
+        }
+      register: certs_check
+      changed_when: false
+
+    - name: "🔐 Generate development certificates"
+      win_shell: |
+        $certDir = "$env:LOCALAPPDATA\mkcert"
+        cd $certDir
+
+        # Generate wildcard certificate for *.localhost
+        mkcert -cert-file "dev-localhost-wild.crt" -key-file "dev-localhost-wild.key" "localhost" "*.localhost"
+
+        # Generate specific certificate for registry
+        mkcert -cert-file "dev-registry.localhost.crt" -key-file "dev-registry.localhost.key" "registry.localhost"
+
+        Write-Output "Certificates generated successfully"
+      when:
+        - certs_check.stdout | trim == "missing"
+        - ca_check is defined and ca_check.stdout | trim == "installed"
+      register: cert_generation
+
+    # ================================
+    # WSL2 Certificate Copy Script
+    # ================================
+    - name: "📝 Generate WSL2 certificate copy script"
+      win_copy:
+        content: |
+          #!/bin/bash
+          # Generated certificate copy script for WSL2
+
+          set -e
+
+          CERT_DIR="$HOME/.local/share/certs"
+          WIN_CERT_DIR="/mnt/c/Users/{{ ansible_user }}/AppData/Local/mkcert"
+
+          echo "🔐 Copying certificates from Windows to WSL2..."
+
+          # Create certificate directory
+          mkdir -p "$CERT_DIR"
+
+          # Copy certificates with proper permissions
+          cp "$WIN_CERT_DIR/dev-localhost-wild.crt" "$CERT_DIR/"
+          cp "$WIN_CERT_DIR/dev-localhost-wild.key" "$CERT_DIR/"
+          cp "$WIN_CERT_DIR/dev-registry.localhost.crt" "$CERT_DIR/"
+          cp "$WIN_CERT_DIR/dev-registry.localhost.key" "$CERT_DIR/"
+
+          # Set proper permissions
+          chmod 644 "$CERT_DIR"/*.crt
+          chmod 600 "$CERT_DIR"/*.key
+
+          echo "✅ Certificates copied successfully"
+          echo "📍 Location: $CERT_DIR"
+          ls -la "$CERT_DIR"
+        dest: "{{ ansible_env.LOCALAPPDATA }}\\mkcert\\copy-to-wsl.sh"
+      when: cert_generation is succeeded
+
+    # ================================
+    # Windows Hosts File
+    # ================================
+    - name: "🌐 Check Windows hosts file entries"
+      win_shell: |
+        $hostsFile = "$env:SystemRoot\System32\drivers\etc\hosts"
+        $content = Get-Content $hostsFile -ErrorAction SilentlyContinue
+
+        $registryExists = $content | Select-String "127\.0\.0\.1.*registry\.localhost"
+        $traefikExists = $content | Select-String "127\.0\.0\.1.*traefik\.localhost"
+
+        if ($registryExists -and $traefikExists) {
+          Write-Output "exists"
+        } else {
+          Write-Output "missing"
+        }
+      register: hosts_check
+      changed_when: false
+
+    - name: "🌐 Attempt to update Windows hosts file"
+      win_lineinfile:
+        path: "{{ ansible_env.SystemRoot }}\\System32\\drivers\\etc\\hosts"
+        line: "{{ item }}"
+        create: yes
+        backup: yes
+      loop:
+        - "127.0.0.1 registry.localhost"
+        - "127.0.0.1 traefik.localhost"
+      when:
+        - hosts_check.stdout | trim == "missing"
+        - is_windows_admin
+      register: hosts_update
+      failed_when: false
+      tags: ["admin-required"]
+
+    - name: "⚠️  Hosts file update guidance"
+      debug:
+        msg: |
+          ⚠️  Manual Action Required: Update Windows Hosts File
+
+          Add these entries to C:\Windows\System32\drivers\etc\hosts:
+
+          127.0.0.1 registry.localhost
+          127.0.0.1 traefik.localhost
+
+          Option 1 - PowerShell as Administrator:
+          Add-Content C:\Windows\System32\drivers\etc\hosts "127.0.0.1 registry.localhost"
+          Add-Content C:\Windows\System32\drivers\etc\hosts "127.0.0.1 traefik.localhost"
+
+          Option 2 - Corporate Host Management Tool:
+          Use your organization's approved method to add these entries.
+
+          Then re-run this playbook.
+      when:
+        - hosts_check.stdout | trim == "missing"
+        - (not is_windows_admin or hosts_update is failed)
+
+    # ================================
+    # Docker Desktop Check
+    # ================================
+    - name: "🐳 Check Docker Desktop installation"
+      win_shell: |
+        $dockerPath = "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
+        if (Test-Path $dockerPath) {
+          Write-Output "installed"
+        } else {
+          Write-Output "missing"
+        }
+      register: docker_check
+      changed_when: false
+
+    - name: "⚠️  Docker Desktop installation guidance"
+      debug:
+        msg: |
+          ⚠️  Manual Action Required: Install Docker Desktop
+
+          1. Download from: https://www.docker.com/products/docker-desktop
+          2. Install with WSL2 backend enabled
+          3. In Settings → Resources → WSL Integration:
+             - Enable integration for your WSL2 distro
+          4. Apply & Restart
+
+          Then re-run this playbook.
+      when: docker_check.stdout | trim == "missing"
+
+    # ================================
+    # Summary
+    # ================================
+    - name: "📊 Windows setup summary"
+      debug:
+        msg: |
+          🪟 Windows Setup Summary:
+
+          Admin Status: {{ 'Administrator' if is_windows_admin else 'Standard User' }}
+
+          Components Status:
+          - Scoop: {{ '✅' if scoop_check.stdout | trim == 'installed' or scoop_install is succeeded else '❌' }}
+          - mkcert: {{ '✅' if 'mkcert' in (mkcert_check.stdout | default('')) else '❌' }}
+          - Local CA: {{ '✅' if ca_check is defined and ca_check.stdout | trim == 'installed' else '❌' }}
+          - Certificates: {{ '✅' if certs_check.stdout | trim == 'exists' or cert_generation is succeeded else '❌' }}
+          - Hosts File: {{ '✅' if hosts_check.stdout | trim == 'exists' or hosts_update is succeeded else '❌' }}
+          - Docker Desktop: {{ '✅' if docker_check.stdout | trim == 'installed' else '❌' }}
+
+          {% if not is_windows_admin %}
+          ⚠️  Manual steps may be required for full setup.
+          Check the warnings above for specific actions.
+          {% endif %}

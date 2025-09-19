@@ -1,0 +1,323 @@
+---
+# WSL2 environment setup and service deployment
+- name: "🐧 WSL2 Platform Setup"
+  hosts: localhost
+  gather_facts: yes
+  vars_files:
+    - group_vars/all.yml
+
+  tasks:
+    - name: "🔍 WSL2 Environment Detection"
+      block:
+        - name: Verify WSL2 environment
+          shell: uname -r | grep -i microsoft
+          changed_when: false
+
+        - name: Get Windows username
+          shell: |
+            echo $(/mnt/c/Windows/System32/cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r\n')
+          register: windows_user_cmd
+          changed_when: false
+
+        - name: Set Windows user fact
+          set_fact:
+            windows_username: "{{ windows_user_cmd.stdout | trim }}"
+
+        - name: Display environment info
+          debug:
+            msg: |
+              🐧 WSL2 Environment Detected
+              Windows User: {{ windows_username }}
+              WSL2 User: {{ ansible_user_id }}
+              Home: {{ ansible_env.HOME }}
+
+    # ================================
+    # System Packages
+    # ================================
+    - name: "📦 Update package cache"
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      become: yes
+
+    - name: "📦 Install base packages"
+      apt:
+        name:
+          - build-essential
+          - curl
+          - git
+          - unzip
+          - ca-certificates
+          - libssl-dev
+          - zlib1g-dev
+          - libbz2-dev
+          - libreadline-dev
+          - libsqlite3-dev
+          - libffi-dev
+          - gnupg
+          - lsb-release
+        state: present
+      become: yes
+
+    # ================================
+    # Docker Installation Check
+    # ================================
+    - name: "🐳 Check Docker installation"
+      command: docker --version
+      register: docker_version_check
+      failed_when: false
+      changed_when: false
+
+    - name: "🐳 Check Docker daemon"
+      command: docker info
+      register: docker_daemon_check
+      failed_when: false
+      changed_when: false
+
+    - name: "⚠️  Docker setup guidance"
+      debug:
+        msg: |
+          ⚠️  Docker Configuration Required
+
+          Docker Desktop WSL2 Integration:
+          1. Open Docker Desktop on Windows
+          2. Go to Settings → Resources → WSL Integration
+          3. Enable integration for this WSL2 distribution
+          4. Apply & Restart Docker Desktop
+          5. Restart this WSL2 terminal
+
+          Current Status:
+          - Docker CLI: {{ '✅' if docker_version_check.rc == 0 else '❌' }}
+          - Docker Daemon: {{ '✅' if docker_daemon_check.rc == 0 else '❌ (Enable WSL2 integration)' }}
+      when: docker_version_check.rc != 0 or docker_daemon_check.rc != 0
+
+    # ================================
+    # Certificate Management
+    # ================================
+    - name: "📁 Create certificate directory"
+      file:
+        path: "{{ cert_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: "🔐 Check for Windows certificates"
+      stat:
+        path: "/mnt/c/Users/{{ windows_username }}/AppData/Local/mkcert/dev-localhost-wild.crt"
+      register: windows_cert_check
+
+    - name: "🔐 Copy certificates from Windows"
+      block:
+        - name: Copy certificate files
+          copy:
+            src: "/mnt/c/Users/{{ windows_username }}/AppData/Local/mkcert/{{ item.src }}"
+            dest: "{{ cert_dir }}/{{ item.dest }}"
+            mode: "{{ item.mode }}"
+          loop:
+            - { src: "dev-localhost-wild.crt", dest: "dev-localhost-wild.crt", mode: "0644" }
+            - { src: "dev-localhost-wild.key", dest: "dev-localhost-wild.key", mode: "0600" }
+            - { src: "dev-registry.localhost.crt", dest: "dev-registry.localhost.crt", mode: "0644" }
+            - { src: "dev-registry.localhost.key", dest: "dev-registry.localhost.key", mode: "0600" }
+
+        - name: Verify certificates copied
+          stat:
+            path: "{{ cert_dir }}/{{ item }}"
+          register: cert_verification
+          loop:
+            - dev-localhost-wild.crt
+            - dev-localhost-wild.key
+            - dev-registry.localhost.crt
+            - dev-registry.localhost.key
+
+        - name: Display certificate status
+          debug:
+            msg: |
+              🔐 Certificates Status:
+              {% for result in cert_verification.results %}
+              - {{ result.item }}: {{ '✅' if result.stat.exists else '❌' }}
+              {% endfor %}
+
+      when: windows_cert_check.stat.exists
+
+    - name: "⚠️  Certificate setup guidance"
+      debug:
+        msg: |
+          ⚠️  Certificates Not Found
+
+          Please complete Windows certificate setup first:
+          1. Install mkcert on Windows
+          2. Run: mkcert -install
+          3. Generate certificates
+          4. Re-run this playbook
+
+          Expected location: /mnt/c/Users/{{ windows_username }}/AppData/Local/mkcert/
+      when: not windows_cert_check.stat.exists
+
+    # ================================
+    # Traefik Configuration
+    # ================================
+    - name: "⚙️  Create Traefik directories"
+      file:
+        path: "{{ ansible_env.HOME }}/{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - platform-services
+        - platform-services/traefik
+        - platform-services/traefik/dynamic
+
+    - name: "⚙️  Generate Traefik dynamic TLS configuration"
+      copy:
+        content: |
+          tls:
+            certificates:
+              # SNI: registry.localhost
+              - certFile: "/certs/dev-registry.localhost.crt"
+                keyFile: "/certs/dev-registry.localhost.key"
+              # SNI: *.localhost (covers airflow-*.customer.localhost, etc.)
+              - certFile: "/certs/dev-localhost-wild.crt"
+                keyFile: "/certs/dev-localhost-wild.key"
+        dest: "{{ ansible_env.HOME }}/platform-services/traefik/dynamic/tls.yml"
+        mode: '0644'
+
+    - name: "⚙️  Generate Traefik docker-compose configuration"
+      copy:
+        content: |
+          services:
+            traefik:
+              image: traefik:{{ traefik_version }}
+              command:
+                - --providers.docker=true
+                - --providers.docker.exposedbydefault=false
+                - --providers.file.directory=/dynamic
+                - --providers.file.watch=true
+                - --entrypoints.web.address=:80
+                - --entrypoints.websecure.address=:443
+                - --api.dashboard=true
+              ports:
+                - "80:80"
+                - "443:443"
+              volumes:
+                - /var/run/docker.sock:/var/run/docker.sock:ro
+                # Mount the certs from WSL2
+                - {{ cert_dir }}:/certs:ro
+                # Mount the dynamic tls config
+                - ./dynamic:/dynamic:ro
+              labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.dashboard.rule=Host(`traefik.localhost`)"
+                - "traefik.http.routers.dashboard.entrypoints=websecure"
+                - "traefik.http.routers.dashboard.tls=true"
+                - "traefik.http.routers.dashboard.service=api@internal"
+              restart: unless-stopped
+
+            registry:
+              image: registry:{{ registry_version }}
+              restart: unless-stopped
+              environment:
+                REGISTRY_HTTP_ADDR: :5000
+                REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
+              volumes:
+                - registry-data:/var/lib/registry
+              labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.registry.rule=Host(`registry.localhost`)"
+                - "traefik.http.routers.registry.entrypoints=websecure"
+                - "traefik.http.routers.registry.tls=true"
+                - "traefik.http.services.registry.loadbalancer.server.port=5000"
+
+          volumes:
+            registry-data:
+        dest: "{{ ansible_env.HOME }}/platform-services/traefik/docker-compose.yml"
+        mode: '0644'
+
+    # ================================
+    # Service Deployment
+    # ================================
+    - name: "🚀 Deploy platform services"
+      block:
+        - name: Stop any existing services
+          command: docker compose down
+          args:
+            chdir: "{{ ansible_env.HOME }}/platform-services/traefik"
+          failed_when: false
+
+        - name: Start platform services
+          command: docker compose up -d
+          args:
+            chdir: "{{ ansible_env.HOME }}/platform-services/traefik"
+          register: services_start
+
+        - name: Wait for services to be ready
+          wait_for:
+            port: "{{ item }}"
+            host: 127.0.0.1
+            timeout: 30
+          loop:
+            - 80
+            - 443
+
+        - name: Display service status
+          command: docker compose ps
+          args:
+            chdir: "{{ ansible_env.HOME }}/platform-services/traefik"
+          register: service_status
+
+        - debug:
+            var: service_status.stdout_lines
+
+      when:
+        - docker_daemon_check.rc == 0
+        - windows_cert_check.stat.exists
+
+    # ================================
+    # Astro CLI Installation
+    # ================================
+    - name: "🚀 Check Astro CLI installation"
+      command: astro version
+      register: astro_check
+      failed_when: false
+      changed_when: false
+
+    - name: "🚀 Install Astro CLI"
+      shell: |
+        curl -sSL install.astronomer.io | sudo bash -s
+      when: astro_check.rc != 0
+      become: yes
+
+    - name: "🚀 Verify Astro CLI installation"
+      command: astro version
+      register: astro_verify
+      when: astro_check.rc != 0
+
+    # ================================
+    # WSL2 Setup Summary
+    # ================================
+    - name: "📊 WSL2 setup summary"
+      debug:
+        msg: |
+          🐧 WSL2 Setup Summary:
+
+          System Components:
+          - Base packages: ✅ Installed
+          - Docker CLI: {{ '✅' if docker_version_check.rc == 0 else '❌' }}
+          - Docker daemon: {{ '✅' if docker_daemon_check.rc == 0 else '❌' }}
+          - Astro CLI: {{ '✅' if astro_check.rc == 0 or astro_verify is succeeded else '❌' }}
+
+          Platform Services:
+          - Certificates: {{ '✅' if windows_cert_check.stat.exists else '❌' }}
+          - Traefik config: ✅ Generated
+          - Services: {{ '✅ Running' if services_start is succeeded else '❌ Check Docker' }}
+
+          Next Steps:
+          {% if docker_daemon_check.rc != 0 %}
+          1. Enable Docker Desktop WSL2 integration
+          2. Re-run this playbook
+          {% elif not windows_cert_check.stat.exists %}
+          1. Complete Windows certificate setup
+          2. Re-run this playbook
+          {% else %}
+          1. Run validation: ansible-playbook validate-all.yml
+          2. Access services:
+             - Traefik Dashboard: https://traefik.localhost
+             - Container Registry: https://registry.localhost
+          {% endif %}

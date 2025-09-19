@@ -1,0 +1,69 @@
+---
+# Main orchestration playbook for platform setup
+# Attempts full automation, fails gracefully for admin tasks
+
+- name: "🔍 Detect Environment and Permissions"
+  hosts: localhost
+  gather_facts: yes
+  become: no
+  tasks:
+    - name: Display setup banner
+      debug:
+        msg: |
+          🚀 Starting Astronomer Airflow Platform Setup
+
+          Strategy: Try to automate everything, fail gracefully
+          - ✅ Local admins: Full automation
+          - ⚠️  Non-admins: Clear guidance for manual steps
+
+          Platform Components:
+          - Windows prerequisites (mkcert, hosts, Docker Desktop)
+          - WSL2 environment setup
+          - Certificate management
+          - Traefik reverse proxy
+          - Docker container registry
+          - End-to-end validation
+
+    - name: Check if running in WSL2
+      shell: uname -r | grep -i microsoft
+      register: wsl2_check
+      failed_when: false
+      changed_when: false
+
+    - name: Verify WSL2 environment
+      fail:
+        msg: |
+          ❌ This must be run from within WSL2
+
+          Please:
+          1. Open WSL2 terminal
+          2. cd to this repository
+          3. Run: ansible-playbook -i inventory/local-dev.ini site.yml
+      when: wsl2_check.rc != 0
+
+    - name: Check Windows accessibility
+      win_ping:
+      delegate_to: windows-host
+      register: windows_accessible
+      failed_when: false
+
+    - name: Set execution strategy
+      set_fact:
+        windows_available: "{{ windows_accessible is succeeded }}"
+        execution_mode: "{{ 'cross-platform' if windows_accessible is succeeded else 'wsl2-only' }}"
+
+    - name: Display execution mode
+      debug:
+        msg: |
+          Execution Mode: {{ execution_mode }}
+          Windows Host: {{ 'Available' if windows_available else 'Not configured - WSL2 only mode' }}
+
+- name: "🪟 Windows Prerequisites and Setup"
+  import_playbook: validate-windows.yml
+  when: windows_available | default(false)
+
+- name: "🐧 WSL2 Environment Setup"
+  import_playbook: setup-wsl2.yml
+
+- name: "✅ End-to-End Validation"
+  import_playbook: validate-all.yml
