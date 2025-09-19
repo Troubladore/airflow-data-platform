@@ -51,7 +51,7 @@ updates:
     
     assignees:
       # Add your security team members or maintainers here
-      # - "security-reviewer"
+      - "Troubladore"
     
     commit-message:
       prefix: "deps"
