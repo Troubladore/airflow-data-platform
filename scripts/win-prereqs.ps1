@@ -61,19 +61,51 @@ if (-not (Get-Command mkcert -ErrorAction SilentlyContinue)) {
     try {
         scoop install mkcert
         Write-Success "mkcert installed successfully"
+
+        # Refresh PATH environment variable to pick up newly installed tools
+        Write-Info "Refreshing PATH environment..."
+        $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
+
+        # Verify mkcert is now available
+        if (-not (Get-Command mkcert -ErrorAction SilentlyContinue)) {
+            Write-Warning "mkcert not found in PATH after installation. Trying Scoop shims..."
+            $scoopShims = "$env:USERPROFILE\scoop\shims"
+            if (Test-Path "$scoopShims\mkcert.exe") {
+                $env:PATH = "$scoopShims;$env:PATH"
+                Write-Info "Added Scoop shims directory to PATH: $scoopShims"
+            } else {
+                Write-Error "mkcert.exe not found in expected Scoop location: $scoopShims"
+                exit 1
+            }
+        }
     } catch {
         Write-Error "Failed to install mkcert: $($_.Exception.Message)"
+        Write-Warning "This may be due to PowerShell version compatibility issues with Scoop"
+        Write-Warning "Try running this script in a newer PowerShell version (5.1 or 7+)"
         exit 1
     }
 } else {
     Write-Success "mkcert is already installed"
 }
 
+# Verify mkcert is working before proceeding
+Write-Info "Verifying mkcert installation..."
+if (-not (Get-Command mkcert -ErrorAction SilentlyContinue)) {
+    Write-Error "mkcert is still not available after installation attempts"
+    Write-Warning "Manual steps required:"
+    Write-Warning "1. Close this PowerShell window"
+    Write-Warning "2. Open a new PowerShell window"
+    Write-Warning "3. Run: mkcert -install"
+    Write-Warning "4. Run: mkcert -cert-file dev-localhost-wild.crt -key-file dev-localhost-wild.key *.localhost localhost"
+    exit 1
+}
+
 # Install mkcert CA (works for non-admin users)
 Write-Info "Installing mkcert Certificate Authority..."
 try {
-    mkcert -install
+    $mkcertOutput = mkcert -install 2>&1
     Write-Success "mkcert CA installed to user certificate store"
+    Write-Info "mkcert output: $mkcertOutput"
 } catch {
     Write-Warning "mkcert CA installation had issues: $($_.Exception.Message)"
     Write-Info "This may be normal - continuing with certificate generation..."
@@ -92,15 +124,23 @@ try {
     # Generate wildcard certificate for *.localhost
     if (-not (Test-Path "dev-localhost-wild.crt") -or $Force) {
         Write-Info "Generating wildcard certificate for *.localhost..."
-        mkcert -cert-file "dev-localhost-wild.crt" -key-file "dev-localhost-wild.key" "*.localhost" "localhost"
-        Write-Success "Wildcard certificate generated"
+        $certOutput = mkcert -cert-file "dev-localhost-wild.crt" -key-file "dev-localhost-wild.key" "*.localhost" "localhost" 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Wildcard certificate generated"
+        } else {
+            Write-Warning "Certificate generation may have had issues: $certOutput"
+        }
     }
 
     # Generate specific certificate for registry.localhost
     if (-not (Test-Path "dev-registry.localhost.crt") -or $Force) {
         Write-Info "Generating certificate for registry.localhost..."
-        mkcert -cert-file "dev-registry.localhost.crt" -key-file "dev-registry.localhost.key" "registry.localhost"
-        Write-Success "Registry certificate generated"
+        $registryCertOutput = mkcert -cert-file "dev-registry.localhost.crt" -key-file "dev-registry.localhost.key" "registry.localhost" 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Registry certificate generated"
+        } else {
+            Write-Warning "Registry certificate generation may have had issues: $registryCertOutput"
+        }
     }
 
     Write-Success "Certificates generated in: $certDir"

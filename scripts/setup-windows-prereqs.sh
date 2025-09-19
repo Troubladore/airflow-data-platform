@@ -131,10 +131,27 @@ else
     echo
     echo -e "${RED}❌ Windows prerequisites setup failed${NC}"
     echo
-    echo -e "${YELLOW}💡 You can try running manually:${NC}"
-    echo "1. Open Windows PowerShell"
-    echo "2. Run: Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process"
-    echo "3. Run: & \"$WIN_SCRIPT_PATH\""
-    echo "4. Return to WSL2 and continue with ansible-playbook"
+    echo -e "${YELLOW}💡 Troubleshooting steps:${NC}"
+    echo
+    echo -e "${BLUE}Common Issue: PowerShell Version Compatibility${NC}"
+    echo "If you see 'Get-FileHash' or 'mkcert' not recognized errors:"
+    echo "1. Try PowerShell 7+ instead of Windows PowerShell 5.1"
+    echo "2. Or run these commands manually in Windows PowerShell:"
+    echo
+    echo -e "${BLUE}Manual Installation Commands:${NC}"
+    echo "# Install Scoop"
+    echo "iex (new-object net.webclient).downloadstring('https://get.scoop.sh')"
+    echo
+    echo "# Install mkcert"
+    echo "scoop install mkcert"
+    echo
+    echo "# Generate certificates"
+    echo "mkcert -install"
+    echo "mkdir \$env:LOCALAPPDATA\\mkcert; cd \$env:LOCALAPPDATA\\mkcert"
+    echo "mkcert -cert-file dev-localhost-wild.crt -key-file dev-localhost-wild.key *.localhost localhost"
+    echo "mkcert -cert-file dev-registry.localhost.crt -key-file dev-registry.localhost.key registry.localhost"
+    echo
+    echo -e "${BLUE}After manual setup:${NC}"
+    echo "Return to WSL2 and run: ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml"
     exit 1
 fi
