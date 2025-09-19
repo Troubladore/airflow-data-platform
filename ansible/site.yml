@@ -41,16 +41,23 @@
           3. Run: ansible-playbook -i inventory/local-dev.ini site.yml
       when: wsl2_check.rc != 0
 
-    - name: Check Windows accessibility
-      ansible.windows.win_ping:
-      delegate_to: windows-localhost
-      register: windows_accessible
+    - name: Check Windows WinRM accessibility
+      uri:
+        url: "http://127.0.0.1:5985/wsman"
+        method: GET
+        timeout: 5
+      register: winrm_check
       failed_when: false
+      changed_when: false
+
+    - name: Set Windows accessibility based on WinRM availability
+      set_fact:
+        windows_accessible: "{{ winrm_check.status is defined and winrm_check.status in [200, 401, 500] }}"
 
     - name: Set execution strategy
       set_fact:
-        windows_available: "{{ windows_accessible is succeeded }}"
-        execution_mode: "{{ 'cross-platform' if windows_accessible is succeeded else 'wsl2-only' }}"
+        windows_available: "{{ windows_accessible }}"
+        execution_mode: "{{ 'cross-platform' if windows_accessible else 'wsl2-only' }}"
 
     - name: Display execution mode
       debug:
