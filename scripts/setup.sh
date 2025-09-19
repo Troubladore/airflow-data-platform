@@ -60,7 +60,7 @@ check_ansible_setup() {
             echo "  sudo apt update && sudo apt install -y pipx"
             echo "  pipx ensurepath"
             echo "  # Install pinned dependencies"
-            echo "  pipx install -r ansible/requirements.txt"
+            echo "  ./scripts/install-pipx-deps.sh"
             echo "  ansible-galaxy install -r ansible/requirements.yml"
             echo "  # Run automation"
             echo "  ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml"

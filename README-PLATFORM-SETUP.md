@@ -29,7 +29,7 @@ pipx ensurepath
 
 # Install pinned Ansible dependencies
 cd /path/to/workstation-setup
-pipx install -r ansible/requirements.txt
+./scripts/install-pipx-deps.sh
 
 # Install Ansible Galaxy dependencies
 ansible-galaxy install -r ansible/requirements.yml
