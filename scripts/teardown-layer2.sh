@@ -25,32 +25,32 @@ log_error() { echo -e "${RED}❌ $1${NC}"; }
 print_banner() {
     echo -e "${BLUE}"
     echo "🧹 =================================================="
-    echo "   LAYER 2: DATA PROCESSING TEARDOWN"
-    echo "   Clean Environment for Fresh Testing"
+    echo "   LAYER 2: COMPONENT TEARDOWN"
+    echo "   Clean Component Environment"
     echo "==================================================${NC}"
     echo
     echo "This script will clean up:"
-    echo "• All data processing containers"
-    echo "• PostgreSQL databases and volumes"
-    echo "• Container images from registry"
-    echo "• DBT build artifacts"
-    echo "• Development Docker Compose files"
+    echo "• Datakit container images from registry"
+    echo "• Component test containers"
+    echo "• DBT build artifacts and packages"
+    echo "• Build logs and temporary files"
     echo
 }
 
-# Stop and remove containers
+# Stop and remove test containers
 stop_containers() {
-    log_info "Stopping data processing containers..."
+    log_info "Stopping component test containers..."
 
-    # Stop containers by name patterns
-    local containers=(
-        "pagila-source"
-        "data-warehouse"
-        "bronze-processor"
-        "dbt-runner"
+    # Stop containers by name patterns (test containers only)
+    local test_containers=(
+        "test-bronze-pagila"
+        "test-postgres-runner"
+        "test-dbt-runner"
+        "test-sqlserver-runner"
+        "test-spark-runner"
     )
 
-    for container in "${containers[@]}"; do
+    for container in "${test_containers[@]}"; do
         if docker ps --format "table {{.Names}}" | grep -q "$container"; then
             log_info "Stopping $container..."
             docker stop "$container" 2>/dev/null || log_warning "Could not stop $container"
@@ -58,7 +58,7 @@ stop_containers() {
     done
 
     # Remove containers
-    for container in "${containers[@]}"; do
+    for container in "${test_containers[@]}"; do
         if docker ps -a --format "table {{.Names}}" | grep -q "$container"; then
             log_info "Removing $container..."
             docker rm "$container" 2>/dev/null || log_warning "Could not remove $container"
@@ -76,84 +76,62 @@ stop_containers() {
     log_success "Containers stopped and removed"
 }
 
-# Clean up Docker volumes
+# Clean up test volumes
 cleanup_volumes() {
-    log_info "Cleaning up data volumes..."
+    log_info "Cleaning up test volumes..."
 
-    echo
-    echo "Choose data volume cleanup level:"
-    echo "1) Keep data volumes (fast rebuild, preserves data)"
-    echo "2) Remove all data volumes (complete reset, data loss)"
-    echo "3) Remove only test/temporary volumes"
-    echo
-    read -p "Enter choice (1-3): " -n 1 -r volume_choice
-    echo
+    # Remove any temporary volumes that might be created during component testing
+    docker volume ls -q | grep -E "(test|temp|tmp)" | xargs docker volume rm 2>/dev/null || true
 
-    case $volume_choice in
-        2)
-            log_warning "Removing all data volumes (including database data)..."
-            docker volume rm pagila-source-data 2>/dev/null && log_success "Removed pagila-source-data" || log_info "pagila-source-data not found"
-            docker volume rm data-warehouse-data 2>/dev/null && log_success "Removed data-warehouse-data" || log_info "data-warehouse-data not found"
-            ;;
-        3)
-            log_info "Removing only test/temporary volumes..."
-            # Remove any temporary volumes that might be created during testing
-            docker volume ls -q | grep -E "(test|temp|tmp)" | xargs docker volume rm 2>/dev/null || true
-            ;;
-        *)
-            log_info "Keeping data volumes for fast rebuild"
-            ;;
-    esac
-
-    log_success "Volume cleanup completed"
+    log_success "Test volume cleanup completed"
 }
 
 # Remove container images
 cleanup_images() {
-    log_info "Cleaning up container images..."
+    if [ "$PRESERVE_IMAGES" = true ]; then
+        log_info "Preserving datakit images for fast rebuild"
+        return 0
+    fi
 
-    echo
-    echo "Choose image cleanup level:"
-    echo "1) Keep datakit images (fast rebuild)"
-    echo "2) Remove datakit images (complete rebuild required)"
-    echo "3) Remove all related images (including PostgreSQL)"
-    echo
-    read -p "Enter choice (1-3): " -n 1 -r image_choice
-    echo
+    if [ "$FULL_CLEAN" = true ]; then
+        log_info "Removing all datakit images..."
+        docker images --format "table {{.Repository}}:{{.Tag}} {{.ID}}" | \
+            grep "$REGISTRY_HOST/datakits" | \
+            awk '{print $2}' | \
+            xargs docker rmi -f 2>/dev/null || log_info "No datakit images to remove"
+    else
+        # Interactive mode
+        log_info "Cleaning up container images..."
+        echo
+        echo "Choose image cleanup level:"
+        echo "1) Keep datakit images (fast rebuild)"
+        echo "2) Remove datakit images (complete rebuild required)"
+        echo
+        read -p "Enter choice (1-2): " -n 1 -r image_choice
+        echo
 
-    case $image_choice in
-        2)
-            log_info "Removing datakit images from registry..."
-            docker images --format "table {{.Repository}}:{{.Tag}} {{.ID}}" | \
-                grep "$REGISTRY_HOST/datakits" | \
-                awk '{print $2}' | \
-                xargs docker rmi -f 2>/dev/null || log_info "No datakit images to remove"
-            ;;
-        3)
-            log_info "Removing all related images..."
-            docker images --format "table {{.Repository}}:{{.Tag}} {{.ID}}" | \
-                grep -E "$REGISTRY_HOST/datakits|postgres:15.8" | \
-                awk '{print $2}' | \
-                xargs docker rmi -f 2>/dev/null || log_info "No related images to remove"
-            ;;
-        *)
-            log_info "Keeping container images for fast rebuild"
-            ;;
-    esac
+        case $image_choice in
+            2)
+                log_info "Removing datakit images from registry..."
+                docker images --format "table {{.Repository}}:{{.Tag}} {{.ID}}" | \
+                    grep "$REGISTRY_HOST/datakits" | \
+                    awk '{print $2}' | \
+                    xargs docker rmi -f 2>/dev/null || log_info "No datakit images to remove"
+                ;;
+            *)
+                log_info "Keeping container images for fast rebuild"
+                ;;
+        esac
+    fi
 
     log_success "Image cleanup completed"
 }
 
-# Clean up networks
+# Clean up networks (minimal for components)
 cleanup_networks() {
-    log_info "Cleaning up Docker networks..."
+    log_info "Cleaning up test networks..."
 
-    if docker network ls --format "table {{.Name}}" | grep -q "data-processing-network"; then
-        log_info "Removing data-processing-network..."
-        docker network rm data-processing-network 2>/dev/null || log_warning "Could not remove data-processing-network"
-    fi
-
-    # Clean up any orphaned networks
+    # Clean up any orphaned networks created during testing
     docker network prune -f >/dev/null 2>&1 || true
 
     log_success "Network cleanup completed"
@@ -202,37 +180,28 @@ cleanup_config_files() {
 
 # Verify teardown completion
 verify_teardown() {
-    log_info "Verifying teardown completion..."
+    log_info "Verifying component teardown completion..."
 
     local issues_found=0
 
-    # Check for remaining containers
-    local remaining_containers=$(docker ps -a --format "table {{.Names}}" | grep -E "(pagila|warehouse|datakit)" | wc -l)
+    # Check for remaining test containers
+    local remaining_containers=$(docker ps -a --format "table {{.Names}}" | grep -E "^test-" | wc -l)
     if [ "$remaining_containers" -gt 0 ]; then
-        log_warning "Found $remaining_containers remaining data processing containers:"
-        docker ps -a --format "table {{.Names}}\t{{.Status}}" | grep -E "(pagila|warehouse|datakit)" || true
+        log_warning "Found $remaining_containers remaining test containers:"
+        docker ps -a --format "table {{.Names}}\t{{.Status}}" | grep -E "^test-" || true
         issues_found=$((issues_found + 1))
     fi
 
-    # Check for remaining images in registry
+    # Check for remaining images in registry (informational)
     if docker images --format "table {{.Repository}}" | grep -q "$REGISTRY_HOST/datakits" 2>/dev/null; then
-        log_info "Datakit images still present in registry (may be intentional)"
+        if [ "$PRESERVE_IMAGES" = true ] || [ "$FULL_CLEAN" != true ]; then
+            log_info "Datakit images preserved in registry (as requested)"
+        fi
         docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" | grep "$REGISTRY_HOST/datakits" || true
     fi
 
-    # Test that databases are no longer accessible
-    if docker exec pagila-source pg_isready -U postgres >/dev/null 2>&1; then
-        log_warning "Source database still responding"
-        issues_found=$((issues_found + 1))
-    fi
-
-    if docker exec data-warehouse pg_isready -U warehouse >/dev/null 2>&1; then
-        log_warning "Warehouse database still responding"
-        issues_found=$((issues_found + 1))
-    fi
-
     if [ $issues_found -eq 0 ]; then
-        log_success "Teardown verification passed - Layer 2 environment is clean"
+        log_success "Teardown verification passed - Layer 2 components are clean"
     else
         log_warning "Teardown verification found $issues_found potential issues"
         echo "You may need to manually address the warnings above"
@@ -244,9 +213,8 @@ show_rebuild_instructions() {
     echo
     echo -e "${GREEN}🎉 Layer 2 Teardown Complete${NC}"
     echo
-    echo "Data processing components removed:"
-    echo "✅ Containers stopped and removed"
-    echo "✅ Volumes cleaned (based on your selection)"
+    echo "Component testing environment removed:"
+    echo "✅ Test containers stopped and removed"
     echo "✅ Images cleaned (based on your selection)"
     echo "✅ Networks cleaned up"
     echo "✅ DBT artifacts removed"
@@ -254,26 +222,26 @@ show_rebuild_instructions() {
     echo
     echo -e "${BLUE}🔄 To Rebuild Layer 2:${NC}"
     echo
-    echo "Full rebuild:"
-    echo "  ./scripts/setup-layer2.sh --rebuild-images"
+    echo "Build components:"
+    echo "  ./scripts/build-layer2-components.sh"
     echo
-    echo "Quick rebuild (if images preserved):"
-    echo "  ./scripts/setup-layer2.sh"
+    echo "Test components:"
+    echo "  ./scripts/test-layer2-components.sh"
     echo
-    echo "Load sample data after rebuild:"
-    echo "  ./scripts/load-sample-data.sh"
-    echo
-    echo "Run complete data pipeline:"
-    echo "  ./scripts/run-data-pipeline.sh --full-refresh"
+    echo "Build with optional components (like Spark):"
+    echo "  ./scripts/build-layer2-components.sh --build-optional"
     echo
     echo -e "${YELLOW}💡 Note: Layer 1 (platform foundation) is preserved${NC}"
     echo "Your Traefik and registry services continue running normally."
+    echo
+    echo -e "${BLUE}🚀 Next Steps:${NC}"
+    echo "After validating components, move to Layer 3 for pipeline orchestration."
     echo
 }
 
 # Parse command line arguments
 FULL_CLEAN=false
-PRESERVE_DATA=false
+PRESERVE_IMAGES=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -281,15 +249,15 @@ while [[ $# -gt 0 ]]; do
             FULL_CLEAN=true
             shift
             ;;
-        --preserve-data)
-            PRESERVE_DATA=true
+        --preserve-images)
+            PRESERVE_IMAGES=true
             shift
             ;;
         -h|--help)
             echo "Usage: $0 [OPTIONS]"
             echo "Options:"
-            echo "  --full-clean      Remove everything including data volumes"
-            echo "  --preserve-data   Keep data volumes for fast rebuild"
+            echo "  --full-clean      Remove everything including component images"
+            echo "  --preserve-images Keep component images for fast rebuild"
             echo "  -h, --help       Show this help"
             exit 0
             ;;
@@ -317,9 +285,9 @@ main() {
 
     # Override interactive choices if flags provided
     if [ "$FULL_CLEAN" = true ]; then
-        log_info "Full clean mode - removing all data and images"
-    elif [ "$PRESERVE_DATA" = true ]; then
-        log_info "Preserve data mode - keeping volumes and images"
+        log_info "Full clean mode - removing all test volumes and images"
+    elif [ "$PRESERVE_IMAGES" = true ]; then
+        log_info "Preserve images mode - keeping component images for fast rebuild"
     fi
 
     stop_containers
@@ -327,12 +295,12 @@ main() {
 
     if [ "$FULL_CLEAN" = true ]; then
         # Non-interactive full clean
-        log_warning "Full clean: removing all volumes and images..."
-        docker volume rm pagila-source-data data-warehouse-data 2>/dev/null || true
-        docker images --format "table {{.Repository}}:{{.Tag}} {{.ID}}" | grep -E "($REGISTRY_HOST/datakits|postgres:15.8)" | awk '{print $2}' | xargs docker rmi -f 2>/dev/null || true
-    elif [ "$PRESERVE_DATA" = true ]; then
+        log_warning "Full clean: removing all test volumes and images..."
+        docker volume ls -q | grep -E "(test|temp|tmp)" | xargs docker volume rm 2>/dev/null || true
+        docker images --format "table {{.Repository}}:{{.Tag}} {{.ID}}" | grep "$REGISTRY_HOST/datakits" | awk '{print $2}' | xargs docker rmi -f 2>/dev/null || true
+    elif [ "$PRESERVE_IMAGES" = true ]; then
         # Skip interactive volume and image cleanup
-        log_info "Preserving data volumes and images for fast rebuild"
+        log_info "Preserving images and test volumes for fast rebuild"
     else
         # Interactive mode
         cleanup_volumes
