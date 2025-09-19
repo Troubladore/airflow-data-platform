@@ -115,7 +115,7 @@
     - name: "🚀 Service Health Validation"
       block:
         - name: Check Docker containers
-          shell: docker ps --format "table {{.Names}}\t{{.Status}}"
+          shell: docker ps --format "table {{ '{{.Names}}' }}\t{{ '{{.Status}}' }}"
           register: container_status
           changed_when: false
 
