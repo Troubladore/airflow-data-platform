@@ -39,11 +39,21 @@ ansible-galaxy install -r ansible/requirements.yml
 ```
 
 ### Complete Setup
+
+**Option A: Fully Automated (if Windows setup fails)**
+```bash
+# 🐧 Run in WSL2 Ubuntu terminal - handles Windows prerequisites automatically
+cd /path/to/workstation-setup
+./scripts/setup-windows-prereqs.sh
+
+# Then run platform setup
+ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
+```
+
+**Option B: Direct Setup (tries Windows automation, falls back gracefully)**
 ```bash
 # 🐧 Run in WSL2 Ubuntu terminal
 cd /path/to/workstation-setup
-
-# Run comprehensive setup (automates Windows + WSL2)
 ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
 ```
 

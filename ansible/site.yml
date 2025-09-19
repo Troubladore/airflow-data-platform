@@ -67,12 +67,12 @@
             ✅ Certificates managed in WSL2 user space
             ✅ Manual Windows setup guidance provided when needed
 
-          🚀 Quick Windows Setup:
-            Run the Windows prerequisites script first:
-            1. 🪟 In Windows PowerShell: .\scripts\win-prereqs.ps1
-            2. 🐧 Then re-run this playbook: ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
+          🚀 Quick Windows Setup (from WSL2):
+            Run the Windows prerequisites setup:
+            1. 🐧 In WSL2: ./scripts/setup-windows-prereqs.sh
+            2. 🐧 Then re-run: ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
 
-            This handles Scoop, mkcert, certificates, and hosts file automatically!
+            This crosses the Windows/WSL2 boundary to handle Scoop, mkcert, certificates, and hosts file!
           {% endif %}
 
 - name: "🪟 Windows Prerequisites and Setup"
