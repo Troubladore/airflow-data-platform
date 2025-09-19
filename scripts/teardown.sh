@@ -247,21 +247,17 @@ perform_complete_teardown() {
             log_info "No Windows mkcert certificates found"
         fi
 
-        # Try to uninstall mkcert CA (try both direct and scoop methods)
+        # Try to uninstall mkcert CA (try different methods)
         log_info "Attempting to uninstall mkcert CA..."
         local ca_uninstalled=false
 
-        # Try direct mkcert command first
+        # Try direct mkcert command first (works if mkcert is in PATH)
         if /mnt/c/Windows/System32/cmd.exe /c "mkcert -uninstall" 2>/dev/null; then
             log_success "Uninstalled mkcert Certificate Authority (direct)"
             ca_uninstalled=true
-        # Try via scoop if direct fails
-        elif /mnt/c/Windows/System32/cmd.exe /c "scoop run mkcert -uninstall" 2>/dev/null; then
-            log_success "Uninstalled mkcert Certificate Authority (via scoop)"
-            ca_uninstalled=true
-        # Try PowerShell with scoop
-        elif /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command "& { scoop run mkcert -uninstall }" 2>/dev/null; then
-            log_success "Uninstalled mkcert Certificate Authority (via PowerShell scoop)"
+        # Try PowerShell (Scoop adds programs to PATH, so just call mkcert directly)
+        elif /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command "mkcert -uninstall" 2>/dev/null; then
+            log_success "Uninstalled mkcert Certificate Authority (via PowerShell)"
             ca_uninstalled=true
         fi
 
@@ -269,8 +265,7 @@ perform_complete_teardown() {
             log_warning "Could not uninstall mkcert CA - manual cleanup needed"
             echo "  Try these commands (as Administrator):"
             echo "    mkcert -uninstall"
-            echo "    OR: scoop run mkcert -uninstall"
-            echo "    OR in PowerShell: scoop run mkcert -uninstall"
+            echo "    OR in PowerShell: mkcert -uninstall"
         fi
     else
         log_warning "Could not determine Windows username for certificate cleanup"
