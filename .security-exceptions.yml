@@ -30,14 +30,32 @@ exceptions:
     expires: "2026-01-19"
     review_frequency: "annual"
 
-  # Future examples - show the format for other risk types
-  # - pattern: "FROM debian:stable"
-  #   category: "docker_unpinned"
-  #   justification: "Development example only - production uses pinned versions"
-  #   accepted_by: "DevOps Team"
-  #   accepted_date: "2025-01-19"
-  #   expires: "2025-07-19"
-  #   review_frequency: "quarterly"
+  # Scanner self-reference patterns in code - contains scanner logic discussion
+  - pattern: "scan-supply-chain.sh"
+    category: "dynamic_downloads"
+    justification: "Security scanner code discussing pipe-to-shell patterns - not actual execution"
+    accepted_by: "Security Team"
+    accepted_date: "2025-01-19"
+    expires: "2026-01-19"
+    review_frequency: "annual"
+
+  # Documentation examples contain patterns for illustration
+  - pattern: "SECURITY-RISK-ACCEPTANCE.md"
+    category: "unpinned_dependencies"
+    justification: "Documentation example showing exception format - not executed code"
+    accepted_by: "Security Team"
+    accepted_date: "2025-01-19"
+    expires: "2026-01-19"
+    review_frequency: "annual"
+
+  # Business decision: Accept scanner/documentation meta-issues
+  - pattern: "scanner discussing security patterns"
+    category: "meta_security_discussion"
+    justification: "Scanner code and documentation discussing security patterns - not actual execution risks"
+    accepted_by: "Security Team"
+    accepted_date: "2025-01-19"
+    expires: "2025-04-19"  # Short review cycle for cleanup
+    review_frequency: "quarterly"
 
 # Global settings
 settings:
