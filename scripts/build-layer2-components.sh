@@ -82,17 +82,25 @@ build_single_datakit() {
     local datakit="$1"
     local description="$2"
 
-    log_info "Building $datakit: $description"
-
     if [ ! -d "$REPO_ROOT/layer2-datakits/$datakit" ]; then
         log_error "Datakit directory not found: layer2-datakits/$datakit"
         return 1
     fi
 
+    local image_name="$REGISTRY_HOST/datakits/$datakit"
+
+    # Check if image already exists (unless force rebuild)
+    if [ "${FORCE_REBUILD:-false}" = "false" ]; then
+        if docker images --format "table {{.Repository}}:{{.Tag}}" | grep -q "$image_name:$IMAGE_VERSION"; then
+            log_success "$datakit:$IMAGE_VERSION already exists - skipping build"
+            return 0
+        fi
+    fi
+
+    log_info "Building $datakit: $description"
     cd "$REPO_ROOT/layer2-datakits/$datakit"
 
     # Build container with both latest and version tags
-    local image_name="$REGISTRY_HOST/datakits/$datakit"
     if docker build -t "$image_name:$IMAGE_VERSION" -t "$image_name:latest" . 2>&1 | tee "/tmp/build_${datakit}.log"; then
         log_success "Built $datakit:$IMAGE_VERSION successfully"
     else
@@ -119,11 +127,19 @@ build_core_datakits() {
 
     local build_success=true
     local successful_builds=()
+    local skipped_builds=()
     local failed_builds=()
 
     for datakit in "${!DATAKITS[@]}"; do
+        # Capture what happened
+        if docker images --format "table {{.Repository}}:{{.Tag}}" | grep -q "$REGISTRY_HOST/datakits/$datakit:$IMAGE_VERSION" && [ "${FORCE_REBUILD:-false}" = "false" ]; then
+            skipped_builds+=("$datakit")
+        fi
+
         if build_single_datakit "$datakit" "${DATAKITS[$datakit]}"; then
-            successful_builds+=("$datakit")
+            if [[ ! " ${skipped_builds[*]} " =~ " $datakit " ]]; then
+                successful_builds+=("$datakit")
+            fi
         else
             failed_builds+=("$datakit")
             build_success=false
@@ -133,6 +149,9 @@ build_core_datakits() {
 
     # Summary
     echo -e "${BLUE}Core Datakit Build Summary:${NC}"
+    if [ ${#skipped_builds[@]} -gt 0 ]; then
+        log_success "Already built (skipped): ${skipped_builds[*]}"
+    fi
     if [ ${#successful_builds[@]} -gt 0 ]; then
         log_success "Successfully built: ${successful_builds[*]}"
     fi
@@ -197,6 +216,14 @@ setup_dbt_projects() {
         fi
 
         cd "layer2-dbt-projects/$project"
+
+        # Skip if already configured (unless force rebuild)
+        if [ "${FORCE_REBUILD:-false}" = "false" ] && [ -d "dbt_packages" ]; then
+            log_success "DBT project $project already configured - skipping"
+            successful_projects+=("$project")
+            cd "$REPO_ROOT"
+            continue
+        fi
 
         # Install DBT dependencies (optional - may fail for some projects)
         if [ -f "packages.yml" ]; then
