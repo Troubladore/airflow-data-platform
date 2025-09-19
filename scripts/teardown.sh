@@ -210,6 +210,17 @@ perform_complete_teardown() {
         windows_username=$(/mnt/c/Windows/System32/cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r\n' || echo "")
     fi
 
+    # If auto-detection failed, ask the user
+    if [ -z "$windows_username" ]; then
+        echo
+        echo "Could not automatically determine Windows username."
+        read -p "Enter your Windows username (or press Enter to skip Windows cleanup): " windows_username
+        if [ -z "$windows_username" ]; then
+            log_info "Skipping Windows cleanup - no username provided"
+            return
+        fi
+    fi
+
     if [ -n "$windows_username" ]; then
         local win_cert_dir="/mnt/c/Users/$windows_username/AppData/Local/mkcert"
 
@@ -328,22 +339,42 @@ verify_teardown() {
     local issues_found=0
 
     # Check for remaining containers
-    local remaining_containers=$(docker ps --filter "name=traefik-bundle" -q 2>/dev/null | wc -l)
-    if [ "$remaining_containers" -gt 0 ]; then
-        log_warning "Found $remaining_containers remaining platform containers"
+    local traefik_containers=$(docker ps -a --filter "name=traefik" -q 2>/dev/null | wc -l)
+    local registry_containers=$(docker ps -a --filter "name=registry" -q 2>/dev/null | wc -l)
+    local total_containers=$((traefik_containers + registry_containers))
+
+    if [ "$total_containers" -gt 0 ]; then
+        log_warning "Found $total_containers remaining platform containers"
+        if [ "$traefik_containers" -gt 0 ]; then
+            echo "  Traefik containers: docker ps -a --filter \"name=traefik\" -q | xargs docker rm -f"
+        fi
+        if [ "$registry_containers" -gt 0 ]; then
+            echo "  Registry containers: docker ps -a --filter \"name=registry\" -q | xargs docker rm -f"
+        fi
         issues_found=$((issues_found + 1))
     fi
 
     # Check for remaining volumes
-    local remaining_volumes=$(docker volume ls --filter "name=traefik-bundle" -q 2>/dev/null | wc -l)
-    if [ "$remaining_volumes" -gt 0 ]; then
-        log_warning "Found $remaining_volumes remaining platform volumes"
+    local traefik_volumes=$(docker volume ls --filter "name=traefik" -q 2>/dev/null | wc -l)
+    local registry_volumes=$(docker volume ls --filter "name=registry-data" -q 2>/dev/null | wc -l)
+    local total_volumes=$((traefik_volumes + registry_volumes))
+
+    if [ "$total_volumes" -gt 0 ]; then
+        log_warning "Found $total_volumes remaining platform volumes"
+        if [ "$traefik_volumes" -gt 0 ]; then
+            echo "  Traefik volumes: docker volume ls --filter \"name=traefik\" -q | xargs docker volume rm"
+        fi
+        if [ "$registry_volumes" -gt 0 ]; then
+            echo "  Registry volumes: docker volume rm registry-data"
+            echo "  ⚠️  This will delete all container images stored in the local registry"
+        fi
         issues_found=$((issues_found + 1))
     fi
 
     # Check configuration directories
     if [ -d "$PLATFORM_SERVICES_DIR" ]; then
         log_warning "Platform services directory still exists: $PLATFORM_SERVICES_DIR"
+        echo "  Run: rm -rf $PLATFORM_SERVICES_DIR"
         issues_found=$((issues_found + 1))
     fi
 
