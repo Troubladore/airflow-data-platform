@@ -39,19 +39,26 @@ echo -e "${BLUE}📁 Converting WSL2 path to Windows path...${NC}"
 WIN_SCRIPT_PATH=$(wslpath -w "$WIN_PREREQS_SCRIPT")
 echo "Windows path: $WIN_SCRIPT_PATH"
 
-# Find PowerShell executable
+# Find PowerShell executable (prefer PowerShell 7+ over Windows PowerShell)
 POWERSHELL_CMD=""
 POWERSHELL_PATHS=(
-    "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
-    "/mnt/c/Windows/SysWOW64/WindowsPowerShell/v1.0/powershell.exe"
-    "powershell.exe"  # In case Windows PATH is available
+    "/mnt/c/Program Files/PowerShell/7/pwsh.exe"  # PowerShell 7+ (preferred)
+    "/mnt/c/Users/$USER/AppData/Local/Microsoft/powershell/pwsh.exe"  # PowerShell 7+ user install
+    "pwsh.exe"  # PowerShell 7+ in PATH
+    "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"  # Windows PowerShell 5.1
+    "/mnt/c/Windows/SysWOW64/WindowsPowerShell/v1.0/powershell.exe"  # Windows PowerShell 5.1 (32-bit)
+    "powershell.exe"  # Windows PowerShell in PATH
 )
 
 echo -e "${BLUE}🔍 Looking for PowerShell executable...${NC}"
 for ps_path in "${POWERSHELL_PATHS[@]}"; do
     if command -v "$ps_path" >/dev/null 2>&1 || [ -f "$ps_path" ]; then
         POWERSHELL_CMD="$ps_path"
-        echo "Found PowerShell at: $POWERSHELL_CMD"
+        if [[ "$ps_path" == *"pwsh"* ]]; then
+            echo "Found PowerShell 7+: $POWERSHELL_CMD (recommended)"
+        else
+            echo "Found Windows PowerShell: $POWERSHELL_CMD (may have compatibility issues)"
+        fi
         break
     fi
 done
@@ -136,10 +143,11 @@ else
     echo -e "${BLUE}Common Issue: PowerShell Version Compatibility${NC}"
     echo "The 'Get-FileHash' error indicates PowerShell compatibility issues with Scoop."
     echo
-    echo -e "${BLUE}Solution 1: Try PowerShell 7+ (Recommended)${NC}"
-    echo "1. Install PowerShell 7+: https://github.com/PowerShell/PowerShell/releases"
-    echo "2. Open 'PowerShell 7' (not 'Windows PowerShell')"
-    echo "3. Re-run: & \"$WIN_SCRIPT_PATH\""
+    echo -e "${BLUE}Solution 1: Use PowerShell 7+ (Recommended)${NC}"
+    echo "If you have PowerShell 7.x installed but the script used Windows PowerShell:"
+    echo "1. Open 'PowerShell 7' from Start Menu (not 'Windows PowerShell')"
+    echo "2. Run: & \"$WIN_SCRIPT_PATH\""
+    echo "3. Or install PowerShell 7+: https://github.com/PowerShell/PowerShell/releases"
     echo
     echo -e "${BLUE}Solution 2: Manual mkcert Installation${NC}"
     echo "If PowerShell 7 isn't available, install mkcert manually:"

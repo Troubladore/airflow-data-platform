@@ -30,6 +30,21 @@ This script automates Windows-side setup:
 
 "@ -ForegroundColor Cyan
 
+# Display PowerShell version information
+Write-Info "PowerShell Version Information:"
+Write-Info "  Version: $($PSVersionTable.PSVersion)"
+Write-Info "  Edition: $($PSVersionTable.PSEdition)"
+Write-Info "  Platform: $($PSVersionTable.Platform)"
+
+# Check if running in Windows PowerShell vs PowerShell Core/7+
+if ($PSVersionTable.PSEdition -eq "Desktop") {
+    Write-Warning "Running in Windows PowerShell (Desktop Edition)"
+    Write-Warning "For best compatibility, consider using PowerShell 7+ instead"
+    Write-Info "PowerShell 7+ can be found as 'PowerShell 7' in Start Menu"
+} else {
+    Write-Success "Running in PowerShell $($PSVersionTable.PSEdition) - good for compatibility"
+}
+
 # Check if running as admin
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
 if ($isAdmin) {
@@ -68,7 +83,24 @@ if (-not (Get-Command mkcert -ErrorAction SilentlyContinue)) {
     }
 
     try {
+        # Debug Scoop environment
+        Write-Info "Scoop debugging information:"
+        Write-Info "  Scoop version: $(scoop --version 2>&1)"
+        Write-Info "  Scoop root: $($env:SCOOP)"
+        Write-Info "  User profile: $($env:USERPROFILE)"
+
+        # Check if extras bucket is available (mkcert is in extras)
+        Write-Info "Checking Scoop buckets..."
+        $bucketsOutput = scoop bucket list 2>&1
+        Write-Info "  Current buckets: $bucketsOutput"
+
+        if (-not ($bucketsOutput -match "extras")) {
+            Write-Info "Adding extras bucket for mkcert..."
+            scoop bucket add extras 2>&1
+        }
+
         # Try Scoop installation
+        Write-Info "Attempting: scoop install mkcert"
         $scoopOutput = scoop install mkcert 2>&1
         Write-Info "Scoop install output: $scoopOutput"
 
