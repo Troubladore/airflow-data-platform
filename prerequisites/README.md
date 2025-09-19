@@ -1,51 +1,57 @@
-# Prerequisites Setup
+# Prerequisites Directory
 
-This directory contains all the foundational components needed before setting up the Astronomer Airflow environment.
+**⚠️ Note**: This directory contains legacy setup components. For new installations, use the [modern Ansible automation](../README-PLATFORM-SETUP.md) instead.
 
-## Components
+## What's Here
 
-### 1. Windows WSL2 Setup
-Complete setup instructions for Windows developers using WSL2.
+This directory contains the individual components used by the platform setup:
 
-### 2. Traefik + Registry
-- **Traefik**: Reverse proxy for routing to multiple services
-- **Registry**: Local Docker registry for storing custom images
-- Configured with TLS for secure communication
+### Legacy Components
+- **certificates/**: PowerShell scripts for Windows certificate generation
+- **traefik-registry/**: Docker Compose configuration for services
+- **windows-wsl2/**: Manual setup steps (now automated)
 
-### 3. TLS Certificates
-- Development certificates for `*.localhost` domains
-- Options for self-signed or mkcert-based certificates
+### Current Status
+These components are still used internally by the automation but are **not recommended for manual setup**.
 
-## Quick Setup
+## Recommended Approach
 
-Run the main setup script from the project root:
+Instead of using these files directly:
+
 ```bash
-../scripts/setup.sh
+# Use modern Ansible automation
+cd /path/to/workstation-setup
+ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
 ```
 
-Or set up components individually:
+See [README-PLATFORM-SETUP.md](../README-PLATFORM-SETUP.md) for complete setup instructions.
 
-### Traefik and Registry
+## Legacy Manual Setup
+
+If you must use manual setup (not recommended):
+
+1. **Windows**: Run `certificates/setup-dev-certs-hybrid.ps1`
+2. **WSL2**: Follow steps in `windows-wsl2/setup-steps.txt`
+3. **Services**: Deploy `traefik-registry/docker-compose.yml`
+
+**Problems with manual setup:**
+- Brittle certificate management
+- Manual host file editing required
+- No validation or error handling
+- Difficult to teardown and rebuild
+
+## Migration Path
+
+If you have an existing manual setup:
+
 ```bash
-cd traefik-registry
-docker compose up -d
+# Clean up old setup
+./scripts/teardown.sh
+
+# Migrate to modern automation
+ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
 ```
 
-Access points:
-- Traefik Dashboard: https://traefik.localhost
-- Registry: https://registry.localhost
-- Test Service: https://whoami.localhost
+---
 
-### Verify Registry
-```bash
-docker pull busybox
-docker tag busybox registry.localhost/test/busybox:latest
-docker push registry.localhost/test/busybox:latest
-```
-
-## Network Architecture
-
-All services communicate through the `edge` Docker network, enabling:
-- Service discovery
-- TLS termination at Traefik
-- Isolated communication between containers
+*For new installations, skip this directory and use [README-PLATFORM-SETUP.md](../README-PLATFORM-SETUP.md)*

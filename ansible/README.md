@@ -25,20 +25,39 @@ ansible-playbook --version
 
 ## 🚀 Usage
 
-### Quick Start (Try Everything)
+### 1. Complete Automated Setup (Recommended)
 ```bash
 # Run full automation - attempts admin tasks, fails gracefully
 ansible-playbook -i inventory/local-dev.ini site.yml
+```
+**What it does**: Tries everything, provides clear guidance for manual steps when needed
 
-# Or run individual components
+### 2. Comprehensive Validation
+```bash
+# Verify everything works after setup
+ansible-playbook -i inventory/local-dev.ini validate-all.yml
+```
+**Expected results**: All services accessible via HTTPS, registry functional
+
+### 3. Complete Environment Reset
+```bash
+# Clean teardown for testing
+ansible-playbook -i inventory/local-dev.ini teardown.yml
+```
+**What it does**: Removes all services, optionally cleans certificates, provides rebuild guidance
+
+### 4. Corporate/Non-Admin Setup
+```bash
+# Skip admin-required tasks (after manual prerequisites)
+ansible-playbook -i inventory/local-dev.ini site.yml --skip-tags "admin-required"
+```
+**When to use**: When you don't have local admin rights but completed manual prerequisites
+
+### Individual Components (Advanced)
+```bash
+# Run specific parts
 ansible-playbook -i inventory/local-dev.ini validate-windows.yml
 ansible-playbook -i inventory/local-dev.ini setup-wsl2.yml
-```
-
-### Manual Steps Mode (Skip Admin Tasks)
-```bash
-# Run only validation and non-admin tasks
-ansible-playbook -i inventory/local-dev.ini site.yml --skip-tags "admin-required"
 ```
 
 ## 📊 Automation Coverage
