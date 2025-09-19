@@ -52,26 +52,26 @@
         windows_available: "{{ windows_accessible is succeeded }}"
         execution_mode: "{{ 'cross-platform' if windows_accessible is succeeded else 'wsl2-only' }}"
 
-    - name: Display execution mode and Windows setup guidance
+    - name: Display execution mode
       debug:
         msg: |
           🚀 Execution Mode: {{ execution_mode }}
-          🪟 Windows Host: {{ 'Available' if windows_available else 'Not configured - WSL2 only mode' }}
+          🪟 Windows Host: {{ 'Available' if windows_available else 'WSL2-only (non-admin friendly)' }}
 
           {% if not windows_available %}
-          ℹ️  Windows WinRM Setup Required:
+          ℹ️  Running in WSL2-only mode - Perfect for non-admin environments!
 
-          🪟 Run in Windows PowerShell as Administrator:
-            # Enable WinRM
-            Enable-PSRemoting -Force
-            Set-Item WSMan:\localhost\Service\AllowUnencrypted $true
-            Set-Item WSMan:\localhost\Service\Auth\Basic $true
+          📝 What this means:
+            ✅ All platform services will run in WSL2
+            ✅ No admin privileges required
+            ✅ Certificates managed in WSL2 user space
+            ✅ Manual Windows setup guidance provided when needed
 
-            # Configure firewall (if needed)
-            New-NetFirewallRule -DisplayName "Windows Remote Management (HTTP-In)" -Direction Inbound -Protocol TCP -LocalPort 5985 -Action Allow
-
-          🐧 Then re-run this playbook from WSL2:
-            ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
+          🔧 For admin users only:
+            If you have admin rights and want full automation, you can:
+            1. Enable WinRM: Enable-PSRemoting -Force (in admin PowerShell)
+            2. Configure auth: Set-Item WSMan:\localhost\Service\Auth\Basic $true
+            3. Re-run this playbook for cross-platform mode
           {% endif %}
 
 - name: "🪟 Windows Prerequisites and Setup"
