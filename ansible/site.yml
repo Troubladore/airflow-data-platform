@@ -52,11 +52,27 @@
         windows_available: "{{ windows_accessible is succeeded }}"
         execution_mode: "{{ 'cross-platform' if windows_accessible is succeeded else 'wsl2-only' }}"
 
-    - name: Display execution mode
+    - name: Display execution mode and Windows setup guidance
       debug:
         msg: |
-          Execution Mode: {{ execution_mode }}
-          Windows Host: {{ 'Available' if windows_available else 'Not configured - WSL2 only mode' }}
+          🚀 Execution Mode: {{ execution_mode }}
+          🪟 Windows Host: {{ 'Available' if windows_available else 'Not configured - WSL2 only mode' }}
+
+          {% if not windows_available %}
+          ℹ️  Windows WinRM Setup Required:
+
+          🪟 Run in Windows PowerShell as Administrator:
+            # Enable WinRM
+            Enable-PSRemoting -Force
+            Set-Item WSMan:\localhost\Service\AllowUnencrypted $true
+            Set-Item WSMan:\localhost\Service\Auth\Basic $true
+
+            # Configure firewall (if needed)
+            New-NetFirewallRule -DisplayName "Windows Remote Management (HTTP-In)" -Direction Inbound -Protocol TCP -LocalPort 5985 -Action Allow
+
+          🐧 Then re-run this playbook from WSL2:
+            ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
+          {% endif %}
 
 - name: "🪟 Windows Prerequisites and Setup"
   import_playbook: validate-windows.yml
