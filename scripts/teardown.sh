@@ -247,25 +247,50 @@ perform_complete_teardown() {
             log_info "No Windows mkcert certificates found"
         fi
 
-        # Try to uninstall mkcert CA (try different methods)
-        log_info "Attempting to uninstall mkcert CA..."
+        # Try to uninstall mkcert CA certificates from system trust store
+        log_info "Removing mkcert CA certificates from system trust store..."
         local ca_uninstalled=false
 
         # Try direct mkcert command first (works if mkcert is in PATH)
         if /mnt/c/Windows/System32/cmd.exe /c "mkcert -uninstall" 2>/dev/null; then
-            log_success "Uninstalled mkcert Certificate Authority (direct)"
+            log_success "Removed mkcert CA certificates from trust store (direct)"
             ca_uninstalled=true
         # Try PowerShell (Scoop adds programs to PATH, so just call mkcert directly)
         elif /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command "mkcert -uninstall" 2>/dev/null; then
-            log_success "Uninstalled mkcert Certificate Authority (via PowerShell)"
+            log_success "Removed mkcert CA certificates from trust store (via PowerShell)"
             ca_uninstalled=true
         fi
 
         if [ "$ca_uninstalled" = false ]; then
-            log_warning "Could not uninstall mkcert CA - manual cleanup needed"
-            echo "  Try these commands (as Administrator):"
+            log_warning "Could not remove mkcert CA certificates - manual cleanup needed"
+            echo "  Try these commands:"
             echo "    mkcert -uninstall"
             echo "    OR in PowerShell: mkcert -uninstall"
+        fi
+
+        # Ask if user wants to remove mkcert program itself
+        echo
+        echo "The mkcert program is still installed and could be used for future platform rebuilds."
+        read -p "Do you want to uninstall the mkcert program entirely? (y/N): " -n 1 -r remove_mkcert
+        echo
+
+        if [[ $remove_mkcert =~ ^[Yy]$ ]]; then
+            log_info "Attempting to uninstall mkcert program..."
+            # Try PowerShell with scoop uninstall
+            if /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command "scoop uninstall mkcert" 2>/dev/null; then
+                log_success "Uninstalled mkcert program via Scoop"
+            # Try other package managers
+            elif /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command "choco uninstall mkcert -y" 2>/dev/null; then
+                log_success "Uninstalled mkcert program via Chocolatey"
+            else
+                log_warning "Could not uninstall mkcert program - manual removal needed"
+                echo "  Try these commands:"
+                echo "    scoop uninstall mkcert"
+                echo "    OR: choco uninstall mkcert"
+                echo "    OR: winget uninstall mkcert"
+            fi
+        else
+            log_info "Keeping mkcert program installed (recommended for future rebuilds)"
         fi
     else
         log_warning "Could not determine Windows username for certificate cleanup"
