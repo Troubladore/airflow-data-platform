@@ -247,25 +247,39 @@ perform_complete_teardown() {
             log_info "No Windows mkcert certificates found"
         fi
 
-        # Try to uninstall mkcert CA certificates from system trust store
-        log_info "Removing mkcert CA certificates from system trust store..."
-        local ca_uninstalled=false
+        # Check if mkcert CA is installed before attempting to remove it
+        log_info "Checking for mkcert CA certificates in system trust store..."
+        local ca_exists=false
 
-        # Try direct mkcert command first (works if mkcert is in PATH)
-        if /mnt/c/Windows/System32/cmd.exe /c "mkcert -uninstall" 2>/dev/null; then
-            log_success "Removed mkcert CA certificates from trust store (direct)"
-            ca_uninstalled=true
-        # Try PowerShell (Scoop adds programs to PATH, so just call mkcert directly)
-        elif /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command "mkcert -uninstall" 2>/dev/null; then
-            log_success "Removed mkcert CA certificates from trust store (via PowerShell)"
-            ca_uninstalled=true
+        # Check if CA is installed using mkcert -CAROOT (safer than -uninstall)
+        if /mnt/c/Windows/System32/cmd.exe /c "mkcert -CAROOT" >/dev/null 2>&1; then
+            ca_exists=true
+        elif /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command "mkcert -CAROOT" >/dev/null 2>&1; then
+            ca_exists=true
         fi
 
-        if [ "$ca_uninstalled" = false ]; then
-            log_warning "Could not remove mkcert CA certificates - manual cleanup needed"
-            echo "  Try these commands:"
-            echo "    mkcert -uninstall"
-            echo "    OR in PowerShell: mkcert -uninstall"
+        if [ "$ca_exists" = true ]; then
+            log_info "Removing mkcert CA certificates from system trust store..."
+            local ca_uninstalled=false
+
+            # Try direct mkcert command first (works if mkcert is in PATH)
+            if /mnt/c/Windows/System32/cmd.exe /c "mkcert -uninstall" 2>/dev/null; then
+                log_success "Removed mkcert CA certificates from trust store (direct)"
+                ca_uninstalled=true
+            # Try PowerShell (Scoop adds programs to PATH, so just call mkcert directly)
+            elif /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command "mkcert -uninstall" 2>/dev/null; then
+                log_success "Removed mkcert CA certificates from trust store (via PowerShell)"
+                ca_uninstalled=true
+            fi
+
+            if [ "$ca_uninstalled" = false ]; then
+                log_warning "Could not remove mkcert CA certificates - manual cleanup needed"
+                echo "  Try these commands:"
+                echo "    mkcert -uninstall"
+                echo "    OR in PowerShell: mkcert -uninstall"
+            fi
+        else
+            log_info "No mkcert CA certificates found in system trust store"
         fi
 
         # Ask if user wants to remove mkcert program itself
