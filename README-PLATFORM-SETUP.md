@@ -26,11 +26,16 @@ This guide provides clear workflows for setting up your development environment 
 # Use pipx for clean global installs (recommended)
 sudo apt update && sudo apt install -y pipx
 pipx ensurepath
-pipx install ansible-core
-pipx inject ansible-core pywinrm
+
+# Install pinned Ansible dependencies
+cd /path/to/workstation-setup
+pipx install -r ansible/requirements.txt
+
+# Install Ansible Galaxy dependencies
+ansible-galaxy install -r ansible/requirements.yml
 
 # Or fallback to pip
-# pip install --user ansible ansible-core pywinrm
+# pip install --user -r ansible/requirements.txt
 ```
 
 ### Complete Setup
@@ -40,6 +45,14 @@ cd /path/to/workstation-setup
 
 # Run comprehensive setup (automates Windows + WSL2)
 ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
+```
+
+### Security Validation
+```bash
+# 🐧 Run supply chain security scan before setup
+./scripts/scan-supply-chain.sh
+
+# Review any issues found before proceeding
 ```
 
 ### Validation

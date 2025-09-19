@@ -1,0 +1,15 @@
+---
+# Ansible Galaxy requirements - roles and collections
+# Pin versions to ensure reproducible deployments
+
+collections:
+  # Windows automation support
+  - name: ansible.windows
+    version: ">=1.14.0,<2.0.0"
+
+  # Community general modules
+  - name: community.general
+    version: ">=8.0.0,<9.0.0"
+
+# roles: []
+# No external roles currently required - using built-in modules

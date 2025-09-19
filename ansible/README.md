@@ -19,12 +19,15 @@ This automation uses a **"try to fix, fail gracefully"** approach:
 sudo apt update && sudo apt install -y pipx
 pipx ensurepath
 
-# Install Ansible with pipx (clean global install)
-pipx install ansible-core
-pipx inject ansible-core pywinrm  # Add Windows automation support
+# Install pinned Ansible dependencies
+cd /path/to/workstation-setup
+pipx install -r requirements.txt
+
+# Install Ansible Galaxy dependencies
+ansible-galaxy install -r requirements.yml
 
 # Or fallback to pip if preferred
-# pip install --user ansible ansible-core pywinrm
+# pip install --user -r requirements.txt
 ```
 
 ### Verify Installation

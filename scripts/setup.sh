@@ -59,8 +59,9 @@ check_ansible_setup() {
             echo "  # 🐧 Install pipx for isolated Python tools"
             echo "  sudo apt update && sudo apt install -y pipx"
             echo "  pipx ensurepath"
-            echo "  pipx install ansible-core"
-            echo "  pipx inject ansible-core pywinrm"
+            echo "  # Install pinned dependencies"
+            echo "  pipx install -r ansible/requirements.txt"
+            echo "  ansible-galaxy install -r ansible/requirements.yml"
             echo "  # Run automation"
             echo "  ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml"
             echo
