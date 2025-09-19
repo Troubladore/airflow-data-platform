@@ -38,7 +38,7 @@
       apt:
         update_cache: yes
         cache_valid_time: 3600
-      become: yes
+      become: yes  # Admin required: System package cache updates need root privileges
 
     - name: "📦 Install base packages"
       apt:
@@ -59,7 +59,7 @@
           - pipx  # For isolated Python tool installations
           - python3-pip
         state: present
-      become: yes
+      become: yes  # Admin required: Installing system packages needs root privileges
 
     # ================================
     # Docker Installation Check
@@ -280,11 +280,43 @@
       failed_when: false
       changed_when: false
 
-    - name: "🚀 Install Astro CLI"
-      shell: |
-        curl -sSL install.astronomer.io | sudo bash -s
+    - name: "🚀 Install Astro CLI (secure binary download)"
+      block:
+        - name: Get latest Astro CLI release info
+          uri:
+            url: https://api.github.com/repos/astronomer/astro-cli/releases/latest
+            return_content: yes
+          register: astro_release
+
+        - name: Download Astro CLI binary
+          get_url:
+            url: "{{ (astro_release.json.assets | selectattr('name', 'match', '.*linux_amd64.tar.gz$') | first).browser_download_url }}"
+            dest: /tmp/astro-cli.tar.gz
+            mode: '0644'
+
+        - name: Extract Astro CLI
+          unarchive:
+            src: /tmp/astro-cli.tar.gz
+            dest: /tmp/
+            remote_src: yes
+
+        - name: Install Astro CLI binary
+          copy:
+            src: /tmp/astro
+            dest: /usr/local/bin/astro
+            mode: '0755'
+            owner: root
+            group: root
+          become: yes  # Admin required: Installing system binaries to /usr/local/bin needs root privileges
+
+        - name: Clean up temporary files
+          file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /tmp/astro-cli.tar.gz
+            - /tmp/astro
       when: astro_check.rc != 0
-      become: yes
 
     - name: "🚀 Verify Astro CLI installation"
       command: astro version

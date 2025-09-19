@@ -45,10 +45,10 @@ Environment: $env_prefix
 Get-ChildItem "$certPath\$env_prefix-*.crt" | ForEach-Object {
     $certName = $_.Name
     Write-Host "  Processing $certName..." -ForegroundColor Gray
-    
+
     # Get certificate info
     $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($_.FullName)
-    
+
     # Add to documentation
     @"
 Certificate: $certName
@@ -59,7 +59,7 @@ Valid From: $($cert.NotBefore)
 Valid Until: $($cert.NotAfter)
 Thumbprint: $($cert.Thumbprint)
 "@ | Out-File -FilePath $fingerprintFile -Append
-    
+
     # Add SHA256 hash
     $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash
     "SHA256: $hash`n" | Out-File -FilePath $fingerprintFile -Append
@@ -316,7 +316,7 @@ tls:
     # SNI: *.localhost (covers all single-level subdomains)
     - certFile: "/certs/dev-localhost-wild.crt"
       keyFile: "/certs/dev-localhost-wild.key"
-  
+
   # Optional: Set default certificate for unmatched SNI
   stores:
     default:

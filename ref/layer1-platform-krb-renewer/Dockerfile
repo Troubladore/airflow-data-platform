@@ -1,4 +1,4 @@
-FROM debian:stable-slim
+FROM debian:12.7-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     krb5-user ca-certificates \
  && rm -rf /var/lib/apt/lists/*

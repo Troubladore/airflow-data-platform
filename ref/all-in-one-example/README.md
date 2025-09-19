@@ -8,7 +8,7 @@
 ## Prereqs (already covered elsewhere)
 - Traefik bundle is up (`edge` external network exists, certs trusted)
 - Local registry is reachable at `registry.localhost`
-- Runner images pushed: 
+- Runner images pushed:
   - `registry.localhost/analytics/dbt-runner:1.0.0`
   - `registry.localhost/etl/datakit-bronze:0.1.0`
 - Local Postgres with `pagila` (source) and `pagila_wh` (warehouse)

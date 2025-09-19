@@ -6,13 +6,38 @@
 
 This repository automates significant workstation configuration changes across Windows and WSL2. We follow security-first practices to minimize supply chain risks.
 
+## ⚖️ Trust Model
+
+**This repository operates on a "trust but verify" model:**
+
+### Who Should Review This Code
+- **Developers/Maintainers**: Use scanning tools during development
+- **Security Teams**: Independent review before organizational deployment
+- **Advanced Users**: Technical evaluation before personal use
+
+### What End Users Should Do
+- **DO**: Trust your organization's security review process
+- **DO**: Run in test environments first
+- **DON'T**: Assume included scanning tools "certify" safety
+- **DON'T**: Skip organizational security approval processes
+
+The included security scanner **identifies risks for human evaluation** - it does not provide automated security approval.
+
+### 🎯 **Risk Acceptance Framework**
+Not every security finding needs to be "fixed" - some risks are acceptable with proper justification:
+- **Documentation examples**: Testing commands not executed in automation
+- **Development tools**: Trusted sources with alternative validation
+- **False positives**: Scanner limitations creating noise
+
+See [Security Risk Acceptance Framework](docs/SECURITY-RISK-ACCEPTANCE.md) for complete guidance on documenting accepted risks.
+
 ## 🚨 Known Supply Chain Vectors
 
 ### Automation Dependencies
 - **Ansible modules**: `pipx inject ansible-core pywinrm`
 - **Python packages**: Dynamic installations via pip/pipx
 - **Ansible Galaxy**: Community roles and collections
-- **Shell downloads**: `curl | bash` patterns
+- **Shell downloads**: `curl | bash` patterns (now replaced with secure binary downloads)
 - **Windows packages**: Scoop, Chocolatey, direct downloads
 
 ### Runtime Risks
@@ -31,9 +56,12 @@ registry_version: "2"
 
 ### 2. Checksum Verification
 ```bash
-# Astro CLI installation (example of secure pattern)
-curl -sSL install.astronomer.io | sudo bash -s
+# Secure binary download pattern (replaces curl | bash)
+ASTRO_URL=$(curl -s https://api.github.com/repos/astronomer/astro-cli/releases/latest | grep "browser_download_url.*linux_amd64.tar.gz" | cut -d '"' -f 4)
+wget -O /tmp/astro-cli.tar.gz "$ASTRO_URL"
 # TODO: Add checksum verification
+echo "expected_sha256_hash /tmp/astro-cli.tar.gz" | sha256sum -c
+sudo tar -xzf /tmp/astro-cli.tar.gz -C /usr/local/bin --strip-components=0 astro
 ```
 
 ### 3. Minimal Privilege Approach
@@ -43,18 +71,27 @@ curl -sSL install.astronomer.io | sudo bash -s
 
 ## 🔍 Security Scanning Integration
 
-### Pre-commit Hooks
+### Developer/Maintainer Use
+The included `./scripts/scan-supply-chain.sh` is designed for:
+- **Code review processes** - Identify risks during development
+- **Pre-commit validation** - Catch issues before they enter the repo
+- **Security team evaluation** - Independent analysis before organizational approval
+
+**Important**: This scanner does NOT certify code as "safe" - it surfaces risks for human evaluation.
+
+### Pre-commit Hooks (For Developers)
 ```bash
-# Install security scanning
-pip install safety bandit semgrep
+# Install security scanning tools with pinned versions
+pip install safety==3.2.9 ruff==0.7.4 semgrep==1.55.2
 
 # Run before commits
 safety check
-bandit -r ansible/
+ruff check .  # Fast linting + security checks
 semgrep --config=auto .
+./scripts/scan-supply-chain.sh  # Custom supply chain analysis
 ```
 
-### CI/CD Integration
+### CI/CD Integration (For Repository Maintainers)
 ```yaml
 # .github/workflows/security.yml
 - name: Supply Chain Security Scan
@@ -69,6 +106,15 @@ semgrep --config=auto .
     safety check -r ansible/requirements.txt
 ```
 
+### End User Considerations
+**End users should NOT rely solely on this scanner for security decisions.**
+
+Instead, consider:
+- **Organizational security review** of the entire repository
+- **Third-party security audit** for critical environments
+- **Staged deployment** (test environments first)
+- **Regular security updates** following your organization's policies
+
 ## 📋 Security Checklist
 
 ### Before Adding New Dependencies
@@ -78,7 +124,7 @@ semgrep --config=auto .
 - [ ] Is it necessary or can we avoid the dependency?
 
 ### For Shell Commands
-- [ ] Avoid `curl | bash` patterns where possible
+- [ ] Use secure binary downloads instead of `curl | bash` patterns
 - [ ] Use package managers over direct downloads
 - [ ] Verify signatures when available
 - [ ] Document security assumptions

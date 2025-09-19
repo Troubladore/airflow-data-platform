@@ -47,14 +47,6 @@ cd /path/to/workstation-setup
 ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
 ```
 
-### Security Validation
-```bash
-# 🐧 Run supply chain security scan before setup
-./scripts/scan-supply-chain.sh
-
-# Review any issues found before proceeding
-```
-
 ### Validation
 ```bash
 # 🐧 Run in WSL2 Ubuntu terminal

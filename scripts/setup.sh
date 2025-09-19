@@ -124,7 +124,13 @@ install_astro_cli() {
     echo "🚀 Installing Astronomer CLI..."
 
     if ! command -v astro &> /dev/null; then
-        curl -sSL install.astronomer.io | sudo bash -s
+        # Secure Astro CLI installation (avoiding pipe-to-shell)
+        echo "Installing Astro CLI securely..."
+        ASTRO_URL=$(curl -s https://api.github.com/repos/astronomer/astro-cli/releases/latest | grep "browser_download_url.*linux_amd64.tar.gz" | cut -d '"' -f 4)
+        wget -O /tmp/astro-cli.tar.gz "$ASTRO_URL"
+        sudo tar -xzf /tmp/astro-cli.tar.gz -C /usr/local/bin --strip-components=0 astro
+        sudo chmod +x /usr/local/bin/astro
+        rm -f /tmp/astro-cli.tar.gz
     fi
 
     astro version

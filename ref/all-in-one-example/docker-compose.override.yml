@@ -31,13 +31,13 @@ services:
     image: alpine:3.20
     command: >
       sh -c "
-        apk add --no-cache krb5 krb5-libs krb5-conf && 
-        mkdir -p /krb5 && 
+        apk add --no-cache krb5 krb5-libs krb5-conf &&
+        mkdir -p /krb5 &&
         # Expect keytab mounted at /krb5/dev.keytab (provide in local env)
         while true; do
-          echo 'Refreshing TGT...' && 
-          kinit -kt $KRB_KEYTAB_PATH $KRB_PRINCIPAL && 
-          cp /tmp/krb5cc_0 /krb5cc/krb5cc && 
+          echo 'Refreshing TGT...' &&
+          kinit -kt $KRB_KEYTAB_PATH $KRB_PRINCIPAL &&
+          cp /tmp/krb5cc_0 /krb5cc/krb5cc &&
           sleep 3600;
         done
       "

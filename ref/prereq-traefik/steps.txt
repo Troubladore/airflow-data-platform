@@ -39,7 +39,7 @@ cd ~/work/astro-local-config-full/traefik-bundle
 
 7) # run the file that was generated in step 2 in WSL to pull certs, after fixing line endings
 sed -i 's/\r$//' /mnt/c/Users/<your-win-user>/AppData/Local/mkcert/copy-to-wsl.sh
-bash /mnt/c/Users/<your-win-user>/AppData/Local/mkcert/copy-to-wsl.sh 
+bash /mnt/c/Users/<your-win-user>/AppData/Local/mkcert/copy-to-wsl.sh
 
 8) # start the Traefik and Registry services
 cd ~/work/astro-local-config-full/traefik-bundle
@@ -72,4 +72,3 @@ docker build -f docker/airflow-base.Dockerfile \
 
 # Then add to registry (local or remote)
 docker push registry.localhost/platform/airflow-base:3.0-10
-

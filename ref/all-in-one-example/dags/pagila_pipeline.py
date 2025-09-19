@@ -34,9 +34,8 @@ with DAG(
     schedule=None,
     catchup=False,
     default_args=DEFAULT_ARGS,
-    tags=["demo","bronze","silver","gold"],
+    tags=["demo", "bronze", "silver", "gold"],
 ) as dag:
-
     # 1) Bronze: land a few tables via datakit (loop condensed to one example task)
     bronze_film = DockerOperator(
         task_id="bronze_film",
@@ -45,10 +44,14 @@ with DAG(
         auto_remove=True,
         command=[
             "ingest",
-            "--table","film",
-            "--source-url", SRC_URL,
-            "--target-url", WH_URL,
-            "--batch-id","{{ ds_nodash }}"
+            "--table",
+            "film",
+            "--source-url",
+            SRC_URL,
+            "--target-url",
+            WH_URL,
+            "--batch-id",
+            "{{ ds_nodash }}",
         ],
         # Kerberos example env (point to shared cache)
         environment={
@@ -56,7 +59,12 @@ with DAG(
         },
         mounts=[
             # mount the shared kerberos cache read-only
-            {"source": "krb_ccache", "target": "/krb5cc", "type": "volume", "read_only": False},
+            {
+                "source": "krb_ccache",
+                "target": "/krb5cc",
+                "type": "volume",
+                "read_only": False,
+            },
         ],
         docker_url="unix://var/run/docker.sock",
         network_mode="airflow-obsv-net",
@@ -69,18 +77,22 @@ with DAG(
         api_version="auto",
         auto_remove=True,
         command=[
-            "bash","-lc",
-            "dbt deps && dbt build --profiles-dir /app/profiles --select pagila_silver"
+            "bash",
+            "-lc",
+            "dbt deps && dbt build --profiles-dir /app/profiles --select pagila_silver",
         ],
         # Mount a local profiles dir if you maintain it on the host; otherwise bake into image
         mounts=[
-            {"source": "dbt_profiles", "target": "/app/profiles", "type": "volume", "read_only": False},
+            {
+                "source": "dbt_profiles",
+                "target": "/app/profiles",
+                "type": "volume",
+                "read_only": False,
+            },
         ],
         docker_url="unix://var/run/docker.sock",
         network_mode="airflow-obsv-net",
-        environment={
-            "DBT_TARGET":"dev"
-        }
+        environment={"DBT_TARGET": "dev"},
     )
 
     # 3) Dims + 4) Fact (dbt) – same runner image, different selector
@@ -90,13 +102,21 @@ with DAG(
         api_version="auto",
         auto_remove=True,
         command=[
-            "bash","-lc",
-            "dbt deps && dbt build --profiles-dir /app/profiles --select gold_mart"
+            "bash",
+            "-lc",
+            "dbt deps && dbt build --profiles-dir /app/profiles --select gold_mart",
         ],
-        mounts=[{"source":"dbt_profiles","target":"/app/profiles","type":"volume","read_only":False}],
+        mounts=[
+            {
+                "source": "dbt_profiles",
+                "target": "/app/profiles",
+                "type": "volume",
+                "read_only": False,
+            }
+        ],
         docker_url="unix://var/run/docker.sock",
         network_mode="airflow-obsv-net",
-        environment={"DBT_TARGET":"dev"}
+        environment={"DBT_TARGET": "dev"},
     )
 
     dbt_fact = DockerOperator(
@@ -105,13 +125,21 @@ with DAG(
         api_version="auto",
         auto_remove=True,
         command=[
-            "bash","-lc",
-            "dbt deps && dbt build --profiles-dir /app/profiles --select gold_rental"
+            "bash",
+            "-lc",
+            "dbt deps && dbt build --profiles-dir /app/profiles --select gold_rental",
         ],
-        mounts=[{"source":"dbt_profiles","target":"/app/profiles","type":"volume","read_only":False}],
+        mounts=[
+            {
+                "source": "dbt_profiles",
+                "target": "/app/profiles",
+                "type": "volume",
+                "read_only": False,
+            }
+        ],
         docker_url="unix://var/run/docker.sock",
         network_mode="airflow-obsv-net",
-        environment={"DBT_TARGET":"dev"}
+        environment={"DBT_TARGET": "dev"},
     )
 
     bronze_film >> dbt_silver >> dbt_dims >> dbt_fact

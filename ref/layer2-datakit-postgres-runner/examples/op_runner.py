@@ -1,15 +1,15 @@
 import os
-from typing import Dict, List, Optional
 
 EXEC_MODE = os.getenv("EXEC_MODE", "docker")  # "docker" locally, "k8s" in CI/prod
+
 
 def run_datakit(
     task_id: str,
     image: str,
-    arguments: List[str],
-    env: Optional[Dict[str, str]] = None,
-    queue: Optional[str] = None,
-    pod_template_file: Optional[str] = None,
+    arguments: list[str],
+    env: dict[str, str] | None = None,
+    queue: str | None = None,
+    pod_template_file: str | None = None,
     **kwargs,
 ):
     """Return a task operator that runs a datakit.
@@ -18,7 +18,10 @@ def run_datakit(
     The image/args/env stay identical for fidelity.
     """
     if EXEC_MODE == "k8s":
-        from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
+        from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import (
+            KubernetesPodOperator,
+        )
+
         return KubernetesPodOperator(
             task_id=task_id,
             name=task_id.replace("_", "-"),
@@ -34,9 +37,17 @@ def run_datakit(
     else:
         from airflow.providers.docker.operators.docker import DockerOperator
         from docker.types import Mount
+
         mounts = []
         if os.getenv("KRB_CCACHE_PATH"):
-            mounts.append(Mount(target="/ccache", source=os.getenv("KRB_CCACHE_PATH"), type="bind", read_only=True))
+            mounts.append(
+                Mount(
+                    target="/ccache",
+                    source=os.getenv("KRB_CCACHE_PATH"),
+                    type="bind",
+                    read_only=True,
+                )
+            )
         return DockerOperator(
             task_id=task_id,
             image=image,

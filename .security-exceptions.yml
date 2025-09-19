@@ -1,0 +1,57 @@
+# Security Risk Exceptions
+# Track accepted risks with justification and review dates
+# Format: Each exception includes pattern, justification, accepted_by, date, expires
+
+exceptions:
+  # Ansible validation examples - testing commands, not security risks
+  - pattern: "curl -k https://registry.localhost/v2/_catalog"
+    category: "dynamic_downloads"
+    justification: "Testing command in documentation for registry validation - not executed during automation"
+    accepted_by: "Security Team"
+    accepted_date: "2025-01-19"
+    expires: "2026-01-19"
+    review_frequency: "annual"
+
+  # Build system dependencies - curl package installation
+  - pattern: "ansible/setup-wsl2.yml.*- curl"
+    category: "dynamic_downloads"
+    justification: "Installing curl package via apt (package manager) - not pipe-to-shell execution"
+    accepted_by: "Platform Team"
+    accepted_date: "2025-01-19"
+    expires: "2026-01-19"
+    review_frequency: "annual"
+
+  # Certificate key permission documentation
+  - pattern: "key.*0600"
+    category: "hardcoded_secrets"
+    justification: "Documentation of proper file permissions for certificate keys - not actual secrets"
+    accepted_by: "Security Team"
+    accepted_date: "2025-01-19"
+    expires: "2026-01-19"
+    review_frequency: "annual"
+
+  # Future examples - show the format for other risk types
+  # - pattern: "FROM debian:stable"
+  #   category: "docker_unpinned"
+  #   justification: "Development example only - production uses pinned versions"
+  #   accepted_by: "DevOps Team"
+  #   accepted_date: "2025-01-19"
+  #   expires: "2025-07-19"
+  #   review_frequency: "quarterly"
+
+# Global settings
+settings:
+  # Require approval for new exceptions
+  require_approval: true
+
+  # Warn about expiring exceptions (days before expiration)
+  expiration_warning_days: 30
+
+  # Default expiration period for new exceptions (days)
+  default_expiration_days: 365
+
+  # Who can approve exceptions
+  authorized_approvers:
+    - "Security Team"
+    - "Platform Team"
+    - "DevOps Team"
