@@ -1,0 +1,141 @@
+# To get started with Dependabot version updates, you'll need to specify which
+# package ecosystems to update and where the package manifests are located.
+# Please see the documentation for all configuration options:
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+# Hardened Dependabot configuration for Python projects using uv
+# Based on OWASP and modern supply chain security recommendations
+version: 2
+
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      # Run weekly checks on Monday mornings (UTC)
+      # Weekly strikes a balance between staying current and allowing time for community vetting
+      interval: "weekly"
+      day: "friday"
+      time: "09:00"
+      timezone: "UTC"
+    
+    # SECURITY HARDENING: Cooldown periods
+    # Implements the 60-day recommendation from CIS Supply Chain Security Benchmark
+    # and addresses the Endor Labs "delay package adoption" guidance
+    cooldown:
+      # Default 14-day cooldown for all dependencies
+      default-days: 14
+      # Major version updates get more scrutiny (14 days)
+      semver-major-days: 28
+      # Minor updates: 7 days
+      semver-minor-days: 14
+      # Patch updates: 3 days (security patches may be urgent)
+      semver-patch-days: 7
+      # You can exclude critical security libraries if needed
+      exclude:
+        - "cryptography"  # Example: critical security library
+        - "certifi"       # Example: certificate bundle updates
+    
+    # SECURITY: Versioning strategy
+    # Use lockfile-only to ensure reproducible builds and prevent unexpected changes
+    versioning-strategy: "lockfile-only"
+    
+    # SECURITY: Limit concurrent PRs to manage review capacity
+    # Ensures thorough security review of each update
+    open-pull-requests-limit: 3
+    
+    # PR Management for better security review workflow
+    labels:
+      - "dependencies"
+      - "security-review"
+      - "python"
+    
+    assignees:
+      # Add your security team members or maintainers here
+      # - "security-reviewer"
+    
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+      include: "scope"
+    
+    # SECURITY: Group non-critical updates to reduce PR noise
+    # This allows focus on security-critical updates
+    groups:
+      # Group development dependencies together
+      dev-dependencies:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+      
+      # Group all patch updates for production dependencies
+      production-patches:
+        dependency-type: "production"
+        update-types:
+          - "patch"
+        # Exclude security-critical packages from grouping
+        exclude-patterns:
+          - "django*"         # Web framework
+          - "flask*"          # Web framework
+          - "requests"        # HTTP library
+          - "urllib3"         # HTTP library
+          - "cryptography"    # Crypto library
+          - "pycrypto*"       # Crypto libraries
+          - "paramiko"        # SSH library
+          - "pyyaml"          # YAML parsing
+          - "jinja2"          # Template engine
+          - "sqlalchemy"      # ORM
+    
+    # SECURITY: Ignore pre-release versions and specific risky patterns
+    ignore:
+      # Ignore all pre-release versions (alpha, beta, rc)
+      - dependency-name: "*"
+        versions: ["*alpha*", "*beta*", "*rc*", "*dev*", "*pre*"]
+      
+      # Ignore major version updates for critical libraries
+      # (Review these manually with extra scrutiny)
+      - dependency-name: "django"
+        update-types: ["version-update:semver-major"]
+      
+      - dependency-name: "sqlalchemy"
+        update-types: ["version-update:semver-major"]
+    
+    # SECURITY: Allow list (optional - use if you want to restrict updates)
+    # Uncomment and customize if you want to limit updates to specific packages
+    # allow:
+    #   - dependency-type: "production"
+    #   - dependency-type: "development"
+    
+    # SECURITY: Don't run pull request rebasing automatically
+    # This prevents potential issues with malicious updates being rebased
+    rebase-strategy: "disabled"
+
+# Additional configuration for GitHub Actions (if used)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      day: "monday"
+      time: "09:00"
+    
+    # Apply cooldown to actions as well
+    cooldown:
+      default-days: 28
+    
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "security-review"
+    
+    open-pull-requests-limit: 2
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 28  # Docker images need extra vetting time
+    labels:
+      - "dependencies"
+      - "docker"
+      - "security-review"
