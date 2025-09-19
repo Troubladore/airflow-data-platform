@@ -67,11 +67,12 @@
             ✅ Certificates managed in WSL2 user space
             ✅ Manual Windows setup guidance provided when needed
 
-          🔧 For admin users only:
-            If you have admin rights and want full automation, you can:
-            1. Enable WinRM: Enable-PSRemoting -Force (in admin PowerShell)
-            2. Configure auth: Set-Item WSMan:\localhost\Service\Auth\Basic $true
-            3. Re-run this playbook for cross-platform mode
+          🚀 Quick Windows Setup:
+            Run the Windows prerequisites script first:
+            1. 🪟 In Windows PowerShell: .\scripts\win-prereqs.ps1
+            2. 🐧 Then re-run this playbook: ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
+
+            This handles Scoop, mkcert, certificates, and hosts file automatically!
           {% endif %}
 
 - name: "🪟 Windows Prerequisites and Setup"
