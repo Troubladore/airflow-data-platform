@@ -1,7 +1,7 @@
 ---
 # Windows validation and setup with graceful admin handling
 - name: "🪟 Windows Prerequisites Management"
-  hosts: windows-host
+  hosts: windows_host
   gather_facts: yes
   vars_files:
     - group_vars/all.yml

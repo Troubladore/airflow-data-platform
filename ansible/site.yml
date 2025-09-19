@@ -42,8 +42,8 @@
       when: wsl2_check.rc != 0
 
     - name: Check Windows accessibility
-      win_ping:
-      delegate_to: windows-host
+      ansible.windows.win_ping:
+      delegate_to: windows-localhost
       register: windows_accessible
       failed_when: false
 
