@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: worker-validation
+spec:
+  containers:
+  - name: worker-validation
+    image: registry.localhost/platform/airflow-base:3.0-10
+    resources:
+      requests: { cpu: "500m", memory: "1Gi" }
+      limits:   { cpu: "1", memory: "2Gi" }

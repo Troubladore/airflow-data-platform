@@ -1,0 +1,75 @@
+Windows
+
+1) Install mkcert
+scoop install mkcert
+mkcert -install        # installs a local CA into Windows trust
+
+2) Create certificates
+in any folder, run setup-dev-certs-hybrid.ps1
+# This will create certs, documentation in some standard Windows folders, and script you can run from WSL2
+
+2.a) Update hosts (REQUIRES ADMIN SESSION)
+Add-Content C:\Windows\System32\drivers\etc\hosts "127.0.0.1 registry.localhost"
+Add-Content C:\Windows\System32\drivers\etc\hosts "127.0.0.1 traefik.localhost"
+
+WSL2
+
+3) Base packages
+sudo apt update && sudo apt install -y \
+  build-essential curl git unzip ca-certificates \
+  libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev \
+  libffi-dev
+
+4) Update hosts
+sudo nano /etc/hosts
+
+# add these lines
+127.0.0.1       registry.localhost
+127.0.0.1       traefik.localhost
+127.0.0.1       whoami.localhost
+
+5) Astro CLI within WSL2
+curl -sSL install.astronomer.io | sudo bash -s
+
+astro version
+
+6) # get some pre-configs loaded
+unzip /mnt/c/Users/<your-win-user>/Downloads/astro-local-config-full.zip -d ~/work
+cd ~/work/astro-local-config-full/traefik-bundle
+
+7) # run the file that was generated in step 2 in WSL to pull certs, after fixing line endings
+sed -i 's/\r$//' /mnt/c/Users/<your-win-user>/AppData/Local/mkcert/copy-to-wsl.sh
+bash /mnt/c/Users/<your-win-user>/AppData/Local/mkcert/copy-to-wsl.sh 
+
+8) # start the Traefik and Registry services
+cd ~/work/astro-local-config-full/traefik-bundle
+docker compose up -d
+docker pull busybox
+docker tag busybox registry.localhost/demo/busybox:latest
+ping -c 1 registry.localhost  # should ping successfully
+docker run --rm alpine nslookup registry.localhost  # should ping successfully
+docker push registry.localhost/demo/busybox:latest  # should succeed
+docker pull registry.localhost/demo/busybox:latest  # should succeed
+
+9) #Build the Base
+# First, see what comes with the base image you are deploying
+docker run --rm astrocrpublic.azurecr.io/runtime:3.0-10 bash -c "
+pip list --format=freeze | grep -E '(apache-airflow-providers|pydantic|sqlalchemy)'
+"
+# You'll see a list of things that Astronomer has pinned in this image - you don't need to add those
+# this usually includes things like mysql, postgres, common-sql, celery, etc, but not mssql
+
+# In the /zip folder (still in Windows Downloads), edit requirements.txt to include add-ons you need, i.e.
+apache-airflow-providers-microsoft-mssql==4.3.2
+
+# Once satisfied, extract into WSL2
+unzip /mnt/c/Users/<your-win-user>/Downloads/layer1-platform-3.0-10.zip -d ~/work
+cd ~/work/layer1-platform-3.0-10
+
+# Then build
+docker build -f docker/airflow-base.Dockerfile \
+  -t registry.localhost/platform/airflow-base:3.0-10 .
+
+# Then add to registry (local or remote)
+docker push registry.localhost/platform/airflow-base:3.0-10
+
