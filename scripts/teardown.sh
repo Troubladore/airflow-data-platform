@@ -113,10 +113,28 @@ cleanup_docker_services() {
         log_success "Platform services stopped"
     fi
 
+    # Stop and remove Pagila source database
+    if [ -f "$REPO_ROOT/layer1-platform/docker/pagila-db.yml" ]; then
+        log_info "Stopping Pagila source database..."
+        cd "$REPO_ROOT/layer1-platform/docker"
+        docker compose -f pagila-db.yml down --volumes --remove-orphans || log_warning "Pagila DB may have already been stopped"
+        log_success "Pagila source database stopped"
+    fi
+
+    # Stop and remove PostgreSQL test sandbox
+    if [ -f "$REPO_ROOT/layer1-platform/docker/test-postgres.yml" ]; then
+        log_info "Stopping PostgreSQL test sandbox..."
+        cd "$REPO_ROOT/layer1-platform/docker"
+        docker compose -f test-postgres.yml down --volumes --remove-orphans || log_warning "Test sandbox may have already been stopped"
+        log_success "PostgreSQL test sandbox stopped"
+    fi
+
     # Remove any remaining platform containers (check various naming patterns)
     log_info "Removing remaining platform containers..."
     docker ps -aq --filter "name=traefik" | xargs -r docker rm -f 2>/dev/null || true
     docker ps -aq --filter "name=registry" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=pagila-source-db" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=datakit-test-db" | xargs -r docker rm -f 2>/dev/null || true
     docker ps -aq --filter "label=com.docker.compose.project=traefik-bundle" | xargs -r docker rm -f 2>/dev/null || true
 
     # Clean up networks (check various naming patterns)
@@ -137,7 +155,7 @@ cleanup_docker_services() {
 
     # Remove platform volumes by name (including compose-generated names)
     log_info "Cleaning up platform volumes..."
-    docker volume ls -q | grep -E "(traefik|registry)" | xargs -r docker volume rm 2>/dev/null || true
+    docker volume ls -q | grep -E "(traefik|registry|pagila)" | xargs -r docker volume rm 2>/dev/null || true
 
     # Clean up any remaining unused volumes
     docker volume prune -f || log_warning "Volume cleanup had issues"

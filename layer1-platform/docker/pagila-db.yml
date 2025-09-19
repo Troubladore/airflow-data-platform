@@ -1,0 +1,31 @@
+version: '3.8'
+
+# Pagila Source Database - References External Implementation
+# Uses the external pagila repository for actual database setup
+# This file provides the Docker configuration to connect to pagila data
+# Maintainers: Keep pagila-source datakit aligned with external pagila repo
+
+services:
+  pagila-db:
+    image: postgres:17.5-alpine  # Source database - use external pagila repo
+    container_name: pagila-source-db
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: pagila
+      POSTGRES_PASSWORD: pagila_demo_password
+
+    ports:
+      - "15432:5432"  # Non-standard port to avoid conflicts
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d pagila"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+    # NOTE: Actual pagila schema/data should be loaded from external pagila repo
+    # This configuration assumes you'll use the external pagila repository
+    # to initialize the database with the standard Pagila sample data

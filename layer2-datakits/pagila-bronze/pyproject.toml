@@ -1,16 +1,16 @@
 [project]
-name = "datakit-spark"
+name = "datakit-pagila-bronze"
 version = "0.1.0"
-description = "Spark datakit (bronze ingestion)"
+description = "Pagila bronze layer warehouse tables (br__pagila__public schema)"
 requires-python = "==3.12.11"
 dependencies = [
-  "data-platform-framework",
-  "typer==0.15.1",
-  "pyspark==3.5.3"
+    "data-platform-framework",
+    "typer==0.15.1",
+    "pandas==2.2.3",
+    "psycopg[binary]==3.2.4"
 ]
 [project.scripts]
-datakit-spark = "datakit_spark.cli:app"
-
+pagila-bronze = "datakit_pagila_bronze.cli:app"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -19,7 +19,7 @@ build-backend = "hatchling.build"
 data-platform-framework = { path = "../../data-workspace/data-platform-framework", editable = true }
 
 [tool.hatch.build.targets.wheel]
-packages = ["datakit_spark"]
+packages = ["datakit_pagila_bronze"]
 
 [tool.ruff]
 target-version = "py312"

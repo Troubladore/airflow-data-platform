@@ -36,11 +36,27 @@ __pycache__/
 .Python
 env/
 venv/
+.venv/
 ENV/
 env.bak/
 venv.bak/
+
+# UV package manager
+uv.lock
+*.egg-info/
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+coverage.xml
+coverage.html
+htmlcov/
 
 # Local development overrides
 docker-compose.override.yml
 docker-compose.layer2.yml
 .env.local
+
+# Large data files (can be regenerated)
+**/pagila-data.sql
+**/pagila-init/
