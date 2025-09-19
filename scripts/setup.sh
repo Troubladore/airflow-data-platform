@@ -7,31 +7,88 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-echo "🚀 Astronomer Airflow Workstation Setup"
-echo "========================================"
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+echo -e "${BLUE}🚀 Astronomer Airflow Workstation Setup${NC}"
+echo -e "${BLUE}========================================${NC}"
+echo -e "${YELLOW}⚡ New: Ansible-powered automation with graceful admin handling${NC}"
 echo ""
+
+# Logging functions
+log_info() { echo -e "${BLUE}ℹ️  $1${NC}"; }
+log_success() { echo -e "${GREEN}✅ $1${NC}"; }
+log_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
+log_error() { echo -e "${RED}❌ $1${NC}"; }
+
+# Check for Ansible automation
+check_ansible_setup() {
+    log_info "Checking for modern Ansible automation..."
+
+    if [ -f "$PROJECT_ROOT/ansible/site.yml" ]; then
+        if command -v ansible-playbook &> /dev/null; then
+            log_success "Ansible automation available!"
+            echo
+            echo -e "${GREEN}🎯 Recommended: Use Ansible for robust, automated setup${NC}"
+            echo
+            echo "Full setup with graceful admin handling:"
+            echo "  cd $PROJECT_ROOT"
+            echo "  ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml"
+            echo
+            echo "Validation after setup:"
+            echo "  ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml"
+            echo
+            echo "Complete teardown for testing:"
+            echo "  ./scripts/teardown.sh"
+            echo
+            read -p "Use Ansible automation? (Y/n): " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                log_info "Starting Ansible automation..."
+                cd "$PROJECT_ROOT"
+                exec ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
+            fi
+        else
+            log_warning "Ansible automation available but not installed"
+            echo
+            echo "To use the improved automation:"
+            echo "  pip install ansible ansible-core pywinrm"
+            echo "  ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml"
+            echo
+            echo "Continuing with legacy manual setup..."
+            echo
+        fi
+    else
+        log_warning "Ansible automation not found, using legacy setup"
+        echo
+    fi
+}
 
 # Check prerequisites
 check_prerequisites() {
-    echo "📋 Checking prerequisites..."
+    log_info "Checking prerequisites..."
 
     # Check Docker
     if ! command -v docker &> /dev/null; then
-        echo "❌ Docker not found. Please install Docker Desktop or Docker Engine."
+        log_error "Docker not found. Please install Docker Desktop or Docker Engine."
         exit 1
     fi
 
     # Check Docker daemon
     if ! docker info &> /dev/null; then
-        echo "❌ Docker daemon not running. Please start Docker."
+        log_error "Docker daemon not running. Please start Docker."
         exit 1
     fi
 
-    echo "✅ Docker is installed and running"
+    log_success "Docker is installed and running"
 
     # Check for WSL2 if on Windows
     if grep -qi microsoft /proc/version 2>/dev/null; then
-        echo "🪟 WSL2 environment detected"
+        log_info "WSL2 environment detected"
     fi
 
     echo ""
@@ -185,6 +242,13 @@ main() {
     echo "Project root: $PROJECT_ROOT"
     echo ""
 
+    # Check for modern Ansible automation first
+    check_ansible_setup
+
+    # If we reach here, user chose legacy setup or Ansible not available
+    log_info "Proceeding with legacy manual setup..."
+    echo
+
     check_prerequisites
     install_base_packages
     install_astro_cli
@@ -195,7 +259,7 @@ main() {
     build_platform_image
 
     echo ""
-    echo "✨ Setup complete!"
+    log_success "Legacy setup complete!"
     echo ""
     echo "Next steps:"
     echo "1. Review the documentation in docs/"
@@ -205,8 +269,13 @@ main() {
     echo "To verify the installation:"
     echo "  ./scripts/verify.sh"
     echo ""
+    echo "To teardown and test rebuild:"
+    echo "  ./scripts/teardown.sh"
+    echo ""
     echo "To start the development environment:"
     echo "  cd examples/all-in-one && astro dev start"
+    echo ""
+    echo -e "${YELLOW}💡 Consider upgrading to Ansible automation for improved reliability!${NC}"
 }
 
 main "$@"
