@@ -30,11 +30,17 @@ Add entry to `.security-exceptions.yml`:
 exceptions:
   - pattern: "your-specific-pattern"
     category: "risk_category"
-    justification: "Clear business justification"
+    justification: |
+      WHAT: Specific description of what was flagged
+      WHY FLAGGED: Why the scanner identified this as a risk
+      WHY ACCEPTED: Business/technical reason for accepting the risk
+      RISK LEVEL: Assessment of actual risk (None/Low/Medium/High)
+      CONTEXT: Additional context about when/where this occurs
+      TECHNICAL_DEBT: Any follow-up work needed (optional)
     accepted_by: "Security Team"
-    accepted_date: "2025-01-19"
-    expires: "2026-01-19"
-    review_frequency: "annual"
+    accepted_date: "2025-09-19"
+    expires: "2026-03-19"  # Realistic future date
+    review_frequency: "quarterly"
 ```
 
 ### 4. **Review and Approval**
@@ -171,9 +177,15 @@ Every exception includes:
 # Accept: curl commands used only for validation examples
 - pattern: "curl -k https://.*localhost"
   category: "dynamic_downloads"
-  justification: "Documentation validation examples - not executed during automation"
+  justification: |
+    WHAT: curl commands in validation documentation for testing registry connectivity
+    WHY FLAGGED: Scanner detects curl as potential dynamic download security risk
+    WHY ACCEPTED: These are manual testing commands in documentation - not automated execution
+    RISK LEVEL: None - documentation examples only
+    CONTEXT: Users run these commands manually to verify their setup works correctly
   accepted_by: "Security Team"
-  expires: "2026-01-19"
+  accepted_date: "2025-09-19"
+  expires: "2026-03-19"
 ```
 
 ### **Scenario 2: Development Container Flexibility**
