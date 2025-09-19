@@ -43,6 +43,11 @@ ansible-playbook --version
 ```bash
 # 🐧 Run in WSL2 Ubuntu terminal
 cd <<your_repo_folder>>/workstation-setup
+
+# Cache your sudo password first (prevents tasks from hanging)
+sudo echo "Testing sudo access"
+
+# Then run platform setup
 ansible-playbook -i inventory/local-dev.ini site.yml --ask-become-pass
 ```
 **What it does**: Automates Windows + WSL2 setup, provides guidance for manual steps when needed

@@ -46,7 +46,10 @@ ansible-galaxy install -r ansible/requirements.yml
 cd <<your_repo_folder>>/workstation-setup
 ./scripts/setup-windows-prereqs.sh
 
-# Then run platform setup (you'll be prompted for your sudo password)
+# Cache your sudo password first (prevents tasks from hanging)
+sudo echo "Testing sudo access"
+
+# Then run platform setup
 ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml --ask-become-pass
 ```
 
@@ -54,6 +57,11 @@ ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml --ask-becom
 ```bash
 # 🐧 Run in WSL2 Ubuntu terminal (requires Windows admin + WinRM setup)
 cd <<your_repo_folder>>/workstation-setup
+
+# Cache your sudo password first (prevents tasks from hanging)
+sudo echo "Testing sudo access"
+
+# Then run platform setup
 ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml --ask-become-pass
 ```
 
@@ -121,8 +129,12 @@ curl -k https://traefik.localhost/api/http/services
 ### Recommended Workflow
 ```bash
 # 🐧 Run in WSL2 Ubuntu terminal
+
+# Cache your sudo password first (prevents tasks from hanging)
+sudo echo "Testing sudo access"
+
 # Run full automation (will handle everything except hosts file)
-ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
+ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml --ask-become-pass
 
 # If hosts file update fails, Ansible will provide clear guidance
 # 🪟 Add entries via your corporate host management tool (Windows side)
