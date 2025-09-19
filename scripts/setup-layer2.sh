@@ -15,7 +15,7 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 REGISTRY_HOST="registry.localhost"
-IMAGE_VERSION="layer2-v1.0.0"  # Version for our built datakit images
+IMAGE_VERSION="v1.0.0"  # Version for our built datakit images
 
 # Logging functions
 log_info() { echo -e "${BLUE}ℹ️  $1${NC}"; }

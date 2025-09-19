@@ -29,7 +29,7 @@ services:
       - data-processing
 
   bronze-processor:
-    image: registry.localhost/datakits/bronze-pagila:layer2-v1.0.0
+    image: registry.localhost/datakits/bronze-pagila:v1.0.0
     container_name: bronze-processor
     depends_on:
       - pagila-source
@@ -41,7 +41,7 @@ services:
       TARGET_DB_URL: "postgresql://warehouse:warehouse@data-warehouse:5432/data_warehouse"
 
   dbt-runner:
-    image: registry.localhost/datakits/dbt-runner:layer2-v1.0.0
+    image: registry.localhost/datakits/dbt-runner:v1.0.0
     container_name: dbt-runner
     depends_on:
       - data-warehouse
