@@ -6,6 +6,8 @@
   hosts: localhost
   gather_facts: yes
   become: no
+  vars:
+    ansible_become_pass: "{{ ansible_sudo_pass | default(omit) }}"
   tasks:
     - name: Display setup banner
       debug:

@@ -5,8 +5,49 @@
   gather_facts: yes
   vars_files:
     - group_vars/all.yml
+  vars:
+    ansible_become_pass: "{{ ansible_sudo_pass | default(omit) }}"
 
   tasks:
+    - name: "🔐 Check sudo access"
+      block:
+        - name: Test sudo access without password
+          command: sudo -n true
+          register: sudo_check
+          failed_when: false
+          changed_when: false
+
+        - name: Display sudo access status
+          debug:
+            msg: |
+              🔐 Sudo Access Check:
+              {% if sudo_check.rc == 0 %}
+              ✅ Passwordless sudo is configured - automation will proceed
+              {% else %}
+              ⚠️  Sudo requires password - you'll be prompted for your password during setup
+
+              💡 To enable passwordless sudo for better automation (optional):
+              1. Run: sudo visudo
+              2. Add line: {{ ansible_user_id }} ALL=(ALL) NOPASSWD:ALL
+              3. Save and re-run this playbook
+
+              Continuing with password prompts...
+              {% endif %}
+
+        - name: Pause if sudo requires password
+          pause:
+            prompt: |
+
+              🔐 This setup requires sudo privileges for:
+              - Installing system packages (apt update/install)
+              - Setting up certificates and permissions
+              - Installing Docker Compose
+
+              You'll be prompted for your password during these operations.
+
+              Press ENTER to continue, or Ctrl+C to cancel and set up passwordless sudo first.
+          when: sudo_check.rc != 0
+
     - name: "🔍 WSL2 Environment Detection"
       block:
         - name: Verify WSL2 environment

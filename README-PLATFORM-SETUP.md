@@ -46,21 +46,21 @@ ansible-galaxy install -r ansible/requirements.yml
 cd <<your_repo_folder>>/workstation-setup
 ./scripts/setup-windows-prereqs.sh
 
-# Then run platform setup
-ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
+# Then run platform setup (you'll be prompted for your sudo password)
+ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml --ask-become-pass
 ```
 
 **Option B: Windows Admin Users with WinRM**
 ```bash
 # 🐧 Run in WSL2 Ubuntu terminal (requires Windows admin + WinRM setup)
 cd <<your_repo_folder>>/workstation-setup
-ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
+ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml --ask-become-pass
 ```
 
 ### Validation
 ```bash
 # 🐧 Run in WSL2 Ubuntu terminal
-ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml
+ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml --ask-become-pass --ask-become-pass
 ```
 
 **Expected Results:**
@@ -90,7 +90,7 @@ ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
 ```bash
 # 🐧 Run in WSL2 Ubuntu terminal
 # Test specific components
-ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml
+ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml --ask-become-pass
 
 # Or manually test key endpoints
 curl -k https://registry.localhost/v2/_catalog
@@ -127,7 +127,7 @@ ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
 # If hosts file update fails, Ansible will provide clear guidance
 # 🪟 Add entries via your corporate host management tool (Windows side)
 # 🐧 Re-run to validate (back in WSL2 terminal)
-ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml
+ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml --ask-become-pass
 ```
 
 ---
@@ -190,7 +190,7 @@ ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml
 ### Get Help
 ```bash
 # Check detailed validation results
-ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml
+ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml --ask-become-pass
 
 # View container logs
 docker compose -f ~/platform-services/traefik/docker-compose.yml logs -f

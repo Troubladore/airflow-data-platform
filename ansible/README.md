@@ -43,14 +43,14 @@ ansible-playbook --version
 ```bash
 # 🐧 Run in WSL2 Ubuntu terminal
 cd <<your_repo_folder>>/workstation-setup
-ansible-playbook -i inventory/local-dev.ini site.yml
+ansible-playbook -i inventory/local-dev.ini site.yml --ask-become-pass
 ```
 **What it does**: Automates Windows + WSL2 setup, provides guidance for manual steps when needed
 
 ### 2. Comprehensive Validation
 ```bash
 # 🐧 Run in WSL2 Ubuntu terminal
-ansible-playbook -i inventory/local-dev.ini validate-all.yml
+ansible-playbook -i inventory/local-dev.ini validate-all.yml --ask-become-pass
 ```
 **Expected results**: All services accessible via HTTPS, registry functional
 
@@ -64,7 +64,7 @@ ansible-playbook -i inventory/local-dev.ini teardown.yml
 ### 4. Corporate/Non-Admin Setup
 ```bash
 # 🐧 Run in WSL2 Ubuntu terminal (after manual hosts file update)
-ansible-playbook -i inventory/local-dev.ini site.yml --skip-tags "admin-required"
+ansible-playbook -i inventory/local-dev.ini site.yml --ask-become-pass --skip-tags "admin-required"
 ```
 **When to use**: When you don't have local admin rights but completed manual prerequisites
 
@@ -140,7 +140,7 @@ Add these entries via your organization's host management tool:
 
 After setup (manual + automated), run validation:
 ```bash
-ansible-playbook -i inventory/local-dev.ini validate-all.yml
+ansible-playbook -i inventory/local-dev.ini validate-all.yml --ask-become-pass
 ```
 
 **Expected Results:**
@@ -156,7 +156,7 @@ ansible-playbook -i inventory/local-dev.ini validate-all.yml
 ansible-playbook -i inventory/local-dev.ini teardown.yml
 
 # Full rebuild
-ansible-playbook -i inventory/local-dev.ini site.yml
+ansible-playbook -i inventory/local-dev.ini site.yml --ask-become-pass
 ```
 
 ## 📁 Structure
