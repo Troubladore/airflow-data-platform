@@ -111,12 +111,16 @@ cleanup_docker_services() {
     docker network ls --filter "name=traefik" -q | xargs -r docker network rm 2>/dev/null || true
     docker network ls --filter "label=com.docker.compose.project=traefik-bundle" -q | xargs -r docker network rm 2>/dev/null || true
 
-    # Remove platform images (including base images)
+    # Remove platform images (using grep since Docker filters don't support wildcards the way we need)
     log_info "Cleaning up platform images..."
-    docker images --filter "reference=registry.localhost/*" -q | xargs -r docker rmi -f 2>/dev/null || true
-    docker images --filter "reference=*/demo/*" -q | xargs -r docker rmi -f 2>/dev/null || true
-    docker images --filter "reference=traefik:*" -q | xargs -r docker rmi -f 2>/dev/null || true
-    docker images --filter "reference=registry:*" -q | xargs -r docker rmi -f 2>/dev/null || true
+    # Remove registry.localhost images (custom built images)
+    docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "^registry\.localhost" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
+    # Remove demo images
+    docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "/demo/" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
+    # Remove traefik base images
+    docker images --filter "reference=traefik" -q | xargs -r docker rmi -f 2>/dev/null || true
+    # Remove registry base images
+    docker images --filter "reference=registry" -q | xargs -r docker rmi -f 2>/dev/null || true
 
     # Remove platform volumes by name (including compose-generated names)
     log_info "Cleaning up platform volumes..."
@@ -243,13 +247,30 @@ perform_complete_teardown() {
             log_info "No Windows mkcert certificates found"
         fi
 
-        # Try to uninstall mkcert CA
+        # Try to uninstall mkcert CA (try both direct and scoop methods)
         log_info "Attempting to uninstall mkcert CA..."
+        local ca_uninstalled=false
+
+        # Try direct mkcert command first
         if /mnt/c/Windows/System32/cmd.exe /c "mkcert -uninstall" 2>/dev/null; then
-            log_success "Uninstalled mkcert Certificate Authority"
-        else
+            log_success "Uninstalled mkcert Certificate Authority (direct)"
+            ca_uninstalled=true
+        # Try via scoop if direct fails
+        elif /mnt/c/Windows/System32/cmd.exe /c "scoop run mkcert -uninstall" 2>/dev/null; then
+            log_success "Uninstalled mkcert Certificate Authority (via scoop)"
+            ca_uninstalled=true
+        # Try PowerShell with scoop
+        elif /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command "& { scoop run mkcert -uninstall }" 2>/dev/null; then
+            log_success "Uninstalled mkcert Certificate Authority (via PowerShell scoop)"
+            ca_uninstalled=true
+        fi
+
+        if [ "$ca_uninstalled" = false ]; then
             log_warning "Could not uninstall mkcert CA - manual cleanup needed"
-            echo "  Manual command (as Administrator): mkcert -uninstall"
+            echo "  Try these commands (as Administrator):"
+            echo "    mkcert -uninstall"
+            echo "    OR: scoop run mkcert -uninstall"
+            echo "    OR in PowerShell: scoop run mkcert -uninstall"
         fi
     else
         log_warning "Could not determine Windows username for certificate cleanup"
@@ -366,11 +387,12 @@ verify_teardown() {
     fi
 
     # Check for remaining images
-    local remaining_images=$(docker images --format "{{.Repository}}:{{.Tag}}" 2>/dev/null | grep -E "(traefik|registry|registry\.localhost)" | wc -l)
+    local remaining_images=$(docker images --format "{{.Repository}}:{{.Tag}}" 2>/dev/null | grep -E "(^traefik|^registry[^.]|^registry\.localhost)" | wc -l)
     if [ "$remaining_images" -gt 0 ]; then
         log_warning "Found $remaining_images remaining platform images:"
-        docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" 2>/dev/null | grep -E "(traefik|registry|registry\.localhost)" || true
-        echo "  Remove: docker images | grep -E \"(traefik|registry|registry\\.localhost)\" | awk '{print \$3}' | xargs docker rmi -f"
+        docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" 2>/dev/null | grep -E "(^traefik|^registry[^.]|^registry\.localhost)" || true
+        echo "  Remove registry.localhost: docker images --format \"{{.Repository}}:{{.Tag}} {{.ID}}\" | grep \"^registry\\.localhost\" | awk '{print \$2}' | xargs docker rmi -f"
+        echo "  Remove base images: docker images --filter \"reference=traefik\" --filter \"reference=registry\" -q | xargs docker rmi -f"
         issues_found=$((issues_found + 1))
     fi
 
