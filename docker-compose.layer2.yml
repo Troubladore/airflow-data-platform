@@ -1,7 +1,7 @@
 version: '3.8'
 services:
   pagila-source:
-    image: postgres:15
+    image: postgres:15.8
     container_name: pagila-source
     environment:
       POSTGRES_DB: pagila
@@ -15,7 +15,7 @@ services:
       - data-processing
 
   data-warehouse:
-    image: postgres:15
+    image: postgres:15.8
     container_name: data-warehouse
     environment:
       POSTGRES_DB: data_warehouse

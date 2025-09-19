@@ -128,7 +128,7 @@ setup_databases() {
             -e POSTGRES_USER=postgres \
             -e POSTGRES_PASSWORD=postgres \
             -v pagila-source-data:/var/lib/postgresql/data \
-            postgres:15
+            postgres:15.8
 
         # Wait for database to be ready
         log_info "Waiting for source database to be ready..."
@@ -153,7 +153,7 @@ setup_databases() {
             -e POSTGRES_USER=warehouse \
             -e POSTGRES_PASSWORD=warehouse \
             -v data-warehouse-data:/var/lib/postgresql/data \
-            postgres:15
+            postgres:15.8
 
         # Wait for database to be ready
         log_info "Waiting for warehouse database to be ready..."
@@ -222,7 +222,7 @@ create_development_compose() {
 version: '3.8'
 services:
   pagila-source:
-    image: postgres:15
+    image: postgres:15.8
     container_name: pagila-source
     environment:
       POSTGRES_DB: pagila
@@ -236,7 +236,7 @@ services:
       - data-processing
 
   data-warehouse:
-    image: postgres:15
+    image: postgres:15.8
     container_name: data-warehouse
     environment:
       POSTGRES_DB: data_warehouse
