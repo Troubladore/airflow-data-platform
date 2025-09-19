@@ -9,24 +9,24 @@ param(
     [switch]$Force
 )
 
-# Colors for output
-function Write-Info { param($Message) Write-Host "ℹ️  $Message" -ForegroundColor Blue }
-function Write-Success { param($Message) Write-Host "✅ $Message" -ForegroundColor Green }
-function Write-Warning { param($Message) Write-Host "⚠️  $Message" -ForegroundColor Yellow }
-function Write-Error { param($Message) Write-Host "❌ $Message" -ForegroundColor Red }
+# Colors for output (ASCII-safe for cross-platform execution)
+function Write-Info { param($Message) Write-Host "[INFO] $Message" -ForegroundColor Blue }
+function Write-Success { param($Message) Write-Host "[OK] $Message" -ForegroundColor Green }
+function Write-Warning { param($Message) Write-Host "[WARN] $Message" -ForegroundColor Yellow }
+function Write-Error { param($Message) Write-Host "[ERROR] $Message" -ForegroundColor Red }
 
 Write-Host @"
-🪟 ================================================
+================================================
    WINDOWS PREREQUISITES SETUP
    Astronomer Airflow Platform
 ================================================
 
 This script automates Windows-side setup:
-✅ Install Scoop package manager (if needed)
-✅ Install mkcert via Scoop (non-admin)
-✅ Install mkcert CA certificates (non-admin)
-✅ Generate development certificates
-✅ Update hosts file (requires admin)
+* Install Scoop package manager (if needed)
+* Install mkcert via Scoop (non-admin)
+* Install mkcert CA certificates (non-admin)
+* Generate development certificates
+* Update hosts file (requires admin)
 
 "@ -ForegroundColor Cyan
 
@@ -150,9 +150,9 @@ if (-not $SkipHostsFile) {
         } else {
             Write-Warning "Hosts file entries need to be added manually (requires admin):"
             Write-Host ""
-            Write-Host "🪟 Run PowerShell as Administrator and execute:" -ForegroundColor Yellow
+            Write-Host "Run PowerShell as Administrator and execute:" -ForegroundColor Yellow
             Write-Host "Add-Content `"$hostsFile`" @(" -ForegroundColor Gray
-            $missingEntries | ForEach-Object { Write-Host "  `"$_`"," -ForegroundColor Gray }
+            $missingEntries | ForEach-Object { Write-Host "  $_," -ForegroundColor Gray }
             Write-Host ")" -ForegroundColor Gray
             Write-Host ""
             Write-Host "Or manually edit: $hostsFile" -ForegroundColor Gray
@@ -167,18 +167,18 @@ if (-not $SkipHostsFile) {
 # Final summary
 Write-Host @"
 
-🎉 Windows Prerequisites Setup Complete!
+Windows Prerequisites Setup Complete!
 
-✅ Scoop package manager ready
-✅ mkcert installed and CA configured
-✅ Development certificates generated
-✅ Certificate location: $certDir
+* Scoop package manager ready
+* mkcert installed and CA configured
+* Development certificates generated
+* Certificate location: $certDir
 
-🐧 Next Steps (run in WSL2 Ubuntu terminal):
+Next Steps (run in WSL2 Ubuntu terminal):
   cd /path/to/workstation-setup
   ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
 
-🌐 Test endpoints after setup:
+Test endpoints after setup:
   https://traefik.localhost    (Traefik dashboard)
   https://registry.localhost   (Container registry)
 
