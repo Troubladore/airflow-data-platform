@@ -28,7 +28,7 @@ sudo apt update && sudo apt install -y pipx
 pipx ensurepath
 
 # Install pinned Ansible dependencies
-cd /path/to/workstation-setup
+cd <<your_repo_folder>>/workstation-setup
 ./scripts/install-pipx-deps.sh
 
 # Install Ansible Galaxy dependencies
@@ -43,7 +43,7 @@ ansible-galaxy install -r ansible/requirements.yml
 **Option A: Non-Admin Friendly (Recommended)**
 ```bash
 # 🐧 Run in WSL2 Ubuntu terminal - no Windows admin privileges required
-cd /path/to/workstation-setup
+cd <<your_repo_folder>>/workstation-setup
 ./scripts/setup-windows-prereqs.sh
 
 # Then run platform setup
@@ -53,7 +53,7 @@ ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
 **Option B: Admin Users with WinRM**
 ```bash
 # 🐧 Run in WSL2 Ubuntu terminal (requires Windows admin + WinRM setup)
-cd /path/to/workstation-setup
+cd <<your_repo_folder>>/workstation-setup
 ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
 ```
 

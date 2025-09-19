@@ -175,7 +175,7 @@ Windows Prerequisites Setup Complete!
 * Certificate location: $certDir
 
 Next Steps (run in WSL2 Ubuntu terminal):
-  cd /path/to/workstation-setup
+  cd <<your_repo_folder>>/workstation-setup
   ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
 
 Test endpoints after setup:

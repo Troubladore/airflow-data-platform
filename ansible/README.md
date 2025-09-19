@@ -20,7 +20,7 @@ sudo apt update && sudo apt install -y pipx
 pipx ensurepath
 
 # Install pinned Ansible dependencies
-cd /path/to/workstation-setup
+cd <<your_repo_folder>>/workstation-setup
 ../scripts/install-pipx-deps.sh
 
 # Install Ansible Galaxy dependencies
@@ -42,7 +42,7 @@ ansible-playbook --version
 ### 1. Complete Automated Setup (Recommended)
 ```bash
 # 🐧 Run in WSL2 Ubuntu terminal
-cd /path/to/workstation-setup
+cd <<your_repo_folder>>/workstation-setup
 ansible-playbook -i inventory/local-dev.ini site.yml
 ```
 **What it does**: Automates Windows + WSL2 setup, provides guidance for manual steps when needed
