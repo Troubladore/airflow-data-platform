@@ -26,15 +26,17 @@ print_banner() {
     echo -e "${BLUE}"
     echo "🚀 =================================================="
     echo "   LAYER 2: DATA PROCESSING COMPONENTS SETUP"
-    echo "   Astronomer Airflow Platform"
+    echo "   Orchestrated Build & Deployment"
     echo "==================================================${NC}"
     echo
-    echo "This script will:"
-    echo "• Build all data processing containers"
-    echo "• Deploy PostgreSQL databases for testing"
-    echo "• Initialize sample data (Pagila)"
-    echo "• Set up DBT projects and dependencies"
-    echo "• Create data pipeline orchestration"
+    echo "This script orchestrates the complete Layer 2 setup by running:"
+    echo "• Phase 1: Build static components (containers & configs)"
+    echo "• Phase 2: Deploy runtime components (databases & services)"
+    echo "• Phase 3: Load sample data and validate setup"
+    echo
+    echo "For troubleshooting, you can run phases individually:"
+    echo "• ./scripts/build-layer2-components.sh"
+    echo "• ./scripts/deploy-layer2-runtime.sh"
     echo
 }
 
@@ -388,27 +390,80 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Main execution
+# Main execution - orchestrates phases
 main() {
     print_banner
     check_prerequisites
 
+    local setup_success=true
+    local build_options=""
+    local deploy_options=""
+
+    # Prepare options for sub-scripts
     if [ "$REBUILD_IMAGES" = true ]; then
-        log_info "Forcing rebuild of all images..."
+        build_options="$build_options --force-rebuild"
     fi
 
     if [ "$FORCE_DB_RECREATE" = true ]; then
-        log_warning "Forcing database recreation - existing data will be lost!"
-        docker rm -f pagila-source data-warehouse 2>/dev/null || true
-        docker volume rm pagila-source-data data-warehouse-data 2>/dev/null || true
+        deploy_options="$deploy_options --force-recreate"
     fi
 
-    build_datakits
-    setup_databases
-    setup_dbt_projects
-    create_development_compose
-    validate_setup
-    show_next_steps
+    # Phase 1: Build static components
+    log_info "🔨 Phase 1: Building static components..."
+    if "$SCRIPT_DIR/build-layer2-components.sh" $build_options; then
+        log_success "Phase 1 completed: Static components built"
+    else
+        log_error "Phase 1 failed: Static component build issues"
+        setup_success=false
+    fi
+
+    echo
+
+    # Phase 2: Deploy runtime components (only if Phase 1 succeeded)
+    if [ "$setup_success" = true ]; then
+        log_info "🚀 Phase 2: Deploying runtime components..."
+        if "$SCRIPT_DIR/deploy-layer2-runtime.sh" $deploy_options; then
+            log_success "Phase 2 completed: Runtime components deployed"
+        else
+            log_error "Phase 2 failed: Runtime deployment issues"
+            setup_success=false
+        fi
+    else
+        log_warning "Skipping Phase 2 due to Phase 1 failures"
+    fi
+
+    echo
+
+    # Phase 3: Final validation (only if previous phases succeeded)
+    if [ "$setup_success" = true ]; then
+        log_info "🔍 Phase 3: Final validation and setup completion..."
+        validate_setup || setup_success=false
+    else
+        log_warning "Skipping Phase 3 due to previous phase failures"
+    fi
+
+    # Show results
+    if [ "$setup_success" = true ]; then
+        show_next_steps
+        return 0
+    else
+        echo
+        log_error "❌ Layer 2 setup failed during one or more phases!"
+        echo
+        echo -e "${RED}Troubleshooting Steps:${NC}"
+        echo "1. Run phases individually to isolate issues:"
+        echo "   ./scripts/build-layer2-components.sh --build-optional"
+        echo "   ./scripts/deploy-layer2-runtime.sh --skip-sample-data"
+        echo
+        echo "2. Check specific component logs:"
+        echo "   ls /tmp/build_*.log"
+        echo "   docker logs <container-name>"
+        echo
+        echo "3. Clean restart if needed:"
+        echo "   ./scripts/teardown-layer2.sh --preserve-data"
+        echo
+        return 1
+    fi
 }
 
 # Handle script errors

@@ -1,0 +1,62 @@
+version: '3.8'
+services:
+  pagila-source:
+    image: postgres:15
+    container_name: pagila-source
+    environment:
+      POSTGRES_DB: pagila
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pagila-source-data:/var/lib/postgresql/data
+    networks:
+      - data-processing
+
+  data-warehouse:
+    image: postgres:15
+    container_name: data-warehouse
+    environment:
+      POSTGRES_DB: data_warehouse
+      POSTGRES_USER: warehouse
+      POSTGRES_PASSWORD: warehouse
+    ports:
+      - "5433:5432"
+    volumes:
+      - data-warehouse-data:/var/lib/postgresql/data
+    networks:
+      - data-processing
+
+  bronze-processor:
+    image: registry.localhost/datakits/bronze-pagila:latest
+    container_name: bronze-processor
+    depends_on:
+      - pagila-source
+      - data-warehouse
+    networks:
+      - data-processing
+    environment:
+      SOURCE_DB_URL: "postgresql://postgres:postgres@pagila-source:5432/pagila"
+      TARGET_DB_URL: "postgresql://warehouse:warehouse@data-warehouse:5432/data_warehouse"
+
+  dbt-runner:
+    image: registry.localhost/datakits/dbt-runner:latest
+    container_name: dbt-runner
+    depends_on:
+      - data-warehouse
+    networks:
+      - data-processing
+    volumes:
+      - ./layer2-dbt-projects:/opt/dbt/projects
+    environment:
+      DBT_PROFILES_DIR: /opt/dbt/profiles
+      TARGET_DB_URL: "postgresql://warehouse:warehouse@data-warehouse:5432/data_warehouse"
+
+volumes:
+  pagila-source-data:
+  data-warehouse-data:
+
+networks:
+  data-processing:
+    external: true

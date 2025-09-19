@@ -1,0 +1,22 @@
+[0m14:18:34.218832 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x79c909cdc470>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x79c90a1caea0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x79c9095aa3c0>]}
+
+
+============================== 14:18:34.222569 | 7c05852c-8bc2-4e62-8460-49ad18cac035 ==============================
+[0m14:18:34.222569 [info ] [MainThread]: Running with dbt=1.10.11
+[0m14:18:34.223185 [debug] [MainThread]: running dbt with arguments {'partial_parse': 'True', 'empty': 'None', 'fail_fast': 'False', 'log_cache_events': 'False', 'quiet': 'False', 'use_colors': 'True', 'introspect': 'True', 'invocation_command': 'dbt deps', 'static_parser': 'True', 'write_json': 'True', 'indirect_selection': 'eager', 'target_path': 'None', 'cache_selected_only': 'False', 'profiles_dir': '/home/troubladore/.dbt', 'use_experimental_parser': 'False', 'no_print': 'None', 'warn_error': 'None', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'printer_width': '80', 'debug': 'False', 'log_format': 'default', 'version_check': 'True', 'log_path': '/home/troubladore/repos/workstation-setup/layer2-dbt-projects/gold-facts/logs', 'send_anonymous_usage_stats': 'True'}
+[0m14:18:34.346658 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'project_id', 'label': '7c05852c-8bc2-4e62-8460-49ad18cac035', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x79c90a0b4b60>]}
+[0m14:18:34.359834 [debug] [MainThread]: Set downloads directory='/tmp/dbt-downloads-072loe0t'
+[0m14:18:34.360455 [debug] [MainThread]: Executing "git clone --depth 1 https://example.com/your/dbt-core-dimensions.git 5a21399841dc357072499b35473ff9a3"
+[0m14:18:35.381891 [debug] [MainThread]: STDOUT: "b''"
+[0m14:18:35.382256 [debug] [MainThread]: STDERR: "b"Cloning into '5a21399841dc357072499b35473ff9a3'...\nfatal: repository 'https://example.com/your/dbt-core-dimensions.git/' not found\n""
+[0m14:18:35.382463 [debug] [MainThread]: command return code=128
+[0m14:18:35.383209 [error] [MainThread]: Encountered an error:
+Internal Error
+  Error checking out spec='None' for repo https://example.com/your/dbt-core-dimensions.git
+  Cloning into '5a21399841dc357072499b35473ff9a3'...
+  fatal: repository 'https://example.com/your/dbt-core-dimensions.git/' not found
+[0m14:18:35.384254 [debug] [MainThread]: Resource report: {"command_name": "deps", "command_success": false, "command_wall_clock_time": 1.2896138, "process_in_blocks": "16", "process_kernel_time": 0.184672, "process_mem_max_rss": "102656", "process_out_blocks": "16", "process_user_time": 1.51842}
+[0m14:18:35.384704 [debug] [MainThread]: Command `dbt deps` failed at 14:18:35.384613 after 1.29 seconds
+[0m14:18:35.385037 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x79c909a2b260>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x79c908f921e0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x79c90919c800>]}
+[0m14:18:35.385751 [debug] [MainThread]: Flushing usage events
+[0m14:18:35.634513 [debug] [MainThread]: An error was encountered while trying to flush usage events

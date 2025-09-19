@@ -1,0 +1,14 @@
+[0m14:18:28.642914 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x74f4dc7870b0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x74f4da1bd0d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x74f4da1bfef0>]}
+
+
+============================== 14:18:28.647729 | 53c2522e-43f1-43aa-8d7d-8d00ac7f7639 ==============================
+[0m14:18:28.647729 [info ] [MainThread]: Running with dbt=1.10.11
+[0m14:18:28.648304 [debug] [MainThread]: running dbt with arguments {'cache_selected_only': 'False', 'log_cache_events': 'False', 'log_path': '/home/troubladore/repos/workstation-setup/layer2-dbt-projects/gold-dimensions/logs', 'write_json': 'True', 'invocation_command': 'dbt deps', 'profiles_dir': '/home/troubladore/.dbt', 'empty': 'None', 'partial_parse': 'True', 'introspect': 'True', 'fail_fast': 'False', 'use_experimental_parser': 'False', 'debug': 'False', 'printer_width': '80', 'log_format': 'default', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'version_check': 'True', 'send_anonymous_usage_stats': 'True', 'no_print': 'None', 'use_colors': 'True', 'indirect_selection': 'eager', 'static_parser': 'True', 'warn_error': 'None', 'quiet': 'False', 'target_path': 'None'}
+[0m14:18:28.876271 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'project_id', 'label': '53c2522e-43f1-43aa-8d7d-8d00ac7f7639', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x74f4da0182c0>]}
+[0m14:18:28.888437 [info ] [MainThread]: Warning: No packages were found in packages.yml
+[0m14:18:28.889575 [info ] [MainThread]: Warning: No packages were found in packages.yml
+[0m14:18:28.892491 [debug] [MainThread]: Resource report: {"command_name": "deps", "command_success": true, "command_wall_clock_time": 0.31161126, "process_in_blocks": "20632", "process_kernel_time": 0.242594, "process_mem_max_rss": "102540", "process_out_blocks": "8", "process_user_time": 1.541916}
+[0m14:18:28.892981 [debug] [MainThread]: Command `dbt deps` succeeded at 14:18:28.892888 after 0.31 seconds
+[0m14:18:28.893324 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x74f4da38f9b0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x74f4da215220>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x74f4da217680>]}
+[0m14:18:28.893649 [debug] [MainThread]: Flushing usage events
+[0m14:18:29.234374 [debug] [MainThread]: An error was encountered while trying to flush usage events
