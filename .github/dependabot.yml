@@ -90,7 +90,7 @@ updates:
     ignore:
       # Ignore all pre-release versions (alpha, beta, rc)
       - dependency-name: "*"
-        versions: ["*alpha*", "*beta*", "*rc*", "*dev*", "*pre*"]
+        versions: [">=0.0.0-alpha", ">=0.0.0-beta", ">=0.0.0-rc", ">=0.0.0-dev", ">=0.0.0-pre"]
       
       # Ignore major version updates for critical libraries
       # (Review these manually with extra scrutiny)
