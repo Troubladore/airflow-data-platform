@@ -100,22 +100,29 @@ cleanup_docker_services() {
         log_success "Platform services stopped"
     fi
 
-    # Remove any remaining platform containers
+    # Remove any remaining platform containers (check various naming patterns)
     log_info "Removing remaining platform containers..."
-    docker ps -aq --filter "name=traefik-bundle" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=traefik" | xargs -r docker rm -f 2>/dev/null || true
     docker ps -aq --filter "name=registry" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "label=com.docker.compose.project=traefik-bundle" | xargs -r docker rm -f 2>/dev/null || true
 
-    # Clean up networks
+    # Clean up networks (check various naming patterns)
     log_info "Cleaning up Docker networks..."
-    docker network ls --filter "name=traefik-bundle" -q | xargs -r docker network rm 2>/dev/null || true
+    docker network ls --filter "name=traefik" -q | xargs -r docker network rm 2>/dev/null || true
+    docker network ls --filter "label=com.docker.compose.project=traefik-bundle" -q | xargs -r docker network rm 2>/dev/null || true
 
-    # Remove registry test images
-    log_info "Cleaning up test images..."
+    # Remove platform images (including base images)
+    log_info "Cleaning up platform images..."
     docker images --filter "reference=registry.localhost/*" -q | xargs -r docker rmi -f 2>/dev/null || true
     docker images --filter "reference=*/demo/*" -q | xargs -r docker rmi -f 2>/dev/null || true
+    docker images --filter "reference=traefik:*" -q | xargs -r docker rmi -f 2>/dev/null || true
+    docker images --filter "reference=registry:*" -q | xargs -r docker rmi -f 2>/dev/null || true
 
-    # Clean up unused volumes
-    log_info "Cleaning up unused Docker volumes..."
+    # Remove platform volumes by name (including compose-generated names)
+    log_info "Cleaning up platform volumes..."
+    docker volume ls -q | grep -E "(traefik|registry)" | xargs -r docker volume rm 2>/dev/null || true
+
+    # Clean up any remaining unused volumes
     docker volume prune -f || log_warning "Volume cleanup had issues"
 
     log_success "Docker cleanup completed"
@@ -339,35 +346,31 @@ verify_teardown() {
     local issues_found=0
 
     # Check for remaining containers
-    local traefik_containers=$(docker ps -a --filter "name=traefik" -q 2>/dev/null | wc -l)
-    local registry_containers=$(docker ps -a --filter "name=registry" -q 2>/dev/null | wc -l)
-    local total_containers=$((traefik_containers + registry_containers))
-
-    if [ "$total_containers" -gt 0 ]; then
-        log_warning "Found $total_containers remaining platform containers"
-        if [ "$traefik_containers" -gt 0 ]; then
-            echo "  Traefik containers: docker ps -a --filter \"name=traefik\" -q | xargs docker rm -f"
-        fi
-        if [ "$registry_containers" -gt 0 ]; then
-            echo "  Registry containers: docker ps -a --filter \"name=registry\" -q | xargs docker rm -f"
-        fi
+    local remaining_containers=$(docker ps -aq 2>/dev/null | xargs -r docker inspect --format '{{.Name}} {{.Config.Labels}}' 2>/dev/null | grep -E "(traefik|registry)" | wc -l)
+    if [ "$remaining_containers" -gt 0 ]; then
+        log_warning "Found $remaining_containers remaining platform containers:"
+        docker ps -a --format "table {{.Names}}\t{{.Status}}" 2>/dev/null | grep -E "(traefik|registry)" || true
+        echo "  Remove by name: docker ps -aq --filter \"name=traefik\" --filter \"name=registry\" | xargs docker rm -f"
+        echo "  Remove by label: docker ps -aq --filter \"label=com.docker.compose.project=traefik-bundle\" | xargs docker rm -f"
         issues_found=$((issues_found + 1))
     fi
 
-    # Check for remaining volumes
-    local traefik_volumes=$(docker volume ls --filter "name=traefik" -q 2>/dev/null | wc -l)
-    local registry_volumes=$(docker volume ls --filter "name=registry-data" -q 2>/dev/null | wc -l)
-    local total_volumes=$((traefik_volumes + registry_volumes))
+    # Check for remaining volumes (using grep to catch compose-generated names)
+    local remaining_volumes=$(docker volume ls -q 2>/dev/null | grep -E "(traefik|registry)" | wc -l)
+    if [ "$remaining_volumes" -gt 0 ]; then
+        log_warning "Found $remaining_volumes remaining platform volumes:"
+        docker volume ls 2>/dev/null | grep -E "(traefik|registry)" | awk '{print "  " $2}' || true
+        echo "  Remove all: docker volume ls -q | grep -E \"(traefik|registry)\" | xargs docker volume rm"
+        echo "  ⚠️  This will delete all data stored in these volumes"
+        issues_found=$((issues_found + 1))
+    fi
 
-    if [ "$total_volumes" -gt 0 ]; then
-        log_warning "Found $total_volumes remaining platform volumes"
-        if [ "$traefik_volumes" -gt 0 ]; then
-            echo "  Traefik volumes: docker volume ls --filter \"name=traefik\" -q | xargs docker volume rm"
-        fi
-        if [ "$registry_volumes" -gt 0 ]; then
-            echo "  Registry volumes: docker volume rm registry-data"
-            echo "  ⚠️  This will delete all container images stored in the local registry"
-        fi
+    # Check for remaining images
+    local remaining_images=$(docker images --format "{{.Repository}}:{{.Tag}}" 2>/dev/null | grep -E "(traefik|registry|registry\.localhost)" | wc -l)
+    if [ "$remaining_images" -gt 0 ]; then
+        log_warning "Found $remaining_images remaining platform images:"
+        docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" 2>/dev/null | grep -E "(traefik|registry|registry\.localhost)" || true
+        echo "  Remove: docker images | grep -E \"(traefik|registry|registry\\.localhost)\" | awk '{print \$3}' | xargs docker rmi -f"
         issues_found=$((issues_found + 1))
     fi
 
