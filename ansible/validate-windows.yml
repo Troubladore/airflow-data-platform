@@ -8,7 +8,7 @@
 
   tasks:
     - name: "🔍 Detect Windows Admin Privileges"
-      win_shell: |
+      ansible.windows.win_shell: |
         $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
         $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
       register: admin_check
@@ -31,7 +31,7 @@
     # Scoop Package Manager
     # ================================
     - name: "📦 Check if Scoop is installed"
-      win_shell: |
+      ansible.windows.win_shell: |
         if (Get-Command scoop -ErrorAction SilentlyContinue) {
           Write-Output "installed"
         } else {
@@ -41,7 +41,7 @@
       changed_when: false
 
     - name: "📦 Attempt to install Scoop"
-      win_shell: |
+      ansible.windows.win_shell: |
         Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
         Invoke-RestMethod get.scoop.sh | Invoke-Expression
       when: scoop_check.stdout | trim == "missing"
@@ -67,7 +67,7 @@
     # mkcert Installation
     # ================================
     - name: "🔐 Check if mkcert is installed"
-      win_shell: |
+      ansible.windows.win_shell: |
         if (Get-Command mkcert -ErrorAction SilentlyContinue) {
           mkcert -version
         } else {
@@ -78,7 +78,7 @@
       failed_when: false
 
     - name: "🔐 Attempt to install mkcert via Scoop"
-      win_shell: scoop install mkcert
+      ansible.windows.win_shell: scoop install mkcert
       when:
         - mkcert_check.stdout | trim == "missing" or "mkcert" not in mkcert_check.stdout
         - scoop_check.stdout | trim == "installed" or scoop_install is succeeded
@@ -108,7 +108,7 @@
     # Local CA Installation
     # ================================
     - name: "🔐 Check if mkcert CA is installed"
-      win_shell: |
+      ansible.windows.win_shell: |
         $caRoot = "$env:LOCALAPPDATA\mkcert"
         if (Test-Path "$caRoot\rootCA.pem") {
           Write-Output "installed"
@@ -120,7 +120,7 @@
       when: mkcert_check.stdout | trim != "missing"
 
     - name: "🔐 Attempt to install mkcert CA (works for non-admin users)"
-      win_shell: mkcert -install
+      ansible.windows.win_shell: mkcert -install
       when:
         - ca_check is defined
         - ca_check.stdout | trim == "missing"
@@ -148,7 +148,7 @@
     # Certificate Generation
     # ================================
     - name: "📁 Check certificate directory"
-      win_shell: |
+      ansible.windows.win_shell: |
         $certDir = "$env:LOCALAPPDATA\mkcert"
         if (Test-Path $certDir) {
           Write-Output "exists"
@@ -159,13 +159,13 @@
       changed_when: false
 
     - name: "📁 Create certificate directory"
-      win_file:
+      ansible.windows.win_file:
         path: "{{ ansible_env.LOCALAPPDATA }}\\mkcert"
         state: directory
       when: cert_dir_check.stdout | trim == "missing"
 
     - name: "🔐 Check existing certificates"
-      win_shell: |
+      ansible.windows.win_shell: |
         $certDir = "$env:LOCALAPPDATA\mkcert"
         $wildcardCert = "$certDir\dev-localhost-wild.crt"
         $registryCert = "$certDir\dev-registry.localhost.crt"
@@ -179,7 +179,7 @@
       changed_when: false
 
     - name: "🔐 Generate development certificates (non-admin friendly)"
-      win_shell: |
+      ansible.windows.win_shell: |
         $certDir = "$env:LOCALAPPDATA\mkcert"
         cd $certDir
 
@@ -199,7 +199,7 @@
     # WSL2 Certificate Copy Script
     # ================================
     - name: "📝 Generate WSL2 certificate copy script"
-      win_copy:
+      ansible.windows.win_copy:
         content: |
           #!/bin/bash
           # Generated certificate copy script for WSL2
@@ -234,7 +234,7 @@
     # Windows Hosts File
     # ================================
     - name: "🌐 Check Windows hosts file entries"
-      win_shell: |
+      ansible.windows.win_shell: |
         $hostsFile = "$env:SystemRoot\System32\drivers\etc\hosts"
         $content = Get-Content $hostsFile -ErrorAction SilentlyContinue
 
@@ -250,7 +250,7 @@
       changed_when: false
 
     - name: "🌐 Attempt to update Windows hosts file"
-      win_lineinfile:
+      ansible.windows.win_lineinfile:
         path: "{{ ansible_env.SystemRoot }}\\System32\\drivers\\etc\\hosts"
         line: "{{ item }}"
         create: yes
@@ -299,7 +299,7 @@
     # Docker Desktop Check
     # ================================
     - name: "🐳 Check Docker Desktop installation"
-      win_shell: |
+      ansible.windows.win_shell: |
         $dockerPath = "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
         if (Test-Path $dockerPath) {
           Write-Output "installed"
