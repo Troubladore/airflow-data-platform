@@ -18,6 +18,8 @@ This guide provides clear workflows for setting up your development environment 
 
 **Best choice: Handles both admin and non-admin environments gracefully**
 
+> 🤖 **Technical Deep Dive**: Curious how Ansible running in WSL2 can manage Windows operations? See [Technical Architecture: WSL2 + Ansible + WinRM](docs/TECHNICAL-ARCHITECTURE.md) for the fascinating details behind cross-platform orchestration.
+
 ### Prerequisites
 ```bash
 # 🐧 Run in WSL2 Ubuntu terminal
