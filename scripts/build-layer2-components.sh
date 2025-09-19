@@ -15,6 +15,7 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 REGISTRY_HOST="registry.localhost"
+IMAGE_VERSION="layer2-v1.0.0"  # Version for our built datakit images
 
 # Logging functions
 log_info() { echo -e "${BLUE}ℹ️  $1${NC}"; }
@@ -90,17 +91,19 @@ build_single_datakit() {
 
     cd "$REPO_ROOT/layer2-datakits/$datakit"
 
-    # Build container with detailed error handling
-    if docker build -t "$REGISTRY_HOST/datakits/$datakit:latest" . 2>&1 | tee "/tmp/build_${datakit}.log"; then
-        log_success "Built $datakit successfully"
+    # Build container with both latest and version tags
+    local image_name="$REGISTRY_HOST/datakits/$datakit"
+    if docker build -t "$image_name:$IMAGE_VERSION" -t "$image_name:latest" . 2>&1 | tee "/tmp/build_${datakit}.log"; then
+        log_success "Built $datakit:$IMAGE_VERSION successfully"
     else
         log_error "Failed to build $datakit - check /tmp/build_${datakit}.log"
         return 1
     fi
 
-    # Push to local registry
-    if docker push "$REGISTRY_HOST/datakits/$datakit:latest" 2>&1 | tee -a "/tmp/build_${datakit}.log"; then
-        log_success "Pushed $datakit to registry"
+    # Push both tags to local registry
+    if docker push "$image_name:$IMAGE_VERSION" 2>&1 | tee -a "/tmp/build_${datakit}.log" && \
+       docker push "$image_name:latest" 2>&1 | tee -a "/tmp/build_${datakit}.log"; then
+        log_success "Pushed $datakit:$IMAGE_VERSION and :latest to registry"
     else
         log_error "Failed to push $datakit to registry - check /tmp/build_${datakit}.log"
         return 1
@@ -251,10 +254,10 @@ validate_components() {
     # Check core datakit images in registry
     log_info "Checking core datakit images..."
     for datakit in "${!DATAKITS[@]}"; do
-        if docker images --format "table {{.Repository}}:{{.Tag}}" | grep -q "$REGISTRY_HOST/datakits/$datakit:latest"; then
-            log_success "$datakit image available in registry"
+        if docker images --format "table {{.Repository}}:{{.Tag}}" | grep -q "$REGISTRY_HOST/datakits/$datakit:$IMAGE_VERSION"; then
+            log_success "$datakit:$IMAGE_VERSION image available in registry"
         else
-            log_error "$datakit image not found in registry"
+            log_error "$datakit:$IMAGE_VERSION image not found in registry"
             validation_success=false
         fi
     done
@@ -263,10 +266,10 @@ validate_components() {
     if [ "${BUILD_OPTIONAL:-false}" = "true" ]; then
         log_info "Checking optional datakit images..."
         for datakit in "${!OPTIONAL_DATAKITS[@]}"; do
-            if docker images --format "table {{.Repository}}:{{.Tag}}" | grep -q "$REGISTRY_HOST/datakits/$datakit:latest"; then
-                log_success "$datakit image available in registry"
+            if docker images --format "table {{.Repository}}:{{.Tag}}" | grep -q "$REGISTRY_HOST/datakits/$datakit:$IMAGE_VERSION"; then
+                log_success "$datakit:$IMAGE_VERSION image available in registry"
             else
-                log_warning "$datakit image not found in registry (optional)"
+                log_warning "$datakit:$IMAGE_VERSION image not found in registry (optional)"
             fi
         done
     fi
@@ -291,15 +294,15 @@ show_build_results() {
 
     # Show successful datakit builds
     for datakit in "${!DATAKITS[@]}"; do
-        if docker images --format "table {{.Repository}}:{{.Tag}}" | grep -q "$REGISTRY_HOST/datakits/$datakit:latest"; then
-            echo "✅ $REGISTRY_HOST/datakits/$datakit:latest"
+        if docker images --format "table {{.Repository}}:{{.Tag}}" | grep -q "$REGISTRY_HOST/datakits/$datakit:$IMAGE_VERSION"; then
+            echo "✅ $REGISTRY_HOST/datakits/$datakit:$IMAGE_VERSION"
         fi
     done
 
     if [ "${BUILD_OPTIONAL:-false}" = "true" ]; then
         for datakit in "${!OPTIONAL_DATAKITS[@]}"; do
-            if docker images --format "table {{.Repository}}:{{.Tag}}" | grep -q "$REGISTRY_HOST/datakits/$datakit:latest"; then
-                echo "✅ $REGISTRY_HOST/datakits/$datakit:latest (optional)"
+            if docker images --format "table {{.Repository}}:{{.Tag}}" | grep -q "$REGISTRY_HOST/datakits/$datakit:$IMAGE_VERSION"; then
+                echo "✅ $REGISTRY_HOST/datakits/$datakit:$IMAGE_VERSION (optional)"
             fi
         done
     fi

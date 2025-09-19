@@ -14,6 +14,7 @@ NC='\033[0m'
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+IMAGE_VERSION="layer2-v1.0.0"  # Version for our built datakit images
 
 # Logging functions
 log_info() { echo -e "${BLUE}ℹ️  $1${NC}"; }
@@ -250,7 +251,7 @@ services:
       - data-processing
 
   bronze-processor:
-    image: registry.localhost/datakits/bronze-pagila:latest
+    image: registry.localhost/datakits/bronze-pagila:layer2-v1.0.0
     container_name: bronze-processor
     depends_on:
       - pagila-source
@@ -264,7 +265,7 @@ services:
       - processing
 
   dbt-runner:
-    image: registry.localhost/datakits/dbt-runner:latest
+    image: registry.localhost/datakits/dbt-runner:layer2-v1.0.0
     container_name: dbt-runner
     depends_on:
       - data-warehouse
