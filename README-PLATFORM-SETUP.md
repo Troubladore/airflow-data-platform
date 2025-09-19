@@ -40,9 +40,9 @@ ansible-galaxy install -r ansible/requirements.yml
 
 ### Complete Setup
 
-**Option A: Fully Automated (if Windows setup fails)**
+**Option A: Non-Admin Friendly (Recommended)**
 ```bash
-# 🐧 Run in WSL2 Ubuntu terminal - handles Windows prerequisites automatically
+# 🐧 Run in WSL2 Ubuntu terminal - no Windows admin privileges required
 cd /path/to/workstation-setup
 ./scripts/setup-windows-prereqs.sh
 
@@ -50,9 +50,9 @@ cd /path/to/workstation-setup
 ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
 ```
 
-**Option B: Direct Setup (tries Windows automation, falls back gracefully)**
+**Option B: Admin Users with WinRM**
 ```bash
-# 🐧 Run in WSL2 Ubuntu terminal
+# 🐧 Run in WSL2 Ubuntu terminal (requires Windows admin + WinRM setup)
 cd /path/to/workstation-setup
 ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
 ```
