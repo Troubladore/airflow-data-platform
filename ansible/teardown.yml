@@ -196,7 +196,7 @@
           - Docker volumes and networks
           - Configuration files and directories
           - Test images from local registry
-          {% if cleanup_choice is defined and cleanup_choice.user_input == '2' %}
+          {% if cleanup_choice is defined and (cleanup_choice.user_input | default('1')) == '2' %}
           - WSL2 certificates
           {% endif %}
 
