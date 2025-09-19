@@ -156,7 +156,7 @@
           changed_when: false
 
         - name: Check for remaining containers
-          shell: docker ps --filter "name=traefik-bundle" --format "table {{.Names}}\t{{.Status}}"
+          shell: docker ps --filter "name=traefik-bundle" --format "table {{ '{{.Names}}' }}\t{{ '{{.Status}}' }}"
           register: remaining_containers
           changed_when: false
           when: docker_verify_check.rc == 0
