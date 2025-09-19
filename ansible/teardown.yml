@@ -1,0 +1,212 @@
+---
+# Clean teardown of platform services and configurations
+- name: "🧹 Platform Teardown"
+  hosts: localhost
+  gather_facts: yes
+  vars_files:
+    - group_vars/all.yml
+
+  tasks:
+    - name: "🧹 Platform Teardown Overview"
+      debug:
+        msg: |
+          🧹 Starting Clean Platform Teardown
+
+          This will remove:
+          - Running Docker containers (Traefik, Registry)
+          - Docker volumes and networks
+          - Generated configuration files
+          - WSL2 certificates (optional)
+
+          Preserved items:
+          - Windows certificates and CA (manual removal required)
+          - Windows hosts file entries (manual removal required)
+          - Docker Desktop installation
+          - Base system packages
+
+    - name: "🛑 Stop and remove Docker services"
+      block:
+        - name: Check if Docker is available
+          command: docker info
+          register: docker_check
+          failed_when: false
+          changed_when: false
+
+        - name: Skip Docker cleanup if Docker not available
+          debug:
+            msg: |
+              ⚠️  Docker not available - skipping Docker cleanup
+
+              If Docker is installed but not running:
+              1. Start Docker Desktop
+              2. Re-run this teardown script
+          when: docker_check.rc != 0
+
+        - name: Docker cleanup tasks
+          block:
+            - name: Check if platform services exist
+              stat:
+                path: "{{ traefik_config_dir }}/docker-compose.yml"
+              register: compose_file_check
+
+            - name: Stop platform services
+              command: docker compose down --volumes --remove-orphans
+              args:
+                chdir: "{{ traefik_config_dir }}"
+              when: compose_file_check.stat.exists
+              register: services_stop
+
+            - name: Remove any remaining containers
+              shell: |
+                docker ps -aq --filter "name=traefik-bundle" | xargs -r docker rm -f
+              failed_when: false
+
+            - name: Remove Docker networks
+              shell: |
+                docker network ls --filter "name=traefik-bundle" -q | xargs -r docker network rm
+              failed_when: false
+
+            - name: Remove unused Docker volumes
+              command: docker volume prune -f
+              failed_when: false
+
+            - name: Clean up Docker images (registry test images)
+              shell: |
+                docker images --filter "reference=registry.localhost/*" -q | xargs -r docker rmi -f
+              failed_when: false
+          when: docker_check.rc == 0
+
+    - name: "📁 Remove configuration files"
+      block:
+        - name: Remove platform services directory
+          file:
+            path: "{{ platform_base_dir }}"
+            state: absent
+
+        - name: List removed directories
+          debug:
+            msg: |
+              📁 Removed Configuration Directories:
+              - {{ platform_base_dir }}/traefik/
+              - {{ platform_base_dir }}/traefik/dynamic/
+
+    - name: "🔐 Certificate cleanup options"
+      block:
+        - name: Check WSL2 certificates
+          stat:
+            path: "{{ cert_dir }}"
+          register: wsl2_cert_check
+
+        - name: Certificate cleanup choice
+          pause:
+            prompt: |
+              🔐 Certificate Cleanup Options:
+
+              WSL2 certificates found in: {{ cert_dir }}
+
+              Choose cleanup level:
+              1) Keep certificates (recommended for quick rebuild)
+              2) Remove WSL2 certificates only
+              3) Manual cleanup guidance for complete removal
+
+              Enter choice (1-3)
+          register: cleanup_choice
+          when: wsl2_cert_check.stat.exists
+
+        - name: Remove WSL2 certificates (option 2)
+          file:
+            path: "{{ cert_dir }}"
+            state: absent
+          when:
+            - wsl2_cert_check.stat.exists
+            - cleanup_choice.user_input | default('1') == '2'
+
+        - name: Manual cleanup guidance (option 3)
+          debug:
+            msg: |
+              🔐 Manual Certificate Cleanup Guide:
+
+              WSL2 Certificates:
+              rm -rf {{ cert_dir }}
+
+              Windows Certificates (run as admin):
+              Remove-Item "$env:LOCALAPPDATA\mkcert" -Recurse -Force
+
+              Windows Certificate Authority (run as admin):
+              mkcert -uninstall
+
+              Windows Hosts File (run as admin):
+              1. Edit C:\Windows\System32\drivers\etc\hosts
+              2. Remove lines containing:
+                 - 127.0.0.1 registry.localhost
+                 - 127.0.0.1 traefik.localhost
+
+              Corporate Environments:
+              Use your organization's host management tool to remove entries.
+          when:
+            - cleanup_choice is defined
+            - cleanup_choice.user_input | default('1') == '3'
+
+    - name: "🧪 Verify teardown completion"
+      block:
+        - name: Check Docker availability for verification
+          command: docker info
+          register: docker_verify_check
+          failed_when: false
+          changed_when: false
+
+        - name: Check for remaining containers
+          shell: docker ps --filter "name=traefik-bundle" --format "table {{ '{{.Names}}' }}\t{{ '{{.Status}}' }}"
+          register: remaining_containers
+          changed_when: false
+          when: docker_verify_check.rc == 0
+
+        - name: Check for remaining volumes
+          shell: docker volume ls --filter "name=traefik-bundle" -q
+          register: remaining_volumes
+          changed_when: false
+          when: docker_verify_check.rc == 0
+
+        - name: Check configuration directories
+          stat:
+            path: "{{ platform_base_dir }}"
+          register: config_dir_check
+
+        - name: Teardown verification
+          debug:
+            msg: |
+              🧹 Teardown Verification:
+
+              {% if docker_verify_check.rc == 0 %}
+              Docker Containers: {{ '✅ None remaining' if remaining_containers.stdout == '' else '⚠️  Found: ' + remaining_containers.stdout }}
+              Docker Volumes: {{ '✅ Cleaned' if remaining_volumes.stdout == '' else '⚠️  Remaining: ' + remaining_volumes.stdout }}
+              {% else %}
+              Docker Containers: ⚠️  Docker not available - verification skipped
+              Docker Volumes: ⚠️  Docker not available - verification skipped
+              {% endif %}
+              Config Directory: {{ '✅ Removed' if not config_dir_check.stat.exists else '⚠️  Still exists' }}
+
+    - name: "📊 Teardown Summary"
+      debug:
+        msg: |
+          🧹 Platform Teardown Complete
+
+          ✅ Removed:
+          - Docker containers and services
+          - Docker volumes and networks
+          - Configuration files and directories
+          - Test images from local registry
+          {% if cleanup_choice is defined and (cleanup_choice.user_input | default('1')) == '2' %}
+          - WSL2 certificates
+          {% endif %}
+
+          ⚠️  Manual Removal Required (if desired):
+          - Windows certificates and CA
+          - Windows hosts file entries
+          - Docker Desktop (if uninstalling completely)
+
+          🔄 To Rebuild Platform:
+          ansible-playbook -i inventory/local-dev.ini site.yml
+
+          💡 Quick Rebuild (if certificates preserved):
+          ansible-playbook -i inventory/local-dev.ini setup-wsl2.yml --skip-tags "certificates"

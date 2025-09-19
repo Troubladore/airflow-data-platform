@@ -1,0 +1,19 @@
+# Pipx-installable dependencies with pinned versions
+# These are installed as isolated command-line tools via pipx
+# Last updated: 2025-09-19
+
+# Core Ansible (main package installed via pipx)
+ansible-core==2.16.2
+
+# Dependencies injected into ansible-core environment
+# Format: package==version  # inject into ansible-core
+pywinrm==0.4.3  # inject into ansible-core
+
+# Security note: These versions have been verified for compatibility
+# Update carefully and test thoroughly before deploying to team
+#
+# To install:
+#   pipx install ansible-core==2.16.2
+#   pipx inject ansible-core pywinrm==0.4.3
+#
+# To update: modify versions here, then reinstall

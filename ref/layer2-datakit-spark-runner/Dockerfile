@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11.9-slim
 ARG PIP_PYSPARK=3.5.1
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openjdk-17-jre ca-certificates \

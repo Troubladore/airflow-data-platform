@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11.9-slim
 RUN pip install --no-cache-dir uv
 WORKDIR /opt/app
 COPY . /opt/app

@@ -17,7 +17,7 @@ updates:
       day: "friday"
       time: "09:00"
       timezone: "UTC"
-    
+
     # SECURITY HARDENING: Cooldown periods
     # Implements the 60-day recommendation from CIS Supply Chain Security Benchmark
     # and addresses the Endor Labs "delay package adoption" guidance
@@ -34,30 +34,30 @@ updates:
       exclude:
         - "cryptography"  # Example: critical security library
         - "certifi"       # Example: certificate bundle updates
-    
+
     # SECURITY: Versioning strategy
     # Use lockfile-only to ensure reproducible builds and prevent unexpected changes
     versioning-strategy: "lockfile-only"
-    
+
     # SECURITY: Limit concurrent PRs to manage review capacity
     # Ensures thorough security review of each update
     open-pull-requests-limit: 3
-    
+
     # PR Management for better security review workflow
     labels:
       - "dependencies"
       - "security-review"
       - "python"
-    
+
     assignees:
       # Add your security team members or maintainers here
       - "Troubladore"
-    
+
     commit-message:
       prefix: "deps"
       prefix-development: "deps-dev"
       include: "scope"
-    
+
     # SECURITY: Group non-critical updates to reduce PR noise
     # This allows focus on security-critical updates
     groups:
@@ -67,7 +67,7 @@ updates:
         update-types:
           - "minor"
           - "patch"
-      
+
       # Group all patch updates for production dependencies
       production-patches:
         dependency-type: "production"
@@ -85,27 +85,27 @@ updates:
           - "pyyaml"          # YAML parsing
           - "jinja2"          # Template engine
           - "sqlalchemy"      # ORM
-    
+
     # SECURITY: Ignore pre-release versions and specific risky patterns
     ignore:
       # Ignore all pre-release versions (alpha, beta, rc)
       - dependency-name: "*"
         versions: [">=0.0.0-alpha", ">=0.0.0-beta", ">=0.0.0-rc", ">=0.0.0-dev", ">=0.0.0-pre"]
-      
+
       # Ignore major version updates for critical libraries
       # (Review these manually with extra scrutiny)
       - dependency-name: "django"
         update-types: ["version-update:semver-major"]
-      
+
       - dependency-name: "sqlalchemy"
         update-types: ["version-update:semver-major"]
-    
+
     # SECURITY: Allow list (optional - use if you want to restrict updates)
     # Uncomment and customize if you want to limit updates to specific packages
     # allow:
     #   - dependency-type: "production"
     #   - dependency-type: "development"
-    
+
     # SECURITY: Don't run pull request rebasing automatically
     # This prevents potential issues with malicious updates being rebased
     rebase-strategy: "disabled"
@@ -117,16 +117,16 @@ updates:
       interval: "daily"
       day: "monday"
       time: "09:00"
-    
+
     # Apply cooldown to actions as well
     cooldown:
       default-days: 28
-    
+
     labels:
       - "dependencies"
       - "github-actions"
       - "security-review"
-    
+
     open-pull-requests-limit: 2
 
   - package-ecosystem: "docker"

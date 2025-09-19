@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: worker-compute-heavy
+spec:
+  containers:
+  - name: worker-compute-heavy
+    image: registry.localhost/platform/airflow-base:3.0-10
+    resources:
+      requests: { cpu: "4000m", memory: "8Gi" }
+      limits:   { cpu: "8", memory: "16Gi" }

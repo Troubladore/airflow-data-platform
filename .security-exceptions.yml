@@ -1,0 +1,92 @@
+# Security Risk Exceptions
+# Track accepted risks with justification and review dates
+# Format: Each exception includes pattern, justification, accepted_by, date, expires
+
+exceptions:
+  # Exception 1: Documentation validation commands
+  - pattern: "curl -k https://registry.localhost/v2/_catalog"
+    category: "dynamic_downloads"
+    justification: |
+      WHAT: Testing command in validation documentation (validate-all.yml line 308)
+      WHY FLAGGED: Scanner detects curl command as potential dynamic download
+      WHY ACCEPTED: This is a documentation example showing users how to test their registry setup
+      RISK LEVEL: None - command is in documentation comments, not executed during automation
+      CONTEXT: Part of troubleshooting guide for manual verification after setup
+    accepted_by: "Security Team"
+    accepted_date: "2025-09-19"
+    expires: "2026-03-19"  # 6 months out
+    review_frequency: "biannual"
+
+  # Exception 2: Package manager installations vs pipe-to-shell
+  - pattern: "ansible/setup-wsl2.yml.*- curl"
+    category: "dynamic_downloads"
+    justification: |
+      WHAT: Installing curl package via apt package manager (setup-wsl2.yml line 47)
+      WHY FLAGGED: Scanner detects "curl" in dynamic downloads check
+      WHY ACCEPTED: This is "apt install curl" (package manager) NOT "curl | bash" (pipe-to-shell)
+      RISK LEVEL: Low - legitimate package installation through Ubuntu's package manager
+      CONTEXT: curl package needed for various validation commands in the platform
+    accepted_by: "Platform Team"
+    accepted_date: "2025-09-19"
+    expires: "2026-03-19"  # 6 months out
+    review_frequency: "biannual"
+
+  # Exception 3: False positive on certificate documentation
+  - pattern: "key.*0600"
+    category: "hardcoded_secrets"
+    justification: |
+      WHAT: Documentation mentioning "keys should be 0600" file permissions
+      WHY FLAGGED: Scanner detects "key" pattern as potential hardcoded secret
+      WHY ACCEPTED: This documents proper file permissions for certificate keys, not actual secrets
+      RISK LEVEL: None - security documentation explaining best practices
+      CONTEXT: Validation guidance showing users how to verify certificate permissions
+    accepted_by: "Security Team"
+    accepted_date: "2025-09-19"
+    expires: "2026-03-19"  # 6 months out
+    review_frequency: "biannual"
+
+  # Exception 4: Scanner meta-patterns (business decision)
+  - pattern: "scan-supply-chain.sh"
+    category: "dynamic_downloads"
+    justification: |
+      WHAT: Security scanner code containing references to "curl | bash" patterns
+      WHY FLAGGED: Scanner finds its own code discussing pipe-to-shell security patterns
+      WHY ACCEPTED: This is the scanner's source code discussing security - not executing dangerous commands
+      RISK LEVEL: None - meta-discussion of security patterns in security tool code
+      CONTEXT: Business decision to accept scanner self-references rather than complex pattern exclusions
+      TECHNICAL_DEBT: Consider improving pattern matching to exclude scanner source files
+    accepted_by: "Security Team"
+    accepted_date: "2025-09-19"
+    expires: "2025-12-19"  # 3 months - shorter cycle for technical debt
+    review_frequency: "quarterly"
+
+  # Exception 5: Documentation examples for risk acceptance framework
+  - pattern: "SECURITY-RISK-ACCEPTANCE.md"
+    category: "unpinned_dependencies"
+    justification: |
+      WHAT: Documentation examples showing "pip install safety ruff semgrep" without version pins
+      WHY FLAGGED: Scanner detects unpinned pip install commands in documentation
+      WHY ACCEPTED: These are examples teaching proper exception format - not executed commands
+      RISK LEVEL: None - documentation examples showing how to document risks
+      CONTEXT: Meta-documentation about the risk acceptance process itself
+    accepted_by: "Security Team"
+    accepted_date: "2025-09-19"
+    expires: "2025-12-19"  # 3 months - review documentation patterns
+    review_frequency: "quarterly"
+
+# Global settings
+settings:
+  # Require approval for new exceptions
+  require_approval: true
+
+  # Warn about expiring exceptions (days before expiration)
+  expiration_warning_days: 30
+
+  # Default expiration period for new exceptions (days)
+  default_expiration_days: 365
+
+  # Who can approve exceptions
+  authorized_approvers:
+    - "Security Team"
+    - "Platform Team"
+    - "DevOps Team"
