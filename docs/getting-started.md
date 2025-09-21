@@ -39,9 +39,10 @@ ansible-galaxy install -r ansible/requirements.yml
 
 ```bash
 # 🐧 WSL2 Ubuntu terminal
-sudo echo "Testing sudo access"  # Cache password to prevent hanging
 ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml --ask-become-pass
 ```
+
+**Note:** The playbook will detect if you have passwordless sudo configured. If not, you'll be prompted for your password as needed.
 
 **What gets installed:** Local Docker registry, Traefik proxy, mkcert certificates, and host file entries for `*.localhost` domains.
 
@@ -147,6 +148,11 @@ curl -k https://traefik.localhost/api/http/services
    127.0.0.1 traefik.localhost
    ```
 3. Re-run validation: `ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml --ask-become-pass`
+
+**Tip:** To avoid password prompts entirely, set up passwordless sudo:
+```bash
+sudo visudo  # Add this line: your_username ALL=(ALL) NOPASSWD:ALL
+```
 </details>
 
 ---
