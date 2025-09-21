@@ -2,6 +2,17 @@
 
 Complete setup guide for testing and developing with the Airflow Data Platform.
 
+## What You'll Have When Done
+
+After completing this setup, your workstation will have:
+
+- **Local HTTPS services** - `https://traefik.localhost` and `https://registry.localhost` working without certificate errors
+- **Docker registry** - Push/pull custom images locally for development and testing
+- **Reverse proxy** - Traefik handling routing and TLS termination for all services
+- **Development certificates** - Trusted CA and certificates for secure local development
+
+**This is initial platform setup.** The platform evolves with new versions and images over time. See the issue tracker for maintenance/update workflows as they become available.
+
 ---
 
 ## Step 1: Install Dependencies
@@ -137,3 +148,19 @@ curl -k https://traefik.localhost/api/http/services
    ```
 3. Re-run validation: `ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml --ask-become-pass`
 </details>
+
+---
+
+## 🚀 Next Steps
+
+Your platform foundation is ready! Now you can:
+
+**Build data solutions** → **[Airflow Data Platform Examples](https://github.com/Troubladore/airflow-data-platform-examples)**
+
+The examples repository contains business implementations, tutorials, and patterns that build on this platform foundation. It shows you how to:
+- Create data processing workflows
+- Use the SQLModel framework for table definitions
+- Deploy datakits to your local environment
+- Implement real data engineering patterns
+
+**Platform setup is complete - time to build something awesome!** 🎉
