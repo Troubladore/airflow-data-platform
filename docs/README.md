@@ -6,13 +6,12 @@ Welcome to the complete documentation for the Airflow Data Platform framework.
 
 **New to the platform?** Start here:
 
-- **[Getting Started Guide](getting-started.md)** - Complete setup guide for development and testing
-- **[Platform Setup](getting-started.md)** - Prerequisites, installation, and validation
+- **[Platform Setup](getting-started.md)** - Complete setup guide for development and testing
 
 ## 📚 Documentation Index
 
 ### **User Guides**
-- **[Getting Started](getting-started.md)** - Environment setup and prerequisites
+- **[Platform Setup](getting-started.md)** - Environment setup and prerequisites
 - **[Technical Reference](technical-reference.md)** - Framework APIs and architecture details
 
 ### **Architecture & Design**
@@ -26,10 +25,10 @@ Welcome to the complete documentation for the Airflow Data Platform framework.
 ## 🎯 Quick Navigation by Use Case
 
 ### **Testing PR #6 (Layer 2 Data Processing)**
-1. **Start here** → [Getting Started Guide](getting-started.md)
-2. Follow the **🚀 Quick Setup** section
-3. Use the **🧪 Testing & Development Workflow** for iterative testing
-4. Reference **🚨 Troubleshooting** if you encounter issues
+1. **Start here** → [Platform Setup](getting-started.md)
+2. Follow the 3-step setup process
+3. Use the collapsed **🧪 Iterative Testing Workflow** for development cycles
+4. Reference collapsed **🚨 Troubleshooting** if you encounter issues
 
 ### **Platform Development**
 1. **Architecture overview** → [Technical Architecture](TECHNICAL-ARCHITECTURE.md)
@@ -43,7 +42,7 @@ Welcome to the complete documentation for the Airflow Data Platform framework.
 
 ## ⚡ Quick Commands
 
-Once you've completed the [Getting Started Guide](getting-started.md):
+Once you've completed the [Platform Setup](getting-started.md):
 
 ```bash
 # Complete platform setup

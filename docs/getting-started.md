@@ -1,8 +1,12 @@
-# Getting Started
+# Platform Setup
 
 Complete setup guide for testing and developing with the Airflow Data Platform.
 
-## Prerequisites
+---
+
+## Step 1: Install Dependencies
+
+**What you're doing:** Installing Ansible automation tools to manage the platform setup across Windows and WSL2.
 
 ```bash
 # 🐧 WSL2 Ubuntu terminal
@@ -14,29 +18,54 @@ cd /path/to/your/airflow-data-platform
 ansible-galaxy install -r ansible/requirements.yml
 ```
 
-## Setup
+**Why Ansible?** Cross-platform automation handles certificates, networking, and Docker setup consistently. See [technical-reference.md](technical-reference.md) for architecture details.
+
+---
+
+## Step 2: Run Platform Setup
+
+**What you're doing:** Deploying Traefik reverse proxy, Docker registry, and development certificates for local HTTPS services.
 
 ```bash
 # 🐧 WSL2 Ubuntu terminal
-sudo echo "Testing sudo access"  # Cache password
+sudo echo "Testing sudo access"  # Cache password to prevent hanging
 ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml --ask-become-pass
 ```
 
-## Validate
+**What gets installed:** Local Docker registry, Traefik proxy, mkcert certificates, and host file entries for `*.localhost` domains.
+
+---
+
+## Step 3: Validate Setup
+
+**What you're doing:** Testing that all services are running and accessible with proper HTTPS certificates.
 
 ```bash
+# 🐧 WSL2 Ubuntu terminal
 ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml --ask-become-pass
 ```
 
-**Success = These work:**
-- ✅ `https://traefik.localhost`
-- ✅ `https://registry.localhost/v2/_catalog`
+**Success means these work without certificate errors:**
+- ✅ `https://traefik.localhost` - Traefik dashboard
+- ✅ `https://registry.localhost/v2/_catalog` - Docker registry API
 
-## Testing Workflow
+---
+
+## You're Done! 🎉
+
+Your platform is ready for testing PR #6. The environment includes:
+- **Traefik proxy** for routing HTTPS traffic
+- **Docker registry** for custom images
+- **Development certificates** for secure local connections
+
+<details>
+<summary><strong>🧪 Iterative Testing Workflow</strong></summary>
+
+For repeated testing and development cycles:
 
 **Clean environment between tests:**
 ```bash
-./scripts/teardown.sh    # Choose option 1 (keeps certificates)
+./scripts/teardown.sh    # Choose option 1 (keeps certificates for speed)
 # Make your changes
 ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml --ask-become-pass
 ```
@@ -47,29 +76,64 @@ curl -k https://registry.localhost/v2/_catalog
 curl -k https://traefik.localhost/api/http/services
 ```
 
-## Troubleshooting
-
-**"Permission Denied"** → Expected for non-admin. Manually add to `C:\Windows\System32\drivers\etc\hosts`:
-```
-127.0.0.1 registry.localhost
-127.0.0.1 traefik.localhost
-```
-
-**"Docker not found"** → Enable Docker Desktop WSL2 integration, restart WSL2
-
-**"Certificate errors"** → Run `mkcert -install`, check `ls ~/.local/share/certs/`
-
-**Services not responding** → Check `docker ps`, view logs with:
+**Component-specific teardown:**
 ```bash
-docker compose -f ~/platform-services/traefik/docker-compose.yml logs -f
+./scripts/teardown-layer2.sh          # Layer 2 components only
+./layer3-warehouses/scripts/teardown-layer3.sh  # Layer 3 components only
 ```
+</details>
 
-## Corporate/Non-Admin Users
+<details>
+<summary><strong>🚨 Troubleshooting</strong></summary>
 
-The setup handles everything automatically except the hosts file. If Ansible can't update it:
-1. Use your corporate host management tool
-2. Or manually add the entries above as Administrator
+**"Permission Denied" on Windows tasks**
+- Expected for non-admin users
+- Manually add to `C:\Windows\System32\drivers\etc\hosts`:
+  ```
+  127.0.0.1 registry.localhost
+  127.0.0.1 traefik.localhost
+  ```
 
----
+**"Docker not found in WSL2"**
+- Enable Docker Desktop WSL2 integration: Settings → Resources → WSL Integration
+- Restart WSL2: `wsl --shutdown` then reopen terminal
 
-**That's it!** Your platform is ready for testing PR #6. The environment includes Traefik proxy, Docker registry, and all certificates needed for local development.
+**"Certificate errors" or HTTPS warnings**
+- Run `mkcert -install` to trust the local CA
+- Check certificates exist: `ls ~/.local/share/certs/`
+- Verify hosts file has the required entries
+
+**Services not responding**
+- Check containers are running: `docker ps`
+- View detailed logs:
+  ```bash
+  docker compose -f ~/platform-services/traefik/docker-compose.yml logs -f
+  ```
+- Test manual connectivity:
+  ```bash
+  curl -k https://registry.localhost/v2/_catalog
+  curl -k https://traefik.localhost/api/http/services
+  ```
+</details>
+
+<details>
+<summary><strong>🏢 Corporate/Non-Admin Environments</strong></summary>
+
+**What works automatically (no admin needed):**
+- Install Scoop package manager
+- Install mkcert via Scoop
+- Generate and install development certificates
+- Deploy all Docker services
+
+**What requires admin (or corporate tools):**
+- Updating Windows hosts file
+
+**If Ansible can't update hosts file:**
+1. Use your organization's host management tool, OR
+2. Manually add as Administrator:
+   ```
+   127.0.0.1 registry.localhost
+   127.0.0.1 traefik.localhost
+   ```
+3. Re-run validation: `ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml --ask-become-pass`
+</details>
