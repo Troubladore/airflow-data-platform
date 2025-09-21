@@ -165,14 +165,19 @@ run_tests() {
         --tb=short
     log_success "Trigger builder tests passed"
 
-    # Test 3: Example Datakit Deployment - TEMPORARILY DISABLED
-    # The example datakit has missing language table references that need to be fixed
-    # This is tracked in airflow-data-platform-examples issue #2
-    log_info "Test 3: Example datakit deployment (skipped - missing language table)"
-    log_warning "Example deployment test disabled until language table is added to pagila example"
+    # Test 3: Framework Deployment Functionality
+    log_info "Test 3: Framework deployment utility test..."
+    PYTHONPATH="./src:$PYTHONPATH" python scripts/deploy_datakit.py \
+        tests/fixtures/simple-test-datakit \
+        --target-type postgres \
+        --host localhost \
+        --port 15444 \
+        --database datakit_tests \
+        --user test_user \
+        --validate
+    log_success "Framework deployment test passed"
 
-    log_success "Platform framework tests passed! 🎉"
-    log_info "Note: Example datakit deployment test skipped due to missing language table"
+    log_success "All framework tests passed! 🎉"
 }
 
 # Main execution

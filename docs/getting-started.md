@@ -75,9 +75,9 @@ ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml --a
 **What this tests:**
 - SQLModel framework core functionality (table mixins, triggers)
 - Database connectivity with real PostgreSQL database
-- Platform integration and deployment utilities
+- Deployment utilities with self-contained test fixtures
 
-**Expected result:** Framework tests pass (22 tests). Example deployment test currently skipped due to missing reference table.
+**Expected result:** All framework tests pass (~24 tests including deployment validation).
 
 ---
 
