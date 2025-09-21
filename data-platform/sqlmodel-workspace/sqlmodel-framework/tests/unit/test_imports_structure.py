@@ -12,7 +12,7 @@ from pathlib import Path
 
 # Add framework to path
 framework_root = Path(__file__).parent.parent.parent
-package_root = framework_root / "src" / "data_platform_framework"
+package_root = framework_root / "src" / "sqlmodel_framework"
 sys.path.insert(0, str(framework_root / "src"))
 
 

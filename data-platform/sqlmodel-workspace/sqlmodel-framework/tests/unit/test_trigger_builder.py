@@ -8,8 +8,9 @@ Tests the critical trigger generation logic that ensures temporal table integrit
 """
 
 import pytest
-from data_platform_framework.base.models.temporal_patterns import TriggerConfig
-from data_platform_framework.base.triggers.trigger_builder import (
+
+from sqlmodel_framework.base.models.temporal_patterns import TriggerConfig
+from sqlmodel_framework.base.triggers.trigger_builder import (
     PostgreSQLTemporalTriggerBuilder,
     TriggerSQL,
     build_temporal_triggers_for_table,

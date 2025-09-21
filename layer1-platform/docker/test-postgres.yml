@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Lightweight PostgreSQL sandbox for datakit testing
 # Ephemeral - designed to be started/stopped frequently for testing
 

@@ -149,26 +149,33 @@ bootstrap_sandbox() {
 run_tests() {
     log_info "Running test suite with PostgreSQL sandbox..."
 
-    cd "$REPO_ROOT/data-workspace"
+    cd "$REPO_ROOT/data-platform/sqlmodel-workspace/sqlmodel-framework"
 
     # Test 1: Framework Core
     log_info "Test 1: Framework core table mixins..."
-    PYTHONPATH="./data-platform-framework/src:$PYTHONPATH" uv run -m pytest \
-        data-platform-framework/tests/unit/test_table_mixins.py -v \
+    PYTHONPATH="./src:$PYTHONPATH" uv run -m pytest \
+        tests/unit/test_table_mixins.py -v \
         --tb=short
     log_success "Framework core tests passed"
 
-    # Test 2: Bronze Datakit Deployment
-    log_info "Test 2: Bronze datakit deployment to PostgreSQL..."
-    uv run python data-platform-framework/scripts/deploy_datakit.py \
-        ../layer2-datakits/pagila-bronze \
+    # Test 2: Trigger Builder Tests
+    log_info "Test 2: Trigger builder tests..."
+    PYTHONPATH="./src:$PYTHONPATH" uv run -m pytest \
+        tests/unit/test_trigger_builder.py -v \
+        --tb=short
+    log_success "Trigger builder tests passed"
+
+    # Test 3: Example Datakit Deployment
+    log_info "Test 3: Example datakit deployment to PostgreSQL..."
+    PYTHONPATH="./src:$PYTHONPATH" python scripts/deploy_datakit.py \
+        /home/troubladore/repos/airflow-data-platform-examples/pagila-implementations/pagila-sqlmodel-basic/datakits/datakit_pagila_source \
         --target-type postgres \
         --host localhost \
         --port 15444 \
         --database datakit_tests \
         --user test_user \
         --validate
-    log_success "Bronze datakit deployment test passed"
+    log_success "Example datakit deployment test passed"
 
     log_success "All tests passed! 🎉"
 }

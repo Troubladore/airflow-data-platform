@@ -12,18 +12,19 @@ import sys
 from types import ModuleType
 from typing import Any
 
-from data_platform_framework.engines.mysql_engine import (
-    create_engine_for_test_target as create_mysql_engine,
-)
-from data_platform_framework.engines.postgres_engine import (
-    create_engine_for_test_target as create_postgres_engine,
-)
-from data_platform_framework.engines.sqlite_engine import (
-    create_engine_for_test_target as create_sqlite_engine,
-)
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlmodel import SQLModel
+
+from sqlmodel_framework.engines.mysql_engine import (
+    create_engine_for_test_target as create_mysql_engine,
+)
+from sqlmodel_framework.engines.postgres_engine import (
+    create_engine_for_test_target as create_postgres_engine,
+)
+from sqlmodel_framework.engines.sqlite_engine import (
+    create_engine_for_test_target as create_sqlite_engine,
+)
 
 logger = logging.getLogger(__name__)
 

@@ -10,7 +10,9 @@ Tests the fundamental building blocks of our data platform:
 from datetime import UTC, datetime
 from unittest.mock import patch
 
-from data_platform_framework.base.models.table_mixins import (
+from sqlmodel import SQLModel
+
+from sqlmodel_framework.base.models.table_mixins import (
     ReferenceTable,
     ReferenceTableMixin,
     TemporalTable,
@@ -18,7 +20,6 @@ from data_platform_framework.base.models.table_mixins import (
     TransactionalTable,
     TransactionalTableMixin,
 )
-from sqlmodel import SQLModel
 
 
 class TestReferenceTableMixin:

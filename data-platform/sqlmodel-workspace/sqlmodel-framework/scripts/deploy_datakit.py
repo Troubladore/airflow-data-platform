@@ -26,13 +26,13 @@ from pathlib import Path
 # Add framework src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from data_platform_framework.config.targets import (
+from sqlmodel_framework.config.targets import (
     create_custom_target,
     get_development_target,
     get_target_config,
     list_available_targets,
 )
-from data_platform_framework.utils.deployment import (
+from sqlmodel_framework.utils.deployment import (
     cleanup_test_target,
     configure_logging,
     deploy_data_objects,
