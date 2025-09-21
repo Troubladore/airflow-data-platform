@@ -1,8 +1,8 @@
 # Ansible automation dependencies with pinned versions
-# Last updated: 2025-01-19
+# Last updated: 2025-09-21
 
 # Core Ansible
-ansible-core==2.16.2
+ansible-core==2.16.13
 
 # Windows Remote Management support
 pywinrm==0.4.3

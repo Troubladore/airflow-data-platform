@@ -1,0 +1,53 @@
+version: '3.8'
+
+# Template for warehouse PostgreSQL databases (Layer 3)
+# Copy and customize this file for specific warehouse instances
+
+services:
+  warehouse-db:
+    image: bitnami/postgresql:17.2.0  # Standardized across all Layer 1 infrastructure
+    container_name: ${WAREHOUSE_NAME:-warehouse}-db
+    restart: unless-stopped
+
+    environment:
+      # Bitnami PostgreSQL environment variables
+      POSTGRESQL_USERNAME: ${DB_USER:-warehouse_user}
+      POSTGRESQL_DATABASE: ${DB_NAME:-warehouse}
+      POSTGRESQL_PASSWORD: ${DB_PASSWORD:-secure_warehouse_password}
+      POSTGRESQL_POSTGRES_PASSWORD: ${DB_ADMIN_PASSWORD:-secure_admin_password}
+
+      # Performance tuning for warehouse workloads
+      POSTGRESQL_SHARED_PRELOAD_LIBRARIES: pg_stat_statements
+      POSTGRESQL_MAX_CONNECTIONS: 200
+      POSTGRESQL_WORK_MEM: 16MB
+      POSTGRESQL_MAINTENANCE_WORK_MEM: 256MB
+
+      # Security: Run as non-root
+      BITNAMI_DEBUG: false
+
+    volumes:
+      # Named volume for data persistence (Bitnami path)
+      - ${WAREHOUSE_NAME:-warehouse}_data:/bitnami/postgresql/data
+
+      # Custom warehouse configuration (optional)
+      # - ./warehouse-config/${WAREHOUSE_NAME}/postgresql.conf:/opt/bitnami/postgresql/conf/postgresql.conf:ro
+
+    ports:
+      - "${DB_PORT:-15433}:5432"  # Configurable port to avoid conflicts
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-warehouse_user} -d ${DB_NAME:-warehouse}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  # Volume name will be prefixed with compose project name
+  ${WAREHOUSE_NAME:-warehouse}_data:
+    driver: local
+
+# Example usage:
+# WAREHOUSE_NAME=bronze_warehouse DB_PORT=15433 docker-compose -f warehouse-db-template.yml up -d
+# WAREHOUSE_NAME=silver_warehouse DB_PORT=15434 docker-compose -f warehouse-db-template.yml up -d
+# WAREHOUSE_NAME=gold_warehouse DB_PORT=15435 docker-compose -f warehouse-db-template.yml up -d
