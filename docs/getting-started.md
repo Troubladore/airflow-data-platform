@@ -63,6 +63,24 @@ ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml --a
 
 ---
 
+## Step 4: Run Unit Tests
+
+**What you're doing:** Validating that the SQLModel framework works correctly with your platform setup.
+
+```bash
+# 🐧 WSL2 Ubuntu terminal
+./scripts/test-with-postgres-sandbox.sh
+```
+
+**What this tests:**
+- SQLModel framework core functionality (table mixins, triggers)
+- Database connectivity and schema deployment
+- Platform integration with real PostgreSQL database
+
+**Expected result:** All tests pass (approximately 22 tests across multiple test suites).
+
+---
+
 ## Setup Complete! 🎉
 
 Your local development environment is ready. The platform includes:
