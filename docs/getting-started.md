@@ -70,6 +70,22 @@ Your local development environment is ready. The platform includes:
 - **Docker registry** for custom images
 - **Development certificates** for secure local connections
 
+## 🚀 Next Steps
+
+Your platform foundation is ready! Now you can:
+
+**Build data solutions** → **[Airflow Data Platform Examples](https://github.com/Troubladore/airflow-data-platform-examples)**
+
+The examples repository contains business implementations, tutorials, and patterns that build on this platform foundation. It shows you how to:
+- Create data processing workflows
+- Use the SQLModel framework for table definitions
+- Deploy datakits to your local environment
+- Implement real data engineering patterns
+
+**Platform setup is complete - time to build something awesome!** 🎉
+
+---
+
 <details>
 <summary><strong>🧪 Iterative Testing Workflow</strong></summary>
 
@@ -154,19 +170,3 @@ curl -k https://traefik.localhost/api/http/services
 sudo visudo  # Add this line: your_username ALL=(ALL) NOPASSWD:ALL
 ```
 </details>
-
----
-
-## 🚀 Next Steps
-
-Your platform foundation is ready! Now you can:
-
-**Build data solutions** → **[Airflow Data Platform Examples](https://github.com/Troubladore/airflow-data-platform-examples)**
-
-The examples repository contains business implementations, tutorials, and patterns that build on this platform foundation. It shows you how to:
-- Create data processing workflows
-- Use the SQLModel framework for table definitions
-- Deploy datakits to your local environment
-- Implement real data engineering patterns
-
-**Platform setup is complete - time to build something awesome!** 🎉
