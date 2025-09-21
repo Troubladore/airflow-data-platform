@@ -1,146 +1,99 @@
-# Airflow Data Platform - Technical Documentation
+# Airflow Data Platform - Documentation
 
-This directory contains **technical documentation** for the Airflow Data Platform framework and infrastructure components.
+Welcome to the complete documentation for the Airflow Data Platform framework.
 
-## 🎯 Audience & Purpose
+## 🚀 Getting Started
 
-This documentation is for:
-- **Framework contributors** - Building platform components
-- **Infrastructure engineers** - Deploying and operating the platform
-- **Advanced users** - Deep customization and extension
+**New to the platform?** Start here:
 
-**For learning and business implementation**, visit the [examples repository](https://github.com/Troubladore/airflow-data-platform-examples).
+- **[Getting Started Guide](getting-started.md)** - Complete setup guide for development and testing
+- **[Platform Setup](getting-started.md)** - Prerequisites, installation, and validation
 
-## 📚 Documentation Structure
+## 📚 Documentation Index
 
-### **Core Architecture**
-- **[TECHNICAL-ARCHITECTURE.md](TECHNICAL-ARCHITECTURE.md)** - Framework internals, API reference, deployment patterns
-- **[WHY-THIS-ARCHITECTURE.md](WHY-THIS-ARCHITECTURE.md)** - Design decisions, trade-offs, technical rationale
-- **[ECOSYSTEM-OVERVIEW.md](ECOSYSTEM-OVERVIEW.md)** - Component relationships, technical integration points
+### **User Guides**
+- **[Getting Started](getting-started.md)** - Environment setup and prerequisites
+- **[Technical Reference](technical-reference.md)** - Framework APIs and architecture details
+
+### **Architecture & Design**
+- **[Technical Architecture](TECHNICAL-ARCHITECTURE.md)** - Framework internals and deployment patterns
+- **[Why This Architecture](WHY-THIS-ARCHITECTURE.md)** - Design decisions and trade-offs
+- **[Ecosystem Overview](ECOSYSTEM-OVERVIEW.md)** - Component relationships and integration
 
 ### **Security & Operations**
-- **[SECURITY-RISK-ACCEPTANCE.md](SECURITY-RISK-ACCEPTANCE.md)** - Security model, threat analysis, risk management
+- **[Security Risk Acceptance](SECURITY-RISK-ACCEPTANCE.md)** - Security model and risk management
 
-## 🔧 Framework Components
+## 🎯 Quick Navigation by Use Case
 
-### **SQLModel Framework**
-- **Location**: `data-platform/sqlmodel-workspace/sqlmodel-framework/`
-- **Purpose**: Table mixins, deployment utilities, schema management
-- **Installation**: UV dependency via git+https
+### **Testing PR #6 (Layer 2 Data Processing)**
+1. **Start here** → [Getting Started Guide](getting-started.md)
+2. Follow the **🚀 Quick Setup** section
+3. Use the **🧪 Testing & Development Workflow** for iterative testing
+4. Reference **🚨 Troubleshooting** if you encounter issues
 
-```python
-# Import platform components
-from sqlmodel_framework.base.models import TransactionalTableMixin, ReferenceTableMixin
-from sqlmodel_framework.utils.deployment import deploy_datakit
+### **Platform Development**
+1. **Architecture overview** → [Technical Architecture](TECHNICAL-ARCHITECTURE.md)
+2. **Framework details** → [Technical Reference](technical-reference.md)
+3. **Design rationale** → [Why This Architecture](WHY-THIS-ARCHITECTURE.md)
+
+### **Production Deployment**
+1. **Security model** → [Security Risk Acceptance](SECURITY-RISK-ACCEPTANCE.md)
+2. **Component integration** → [Ecosystem Overview](ECOSYSTEM-OVERVIEW.md)
+3. **Framework internals** → [Technical Architecture](TECHNICAL-ARCHITECTURE.md)
+
+## ⚡ Quick Commands
+
+Once you've completed the [Getting Started Guide](getting-started.md):
+
+```bash
+# Complete platform setup
+ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml --ask-become-pass
+
+# Validate everything is working
+ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml --ask-become-pass
+
+# Clean teardown for testing (keeps certificates)
+./scripts/teardown.sh  # Choose option 1
+
+# Test endpoints manually
+curl -k https://traefik.localhost
+curl -k https://registry.localhost/v2/_catalog
 ```
 
-### **Execution Engines**
-- **Location**: `layer2-datakits/` (dbt-runner, postgres-runner, spark-runner, sqlserver-runner)
-- **Purpose**: Generic data processing and orchestration patterns
-- **Extension**: Copy and modify for business-specific needs
+## 🏗️ Repository Structure
 
-### **Infrastructure**
-- **Location**: `layer1-platform/`
-- **Purpose**: Docker configurations, test infrastructure, database utilities
-- **Usage**: Local development and CI/CD automation
-
-## 🏗️ Platform as Dependency Architecture
-
-The platform is designed to be **imported, not forked**:
-
-```toml
-# Business implementations reference platform via UV dependency
-[dependencies]
-sqlmodel-framework = {git = "https://github.com/Troubladore/airflow-data-platform.git", branch = "main", subdirectory = "data-platform/sqlmodel-workspace/sqlmodel-framework"}
+```
+airflow-data-platform/
+├── docs/                           # Documentation (you are here)
+│   ├── getting-started.md         # Platform setup guide
+│   ├── technical-reference.md     # Framework APIs and architecture
+│   └── *.md                       # Architecture and design docs
+├── data-platform/                 # SQLModel framework
+│   └── sqlmodel-workspace/
+│       └── sqlmodel-framework/    # Core platform library
+├── layer1-platform/               # Docker infrastructure
+├── layer2-datakits/               # Generic data processing patterns
+├── layer3-warehouses/             # Data warehouse patterns
+├── ansible/                       # Automation playbooks
+└── scripts/                       # Development utilities
 ```
 
-**Technical Benefits**:
-- **Controlled API surface** - Stable interfaces for business code
-- **Independent versioning** - Platform evolves without breaking consumers
-- **Dependency injection** - Business logic plugs into framework patterns
-- **Testing isolation** - Framework and business tests run independently
+## 📖 Documentation Standards
 
-## 🧩 Extension Points
+This documentation follows [data-eng-template](https://github.com/Troubladore/data-eng-template) standards:
+- **Lowercase with dashes** for file names (`getting-started.md`)
+- **Clear hierarchical structure** with main entry point
+- **Use case oriented navigation** for quick access
+- **Complete teardown/rebuild instructions** for iterative development
 
-### **Custom Table Mixins**
-```python
-from sqlmodel_framework.base.models import BaseMixin
-from sqlmodel import Field
-from datetime import datetime
+## 🤝 Contributing to Documentation
 
-class CustomAuditMixin(BaseMixin):
-    """Business-specific audit patterns."""
-    audit_user: str = Field(nullable=False)
-    audit_timestamp: datetime = Field(default_factory=datetime.utcnow)
-```
-
-### **Custom Deployment Targets**
-```python
-from sqlmodel_framework.engines import BaseEngine
-
-class CustomDatabaseEngine(BaseEngine):
-    """Custom database deployment logic."""
-    def create_tables(self, metadata):
-        # Your database-specific deployment logic
-        pass
-```
-
-### **Custom Execution Engines**
-```python
-# Pattern: Copy existing engine as template
-# Example: layer2-datakits/postgres-runner/ → your-custom-runner/
-# Modify for your specific execution patterns
-```
-
-## 🔬 Development Workflow
-
-### **Framework Development**
-1. **Modify core** - Update `data-platform/sqlmodel-workspace/sqlmodel-framework/`
-2. **Run tests** - Execute framework test suite with `uv run pytest`
-3. **Version bump** - Update version for breaking API changes
-4. **Integration test** - Validate with example implementations
-
-### **Infrastructure Changes**
-1. **Update Docker** - Modify `layer1-platform/docker/` configurations
-2. **Update automation** - Modify `scripts/` for new functionality
-3. **Test CI/CD** - Ensure automation works with changes
-
-## 📊 Performance & Scalability
-
-### **Framework Optimization**
-- **SQLModel performance** - Table creation and query generation efficiency
-- **Schema management** - Large-scale multi-database deployment patterns
-- **Memory efficiency** - Framework memory footprint optimization
-
-### **Infrastructure Scaling**
-- **Container orchestration** - Docker deployment and scaling patterns
-- **Database performance** - Connection pooling and query optimization
-- **Monitoring integration** - Observability and alerting infrastructure
-
-## 🚀 Progressive Learning Path
-
-### **For Platform Developers**
-1. **[WHY-THIS-ARCHITECTURE.md](WHY-THIS-ARCHITECTURE.md)** - Understand design rationale
-2. **[TECHNICAL-ARCHITECTURE.md](TECHNICAL-ARCHITECTURE.md)** - Deep dive into implementation
-3. **Framework source code** - Explore `data-platform/sqlmodel-workspace/sqlmodel-framework/`
-
-### **For Infrastructure Engineers**
-1. **[ECOSYSTEM-OVERVIEW.md](ECOSYSTEM-OVERVIEW.md)** - Component relationships
-2. **[SECURITY-RISK-ACCEPTANCE.md](SECURITY-RISK-ACCEPTANCE.md)** - Security model
-3. **Infrastructure code** - Explore `layer1-platform/` and `scripts/`
-
-### **For Advanced Users**
-1. **[Examples repository](https://github.com/Troubladore/airflow-data-platform-examples)** - See working patterns
-2. **Extension points** - Build custom components using framework APIs
-3. **Performance tuning** - Optimize for your specific use cases
-
-## 🤝 Contributing
-
-- **Framework improvements** - Enhance core platform capabilities
-- **Documentation updates** - Keep technical docs synchronized with code
-- **Performance optimizations** - Improve scalability and efficiency
-- **Security enhancements** - Strengthen platform security model
+When updating documentation:
+1. **Keep getting-started.md current** - This is the primary entry point
+2. **Update quick reference commands** if workflows change
+3. **Test documentation flows** before committing
+4. **Follow naming conventions** (lowercase-with-dashes)
 
 ---
 
-**Remember**: This is the **technical documentation**. For tutorials, getting started guides, and business implementation patterns, visit the [examples repository](https://github.com/Troubladore/airflow-data-platform-examples).
+**Questions or issues?** Create an issue or check the troubleshooting sections in the guides above.
