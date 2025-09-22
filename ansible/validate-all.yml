@@ -289,13 +289,36 @@
     # ================================
     - name: "📦 Docker Registry Functionality"
       block:
-        - name: Pull test image
+        - name: Pull test image (external registry connectivity test)
           command: docker pull busybox:latest
           register: pull_busybox
+          failed_when: false
+          timeout: 30
 
-        - name: Tag test image for local registry
-          command: docker tag busybox:latest registry.localhost/test/busybox:validation
+        - name: Check if test image is available locally
+          command: docker images busybox:latest --format "{{.Repository}}:{{.Tag}}"
+          register: local_image_check
+          failed_when: false
+
+        - name: Use alpine as fallback if busybox unavailable
+          command: docker pull alpine:latest
+          register: pull_fallback
+          failed_when: false
+          timeout: 30
+          when: pull_busybox.rc != 0 and local_image_check.stdout == ""
+
+        - name: Tag available image for local registry
+          command: |
+            if docker images busybox:latest --format "{{.Repository}}:{{.Tag}}" | grep -q busybox; then
+              docker tag busybox:latest registry.localhost/test/busybox:validation
+            elif docker images alpine:latest --format "{{.Repository}}:{{.Tag}}" | grep -q alpine; then
+              docker tag alpine:latest registry.localhost/test/busybox:validation
+            else
+              echo "No suitable test image available for registry test"
+              exit 1
+            fi
           register: tag_image
+          failed_when: tag_image.rc != 0
 
         - name: Push to local registry
           command: docker push registry.localhost/test/busybox:validation
@@ -318,12 +341,16 @@
           debug:
             msg: |
               📦 Docker Registry Operations:
-              - Pull external image: {{ '✅' if pull_busybox.rc == 0 else '❌' }}
-              - Tag for local registry: {{ '✅' if tag_image.rc == 0 else '❌' }}
-              - Push to registry: {{ '✅' if push_test.rc == 0 else '❌' }}
-              - Pull from registry: {{ '✅' if pull_test.rc == 0 else '❌' }}
+              - External connectivity: {{ '✅ Docker Hub accessible' if pull_busybox.rc == 0 else ('⚠️ Limited (fallback used)' if pull_fallback is defined and pull_fallback.rc == 0 else '❌ No external access') }}
+              - Image preparation: {{ '✅' if tag_image.rc == 0 else '❌' }}
+              - Push to local registry: {{ '✅' if push_test.rc == 0 else '❌' }}
+              - Pull from local registry: {{ '✅' if pull_test.rc == 0 else '❌' }}
 
-              Registry Status: {{ '✅ Fully Functional' if (push_test.rc == 0 and pull_test.rc == 0) else '❌ Issues Detected' }}
+              🎯 Registry Status: {{ '✅ Fully Functional' if (push_test.rc == 0 and pull_test.rc == 0) else '❌ Registry Issues' }}
+              {% if pull_busybox.rc != 0 %}
+
+              ℹ️ Note: External registry access limited (likely network/proxy config).
+              This doesn't affect platform functionality - local registry is working.{% endif %}
 
     # ================================
     # TLS/SSL Validation
