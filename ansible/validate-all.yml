@@ -38,6 +38,12 @@
           changed_when: false
           when: mkcert_check.rc == 0
 
+        - name: Check libnss3-tools installation (required for browser trust)
+          command: dpkg -l libnss3-tools
+          register: libnss3_check
+          failed_when: false
+          changed_when: false
+
         - name: Test certificate trust with curl
           command: curl -s --max-time 10 https://traefik.localhost/api/http/services
           register: curl_trust_test
@@ -58,6 +64,7 @@
 
               Installation Status:
               - mkcert installed: {{ '✅' if mkcert_check.rc == 0 else '❌' }}
+              - libnss3-tools: {{ '✅' if libnss3_check.rc == 0 else '❌ MISSING - required for browser trust' }}
               {% if mkcert_check.rc == 0 %}
               - CAROOT location: {{ caroot_check.stdout }}
               {% endif %}
@@ -66,15 +73,19 @@
               - curl without -k: {{ '✅ Trusted' if curl_trust_test.rc == 0 else '❌ Certificate not trusted' }}
               - OpenSSL verification: {{ '✅ Valid chain' if 'VERIFY_FAILED' not in openssl_verify_test.stdout else '❌ Verification failed' }}
 
-              {% if curl_trust_test.rc != 0 or 'VERIFY_FAILED' in openssl_verify_test.stdout %}
+              {% if curl_trust_test.rc != 0 or 'VERIFY_FAILED' in openssl_verify_test.stdout or libnss3_check.rc != 0 %}
               🚨 ACTION REQUIRED:
               Certificate trust is not properly configured. This will cause:
               - Browser security warnings
               - curl/API calls to fail without -k flag
               - Examples repository connection issues
 
+              {% if libnss3_check.rc != 0 %}
+              Missing dependency: Install libnss3-tools for browser certificate support
+              {% endif %}
+
               Run the platform setup to fix:
-              ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml --ask-become-pass
+              ansible-playbook -i ansible/inventory/local-dev.ini ansible/setup-wsl2.yml --ask-become-pass
               {% endif %}
 
     - name: "🔐 Certificate File Validation"

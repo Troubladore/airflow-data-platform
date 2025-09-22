@@ -129,6 +129,7 @@
           - libffi-dev
           - gnupg
           - lsb-release
+          - libnss3-tools  # Required for mkcert browser certificate trust
           - pipx  # For isolated Python tool installations
           - python3-pip
         state: present
@@ -257,6 +258,12 @@
                 CAROOT: "{{ windows_caroot }}"
               register: ca_install_result
               changed_when: "'installed the local CA' in ca_install_result.stderr or 'updated the local CA' in ca_install_result.stderr"
+
+            - name: Update system certificate trust store
+              command: update-ca-certificates
+              become: yes
+              register: ca_update_result
+              changed_when: "'added' in ca_update_result.stdout"
 
             - name: Verify CA installation
               command: mkcert -CAROOT
