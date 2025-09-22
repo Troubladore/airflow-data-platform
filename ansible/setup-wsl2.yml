@@ -175,6 +175,38 @@
         state: directory
         mode: '0755'
 
+    - name: "🔐 Install mkcert in WSL2"
+      block:
+        - name: Check if mkcert is already installed
+          command: which mkcert
+          register: mkcert_installed
+          failed_when: false
+          changed_when: false
+
+        - name: Download and install mkcert
+          block:
+            - name: Download mkcert binary
+              get_url:
+                url: "https://dl.filippo.io/mkcert/latest?for=linux/amd64"
+                dest: "/tmp/mkcert-linux-amd64"
+                mode: '0755'
+
+            - name: Install mkcert binary
+              copy:
+                src: "/tmp/mkcert-linux-amd64"
+                dest: "/usr/local/bin/mkcert"
+                mode: '0755'
+                owner: root
+                group: root
+                remote_src: yes
+              become: yes
+
+            - name: Clean up temporary file
+              file:
+                path: "/tmp/mkcert-linux-amd64"
+                state: absent
+          when: mkcert_installed.rc != 0
+
     - name: "🔐 Check for Windows certificates"
       stat:
         path: "/mnt/c/Users/{{ windows_username }}/AppData/Local/mkcert/dev-localhost-wild.crt"
@@ -210,6 +242,36 @@
               {% for result in cert_verification.results %}
               - {{ result.item }}: {{ '✅' if result.stat.exists else '❌' }}
               {% endfor %}
+
+        - name: Install mkcert CA in WSL2 trust store
+          block:
+            - name: Set CAROOT environment variable to Windows mkcert location
+              set_fact:
+                windows_caroot: "/mnt/c/Users/{{ windows_username }}/AppData/Local/mkcert"
+
+            - name: Install CA from Windows mkcert
+              shell: |
+                export CAROOT="{{ windows_caroot }}"
+                mkcert -install
+              environment:
+                CAROOT: "{{ windows_caroot }}"
+              register: ca_install_result
+              changed_when: "'installed the local CA' in ca_install_result.stderr or 'updated the local CA' in ca_install_result.stderr"
+
+            - name: Verify CA installation
+              command: mkcert -CAROOT
+              register: caroot_verify
+              changed_when: false
+
+            - name: Display CA installation status
+              debug:
+                msg: |
+                  🔐 CA Trust Status:
+                  - Windows CAROOT: {{ windows_caroot }}
+                  - WSL2 CAROOT: {{ caroot_verify.stdout }}
+                  - CA Installation: {{ '✅' if ca_install_result.rc == 0 else '❌' }}
+
+          when: mkcert_installed.rc == 0 or mkcert_installed.rc != 0
 
       when: windows_cert_check.stat.exists
 

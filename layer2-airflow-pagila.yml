@@ -1,0 +1,194 @@
+version: '3.8'
+
+# Layer 2: Pagila Medallion Architecture with Airflow Orchestration
+# Integrates with Layer 1 platform infrastructure (Traefik, Registry, Networks)
+
+x-airflow-common:
+  &airflow-common
+  image: registry.localhost/pagila/airflow:latest
+  environment: &airflow-common-env
+    # Airflow core configuration
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:airflow_password@pagila-airflow-db:5432/airflow
+    AIRFLOW__CORE__FERNET_KEY: 'YlCImzjge_TeZc7jPJ7Jz5NDjKnQZfOKLGx6fT6UwAE='
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+
+    # Platform integration - use data-processing network services
+    PAGILA_SOURCE_CONNECTION: postgresql://postgres:pagila_demo_password@pagila-source-db:5432/pagila
+    BRONZE_TARGET_CONNECTION: postgresql://postgres:pagila_demo_password@pagila-source-db:5432/pagila
+    SILVER_TARGET_CONNECTION: postgresql://postgres:pagila_demo_password@pagila-source-db:5432/pagila
+    GOLD_TARGET_CONNECTION: postgresql://postgres:pagila_demo_password@pagila-source-db:5432/pagila
+
+  volumes:
+    - ./pagila-implementations/pagila-sqlmodel-basic/orchestration:/opt/airflow/dags:ro
+    - ./pagila-implementations/pagila-sqlmodel-basic:/opt/pagila:ro
+    - airflow-logs:/opt/airflow/logs
+
+  networks:
+    - data-processing-network
+    - edge
+
+  depends_on:
+    pagila-airflow-db:
+      condition: service_healthy
+
+services:
+  # Pagila source database (already defined in docker-compose.layer2.yml but using updated version)
+  pagila-source-db:
+    image: postgres:17.5-alpine
+    container_name: pagila-source-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: pagila_demo_password
+      POSTGRES_DB: pagila
+    volumes:
+      - pagila-source-data:/var/lib/postgresql/data
+    networks:
+      - data-processing-network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # Airflow metadata database
+  pagila-airflow-db:
+    image: postgres:17.5-alpine
+    container_name: pagila-airflow-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: airflow_password
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-db-data:/var/lib/postgresql/data
+    networks:
+      - data-processing-network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # Airflow Web UI - exposed through Traefik
+  pagila-airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    networks:
+      - data-processing-network
+      - edge
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pagila-airflow.rule=Host(`airflow.localhost`)"
+      - "traefik.http.routers.pagila-airflow.entrypoints=websecure"
+      - "traefik.http.routers.pagila-airflow.tls=true"
+      - "traefik.http.services.pagila-airflow.loadbalancer.server.port=8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    depends_on:
+      pagila-airflow-init:
+        condition: service_completed_successfully
+
+  # Airflow Scheduler
+  pagila-airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    depends_on:
+      pagila-airflow-init:
+        condition: service_completed_successfully
+
+  # Airflow initialization
+  pagila-airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        mkdir -p /sources/logs /sources/dags /sources/plugins
+        chown -R 50000:0 /sources/{logs,dags,plugins}
+        airflow db init
+        airflow users create \
+          --username airflow \
+          --firstname Airflow \
+          --lastname Admin \
+          --role Admin \
+          --email admin@example.com \
+          --password airflow
+
+        # Set up Airflow Variables for platform integration
+        airflow variables set pagila_source_connection "postgresql://postgres:pagila_demo_password@pagila-source-db:5432/pagila"
+        airflow variables set bronze_target_connection "postgresql://postgres:pagila_demo_password@pagila-source-db:5432/pagila"
+        airflow variables set silver_target_connection "postgresql://postgres:pagila_demo_password@pagila-source-db:5432/pagila"
+        airflow variables set gold_target_connection "postgresql://postgres:pagila_demo_password@pagila-source-db:5432/pagila"
+
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+    user: "0:0"
+    volumes:
+      - ./pagila-implementations/pagila-sqlmodel-basic:/sources
+
+  # Medallion transformation processors (containerized functions)
+  pagila-bronze-processor:
+    image: registry.localhost/pagila/bronze-processor:latest
+    container_name: pagila-bronze-processor
+    environment:
+      PAGILA_SOURCE_CONNECTION: postgresql://postgres:pagila_demo_password@pagila-source-db:5432/pagila
+      BRONZE_TARGET_CONNECTION: postgresql://postgres:pagila_demo_password@pagila-source-db:5432/pagila
+    networks:
+      - data-processing-network
+    profiles:
+      - processors
+    depends_on:
+      - pagila-source-db
+
+  pagila-silver-processor:
+    image: registry.localhost/pagila/silver-processor:latest
+    container_name: pagila-silver-processor
+    environment:
+      BRONZE_SOURCE_CONNECTION: postgresql://postgres:pagila_demo_password@pagila-source-db:5432/pagila
+      SILVER_TARGET_CONNECTION: postgresql://postgres:pagila_demo_password@pagila-source-db:5432/pagila
+    networks:
+      - data-processing-network
+    profiles:
+      - processors
+    depends_on:
+      - pagila-source-db
+
+  pagila-gold-processor:
+    image: registry.localhost/pagila/gold-processor:latest
+    container_name: pagila-gold-processor
+    environment:
+      SILVER_SOURCE_CONNECTION: postgresql://postgres:pagila_demo_password@pagila-source-db:5432/pagila
+      GOLD_TARGET_CONNECTION: postgresql://postgres:pagila_demo_password@pagila-source-db:5432/pagila
+    networks:
+      - data-processing-network
+    profiles:
+      - processors
+    depends_on:
+      - pagila-source-db
+
+volumes:
+  pagila-source-data:
+  airflow-db-data:
+  airflow-logs:
+
+networks:
+  data-processing-network:
+    external: true
+  edge:
+    external: true

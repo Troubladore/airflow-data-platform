@@ -160,6 +160,18 @@ curl -k https://traefik.localhost/api/http/services
   curl -k https://registry.localhost/v2/_catalog
   curl -k https://traefik.localhost/api/http/services
   ```
+
+**🚨 CRITICAL: Wrong Docker Compose Configuration**
+**Symptom**: HTTPS certificate errors when accessing services, registry logs showing "open /certs/cert.pem: no such file or directory"
+
+**Root Cause**: Using static `prerequisites/traefik-registry/docker-compose.yml` instead of Ansible-generated platform services
+
+**Solution**:
+1. Stop incorrect services: `docker compose -f /path/to/airflow-data-platform/prerequisites/traefik-registry/docker-compose.yml down`
+2. Use proper platform services: `cd ~/platform-services/traefik && docker compose up -d`
+3. Verify: `curl -k https://traefik.localhost` should work
+
+**Prevention**: Always use Ansible-generated services (`~/platform-services/traefik/`) which properly mount WSL2 certificates from `~/.local/share/certs/`. The static prerequisite files are templates only.
 </details>
 
 <details>
