@@ -177,12 +177,12 @@
       changed_when: false
       when: docker_version_check.rc != 0 or docker_daemon_check.rc != 0
 
-    - name: "⚠️  Docker WSL2 Integration guidance"
+    - name: "⚠️  Docker WSL2 Integration still needed"
       debug:
         msg: |
           ⚠️  Docker WSL2 Integration Required
 
-          Docker Desktop is running but WSL2 integration isn't configured:
+          Docker Desktop is running but WSL2 integration still isn't working:
           1. Open Docker Desktop on Windows
           2. Go to Settings → Resources → WSL Integration
           3. Enable integration for this WSL2 distribution ({{ ansible_distribution }})
@@ -192,15 +192,19 @@
           This is a one-time configuration step.
       when:
         - docker_version_check.rc != 0 or docker_daemon_check.rc != 0
-        - docker_recheck is defined
-        - docker_recheck.rc != 0
+        - docker_recheck is defined and docker_recheck.rc != 0
 
-    - name: "✅ Docker setup complete"
+    - name: "✅ Docker setup working after user action"
       debug:
-        msg: "✅ Docker Desktop is running and WSL2 integration is working!"
+        msg: "✅ Docker Desktop started successfully and WSL2 integration is working!"
       when:
-        - docker_version_check.rc == 0 and docker_daemon_check.rc == 0
-        - docker_recheck is not defined or docker_recheck.rc == 0
+        - docker_version_check.rc != 0 or docker_daemon_check.rc != 0
+        - docker_recheck is defined and docker_recheck.rc == 0
+
+    - name: "✅ Docker was already working"
+      debug:
+        msg: "✅ Docker Desktop is running and WSL2 integration was already working!"
+      when: docker_version_check.rc == 0 and docker_daemon_check.rc == 0
 
     - name: "🔍 Check Docker proxy configuration"
       shell: docker info --format '{{"{{"}}.HTTPProxy{{"}}"}}'
