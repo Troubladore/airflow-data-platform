@@ -71,6 +71,14 @@ if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
     }
 } else {
     Write-Success "Scoop is already installed"
+    Write-Info "Updating Scoop buckets to get latest package versions..."
+    try {
+        scoop update
+        Write-Success "Scoop buckets updated successfully"
+    } catch {
+        Write-Warning "Could not update Scoop buckets: $($_.Exception.Message)"
+        Write-Info "Continuing with existing bucket state..."
+    }
 }
 
 # Install mkcert via Scoop
