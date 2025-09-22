@@ -8,6 +8,7 @@ After completing this setup, your workstation will have:
 
 - **Local HTTPS services** - `https://traefik.localhost` and `https://registry.localhost` working without certificate errors
 - **Docker registry** - Push/pull custom images locally for development and testing
+- **Platform base images** - Pre-built Airflow base image (`registry.localhost/platform/airflow-base:3.0-10`) ready for projects
 - **Reverse proxy** - Traefik handling routing and TLS termination for all services
 - **Development certificates** - Trusted CA and certificates for secure local development
 
@@ -33,41 +34,11 @@ ansible-galaxy install -r ansible/requirements.yml
 
 ---
 
-## Step 2: Setup Certificates (if needed)
+## Step 2: Run Platform Setup
 
-**Required if:** You're starting fresh or after a complete teardown.
+**The setup handles everything from WSL2.** When Windows actions are needed (certificates, hosts file), it will pause and tell you exactly what to do.
 
-**Option 1 - Automated (Recommended):**
-```powershell
-# In Windows PowerShell (regular user, NO admin needed)
-.\scripts\setup-certificates-windows.ps1
-```
-
-This script will:
-- Check/install mkcert
-- Install CA in Windows trust store
-- Generate certificates with proper SANs
-- Display what was created
-
-**Option 2 - Manual:**
-```powershell
-# In Windows PowerShell
-scoop install mkcert        # Or: choco install mkcert
-mkcert -install             # Creates CA and directory
-cd $env:LOCALAPPDATA\mkcert
-
-# Generate certificates with all needed SANs
-mkcert -cert-file dev-localhost-wild.crt -key-file dev-localhost-wild.key `
-  "*.localhost" localhost "traefik.localhost" "registry.localhost" `
-  "airflow.localhost" "*.airflow.localhost" 127.0.0.1 ::1
-
-mkcert -cert-file dev-registry.localhost.crt -key-file dev-registry.localhost.key `
-  "registry.localhost" 127.0.0.1 ::1
-```
-
-## Step 3: Run Platform Setup
-
-**What you're doing:** Deploying Traefik reverse proxy, Docker registry, and copying certificates for local HTTPS services.
+**What you're doing:** Complete platform deployment including certificates, Traefik proxy, Docker registry, and platform images.
 
 ```bash
 # 🐧 WSL2 Ubuntu terminal
@@ -76,11 +47,16 @@ ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml --ask-becom
 
 **Note:** The playbook will detect if you have passwordless sudo configured. If not, you'll be prompted for your password as needed.
 
-**What gets installed:** Local Docker registry, Traefik proxy, mkcert certificates, and host file entries for `*.localhost` domains.
+**What gets installed:**
+- Local Docker registry at `registry.localhost`
+- Traefik reverse proxy for HTTPS routing
+- Platform Airflow base images (`registry.localhost/platform/airflow-base:3.0-10`)
+- mkcert certificates for secure local development
+- Host file entries for `*.localhost` domains
 
 ---
 
-## Step 4: Validate Setup
+## Step 3: Validate Setup
 
 **What you're doing:** Testing that all services are running and accessible with proper HTTPS certificates.
 
@@ -95,7 +71,7 @@ ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml --a
 
 ---
 
-## Step 5: Run Unit Tests
+## Step 4: Run Unit Tests
 
 **What you're doing:** Validating that the SQLModel framework works correctly with your platform setup.
 
@@ -204,6 +180,22 @@ curl -k https://traefik.localhost/api/http/services
 3. Verify: `curl -k https://traefik.localhost` should work
 
 **Prevention**: Always use Ansible-generated services (`~/platform-services/traefik/`) which properly mount WSL2 certificates from `~/.local/share/certs/`. The static prerequisite files are templates only.
+
+**🚨 Docker Desktop Proxy Issues**
+**Symptom**: Timeout errors when pulling from registry.localhost: "proxyconnect tcp: dial tcp 192.168.65.1:3128: i/o timeout"
+
+**Root Cause**: Docker Desktop has a proxy configured but *.localhost domains aren't in the bypass list
+
+**Solution**:
+1. Open Docker Desktop → Settings → Resources → Proxies
+2. In "Bypass proxy settings for these hosts & domains" add:
+   ```
+   localhost,*.localhost,127.0.0.1,registry.localhost,traefik.localhost,airflow.localhost
+   ```
+3. Click "Apply & restart"
+4. Re-run validation
+
+**Note**: This is common in corporate environments or when Docker Desktop auto-detects Windows proxy settings. The platform setup now detects this and prompts you to fix it.
 </details>
 
 <details>

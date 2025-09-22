@@ -240,8 +240,9 @@
 
         $registryExists = $content | Select-String "127\.0\.0\.1.*registry\.localhost"
         $traefikExists = $content | Select-String "127\.0\.0\.1.*traefik\.localhost"
+        $airflowExists = $content | Select-String "127\.0\.0\.1.*airflow\.localhost"
 
-        if ($registryExists -and $traefikExists) {
+        if ($registryExists -and $traefikExists -and $airflowExists) {
           Write-Output "exists"
         } else {
           Write-Output "missing"
@@ -252,7 +253,7 @@
     - name: "🌐 Attempt to update Windows hosts file"
       ansible.windows.win_shell: >-
         $hostsFile = "$env:SystemRoot\System32\drivers\etc\hosts";
-        $entries = @("127.0.0.1 registry.localhost", "127.0.0.1 traefik.localhost");
+        $entries = @("127.0.0.1 registry.localhost", "127.0.0.1 traefik.localhost", "127.0.0.1 airflow.localhost");
         Copy-Item $hostsFile "$hostsFile.backup" -Force -ErrorAction SilentlyContinue;
         $content = Get-Content $hostsFile -ErrorAction SilentlyContinue;
         if (-not $content) { $content = @() };
@@ -288,10 +289,12 @@
 
           127.0.0.1 registry.localhost
           127.0.0.1 traefik.localhost
+          127.0.0.1 airflow.localhost
 
           Option 1 - PowerShell as Administrator:
           Add-Content C:\Windows\System32\drivers\etc\hosts "127.0.0.1 registry.localhost"
           Add-Content C:\Windows\System32\drivers\etc\hosts "127.0.0.1 traefik.localhost"
+          Add-Content C:\Windows\System32\drivers\etc\hosts "127.0.0.1 airflow.localhost"
 
           Option 2 - Corporate Host Management Tool:
           Use your organization's approved method to add these entries.
@@ -299,7 +302,7 @@
           Option 3 - Manual Edit (as Administrator):
           1. Open notepad as Administrator
           2. Open C:\Windows\System32\drivers\etc\hosts
-          3. Add the two lines above
+          3. Add the three lines above
           4. Save the file
 
           Then re-run this playbook.

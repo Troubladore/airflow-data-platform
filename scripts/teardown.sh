@@ -139,6 +139,7 @@ cleanup_docker_services() {
 
     # Clean up networks (check various naming patterns)
     log_info "Cleaning up Docker networks..."
+    docker network ls --filter "name=edge" -q | xargs -r docker network rm 2>/dev/null || true
     docker network ls --filter "name=traefik" -q | xargs -r docker network rm 2>/dev/null || true
     docker network ls --filter "label=com.docker.compose.project=traefik-bundle" -q | xargs -r docker network rm 2>/dev/null || true
 
@@ -148,8 +149,9 @@ cleanup_docker_services() {
     docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "^registry\.localhost" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
     # Remove demo images
     docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "/demo/" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
-    # Remove traefik base images
-    docker images --filter "reference=traefik" -q | xargs -r docker rmi -f 2>/dev/null || true
+    # Remove traefik images (including traefik/whoami test image)
+    docker images --filter "reference=traefik*" -q | xargs -r docker rmi -f 2>/dev/null || true
+    docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "^traefik/" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
     # Remove registry base images
     docker images --filter "reference=registry" -q | xargs -r docker rmi -f 2>/dev/null || true
 
@@ -518,15 +520,15 @@ verify_teardown() {
     # Check for remaining containers (skip if Docker not available)
     local remaining_containers=0
     if command -v docker &> /dev/null && docker info &> /dev/null; then
-        remaining_containers=$(docker ps -aq 2>/dev/null | xargs -r docker inspect --format '{{.Name}} {{.Config.Labels}}' 2>/dev/null | grep -E "(traefik|registry)" | wc -l)
+        # Check containers with name containing traefik or registry
+        remaining_containers=$(docker ps -a --format "{{.Names}}" 2>/dev/null | grep -E "(traefik|registry)" | wc -l)
     else
         log_info "Skipping container verification - Docker not available"
     fi
     if [ "$remaining_containers" -gt 0 ]; then
         log_warning "Found $remaining_containers remaining platform containers:"
         docker ps -a --format "table {{.Names}}\t{{.Status}}" 2>/dev/null | grep -E "(traefik|registry)" || true
-        echo "  Remove by name: docker ps -aq --filter \"name=traefik\" --filter \"name=registry\" | xargs docker rm -f"
-        echo "  Remove by label: docker ps -aq --filter \"label=com.docker.compose.project=traefik-bundle\" | xargs docker rm -f"
+        echo "  Remove: docker ps -a --format '{{.Names}}' | grep -E '(traefik|registry)' | xargs docker rm -f"
         issues_found=$((issues_found + 1))
     fi
 

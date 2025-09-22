@@ -65,24 +65,39 @@
       debug:
         msg: |
           🚀 Execution Mode: {{ execution_mode }}
-          🪟 Windows Host: {{ 'Available' if windows_available else 'WSL2-only (non-admin friendly)' }}
+          🪟 Windows Host: {{ 'Available' if windows_available else 'WSL2-only (requires Windows prerequisites)' }}
 
-          {% if not windows_available %}
-          ℹ️  Running in WSL2-only mode - Perfect for non-admin environments!
+    - name: Windows prerequisites required
+      pause:
+        prompt: |
 
-          📝 What this means:
-            ✅ All platform services will run in WSL2
-            ✅ No admin privileges required
-            ✅ Certificates managed in WSL2 user space
-            ✅ Manual Windows setup guidance provided when needed
+          ⚠️  Windows Prerequisites Required!
 
-          🚀 Quick Windows Setup (from WSL2):
-            Run the Windows prerequisites setup:
-            1. 🐧 In WSL2: ./scripts/setup-windows-prereqs.sh
-            2. 🐧 Then re-run: ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml
+          Since WinRM is not available, you need to run Windows setup manually.
+          This will handle:
+            • mkcert installation
+            • Certificate generation
+            • Hosts file entries (registry.localhost, traefik.localhost, airflow.localhost)
+            • Windows CA trust store
 
-            This crosses the Windows/WSL2 boundary to handle Scoop, mkcert, certificates, and hosts file!
-          {% endif %}
+          Open a Windows PowerShell terminal and run:
+
+            cd \\wsl$\Ubuntu\home\{{ ansible_env.USER }}\repos\airflow-data-platform
+            .\scripts\win-prereqs.ps1
+
+          OR from WSL2 terminal (separate tab):
+
+            cd /home/{{ ansible_env.USER }}/repos/airflow-data-platform
+            powershell.exe -File scripts/win-prereqs.ps1
+
+          This script will:
+            1. Check what's already installed
+            2. Skip things that exist
+            3. Prompt for admin if needed for hosts file
+            4. Show exactly what was done
+
+          After running the script, press Enter here to continue...
+      when: not windows_available
 
 - name: "🪟 Windows Prerequisites and Setup"
   import_playbook: validate-windows.yml
