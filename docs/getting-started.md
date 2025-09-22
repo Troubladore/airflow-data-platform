@@ -33,9 +33,41 @@ ansible-galaxy install -r ansible/requirements.yml
 
 ---
 
-## Step 2: Run Platform Setup
+## Step 2: Setup Certificates (if needed)
 
-**What you're doing:** Deploying Traefik reverse proxy, Docker registry, and development certificates for local HTTPS services.
+**Required if:** You're starting fresh or after a complete teardown.
+
+**Option 1 - Automated (Recommended):**
+```powershell
+# In Windows PowerShell (regular user, NO admin needed)
+.\scripts\setup-certificates-windows.ps1
+```
+
+This script will:
+- Check/install mkcert
+- Install CA in Windows trust store
+- Generate certificates with proper SANs
+- Display what was created
+
+**Option 2 - Manual:**
+```powershell
+# In Windows PowerShell
+scoop install mkcert        # Or: choco install mkcert
+mkcert -install             # Creates CA and directory
+cd $env:LOCALAPPDATA\mkcert
+
+# Generate certificates with all needed SANs
+mkcert -cert-file dev-localhost-wild.crt -key-file dev-localhost-wild.key `
+  "*.localhost" localhost "traefik.localhost" "registry.localhost" `
+  "airflow.localhost" "*.airflow.localhost" 127.0.0.1 ::1
+
+mkcert -cert-file dev-registry.localhost.crt -key-file dev-registry.localhost.key `
+  "registry.localhost" 127.0.0.1 ::1
+```
+
+## Step 3: Run Platform Setup
+
+**What you're doing:** Deploying Traefik reverse proxy, Docker registry, and copying certificates for local HTTPS services.
 
 ```bash
 # 🐧 WSL2 Ubuntu terminal
@@ -48,7 +80,7 @@ ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml --ask-becom
 
 ---
 
-## Step 3: Validate Setup
+## Step 4: Validate Setup
 
 **What you're doing:** Testing that all services are running and accessible with proper HTTPS certificates.
 
@@ -63,7 +95,7 @@ ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml --a
 
 ---
 
-## Step 4: Run Unit Tests
+## Step 5: Run Unit Tests
 
 **What you're doing:** Validating that the SQLModel framework works correctly with your platform setup.
 

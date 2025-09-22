@@ -195,18 +195,25 @@ cleanup_certificates() {
         echo "1) Keep WSL2 certificates (recommended for quick rebuild)"
         echo "2) Remove WSL2 certificates only"
         echo "3) Complete teardown (removes WSL2 certs + attempts Windows cleanup)"
+        echo "4) Regenerate certificates (fix wildcard/SAN issues)"
         echo
-        read -p "Enter choice (1-3): " -n 1 -r cert_choice
+        read -p "Enter choice (1-4): " -n 1 -r cert_choice
         echo
         CLEANUP_CHOICE="$cert_choice"
 
         case $cert_choice in
             2)
                 rm -rf "$CERT_DIR"
-                log_success "Removed WSL2 certificates"
+                cleanup_wsl2_trust_store
+                log_success "Removed WSL2 certificates and trust store"
                 ;;
             3)
                 perform_complete_teardown
+                ;;
+            4)
+                log_info "Launching certificate regeneration..."
+                "$SCRIPT_DIR/regenerate-certificates.sh"
+                exit 0
                 ;;
             *)
                 log_info "Keeping WSL2 certificates for quick rebuild"
@@ -233,6 +240,55 @@ cleanup_certificates() {
     fi
 }
 
+# Clean up WSL2 system trust store
+cleanup_wsl2_trust_store() {
+    log_info "Cleaning up WSL2 system trust store..."
+
+    # Remove mkcert CA certificates from system trust store
+    local ca_removed_count=0
+    local ca_certs_dir="/usr/local/share/ca-certificates"
+
+    if [ -d "$ca_certs_dir" ]; then
+        # Find and remove ALL mkcert CA certificates (including duplicates)
+        local mkcert_certs=$(find "$ca_certs_dir" -name "mkcert*.crt" 2>/dev/null || true)
+
+        if [ -n "$mkcert_certs" ]; then
+            log_info "Found mkcert CA certificates in system trust store:"
+            echo "$mkcert_certs" | while read cert_file; do
+                if [ -n "$cert_file" ] && [ -f "$cert_file" ]; then
+                    echo "  • Removing: $(basename "$cert_file")"
+                    sudo rm -f "$cert_file" 2>/dev/null || log_warning "Could not remove $cert_file"
+                    ca_removed_count=$((ca_removed_count + 1))
+                fi
+            done
+
+            # Update system certificate trust store
+            log_info "Updating system certificate trust store..."
+            sudo update-ca-certificates --fresh >/dev/null 2>&1 || log_warning "Could not update system trust store"
+            log_success "Removed all mkcert CA certificates from WSL2 system trust store"
+        else
+            log_info "No mkcert CA certificates found in system trust store"
+        fi
+    else
+        log_warning "System CA certificates directory not found: $ca_certs_dir"
+    fi
+
+    # Remove mkcert from NSS database if exists
+    if command -v certutil >/dev/null 2>&1; then
+        local nss_home="$HOME/.pki/nssdb"
+        if [ -d "$nss_home" ]; then
+            log_info "Cleaning mkcert from NSS database..."
+            # List and remove mkcert certificates from NSS
+            certutil -L -d "$nss_home" 2>/dev/null | grep -i mkcert | awk '{print $1}' | while read cert_name; do
+                if [ -n "$cert_name" ]; then
+                    certutil -D -n "$cert_name" -d "$nss_home" 2>/dev/null || true
+                    log_info "Removed $cert_name from NSS database"
+                fi
+            done
+        fi
+    fi
+}
+
 # Complete teardown with Windows cleanup attempts
 perform_complete_teardown() {
     log_info "Performing complete teardown with Windows cleanup..."
@@ -242,6 +298,9 @@ perform_complete_teardown() {
         rm -rf "$CERT_DIR"
         log_success "Removed WSL2 certificates"
     fi
+
+    # Step 1.5: Clean up WSL2 system trust store
+    cleanup_wsl2_trust_store
 
     # Step 2: Attempt Windows certificate cleanup
     log_info "Attempting Windows certificate cleanup..."
@@ -294,13 +353,25 @@ perform_complete_teardown() {
             local ca_uninstalled=false
 
             # Try direct mkcert command first (works if mkcert is in PATH)
-            if /mnt/c/Windows/System32/cmd.exe /c "mkcert -uninstall" 2>/dev/null; then
-                log_success "Removed mkcert CA certificates from trust store (direct)"
+            local uninstall_result=$(/mnt/c/Windows/System32/cmd.exe /c "mkcert -uninstall" 2>&1 || true)
+
+            if [[ "$uninstall_result" == *"no certs found"* ]]; then
+                log_info "No mkcert CA certificates to remove (already clean)"
                 ca_uninstalled=true
-            # Try PowerShell (Scoop adds programs to PATH, so just call mkcert directly)
-            elif /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command "mkcert -uninstall" 2>/dev/null; then
-                log_success "Removed mkcert CA certificates from trust store (via PowerShell)"
+            elif [[ "$uninstall_result" == *"The local CA is now uninstalled"* ]] || [ -z "$uninstall_result" ]; then
+                log_success "Removed mkcert CA certificates from trust store"
                 ca_uninstalled=true
+            else
+                # Try PowerShell as fallback
+                uninstall_result=$(/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command "mkcert -uninstall" 2>&1 || true)
+
+                if [[ "$uninstall_result" == *"no certs found"* ]]; then
+                    log_info "No mkcert CA certificates to remove (already clean)"
+                    ca_uninstalled=true
+                elif [[ "$uninstall_result" == *"The local CA is now uninstalled"* ]] || [ -z "$uninstall_result" ]; then
+                    log_success "Removed mkcert CA certificates from trust store (via PowerShell)"
+                    ca_uninstalled=true
+                fi
             fi
 
             if [ "$ca_uninstalled" = false ]; then
@@ -308,6 +379,7 @@ perform_complete_teardown() {
                 echo "  Try these commands:"
                 echo "    mkcert -uninstall"
                 echo "    OR in PowerShell: mkcert -uninstall"
+                echo "  Output was: $uninstall_result"
             fi
         else
             log_info "No mkcert CA certificates found in system trust store"

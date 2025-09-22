@@ -208,10 +208,78 @@
                 state: absent
           when: mkcert_installed.rc != 0
 
+    - name: "🔐 Check if mkcert is installed on Windows"
+      shell: |
+        powershell.exe -Command "Get-Command mkcert -ErrorAction SilentlyContinue" 2>/dev/null || echo "NOT_FOUND"
+      register: windows_mkcert_check
+      changed_when: false
+
+    - name: "🔐 Install mkcert on Windows if needed"
+      block:
+        - name: Display mkcert installation instructions
+          pause:
+            prompt: |
+
+              🔐 mkcert not found on Windows!
+
+              Please install mkcert on Windows:
+
+              Option 1: Using Scoop (recommended)
+              =========================================
+              In Windows PowerShell (regular user):
+
+              # Install Scoop if you don't have it:
+              irm get.scoop.sh | iex
+
+              # Install mkcert:
+              scoop install mkcert
+
+              Option 2: Using Chocolatey
+              ===========================
+              In Windows PowerShell (admin):
+              choco install mkcert
+
+              Option 3: Manual download
+              ==========================
+              Download from: https://github.com/FiloSottile/mkcert/releases
+              Add to PATH manually
+
+              Press Enter after installing mkcert...
+      when: '"NOT_FOUND" in windows_mkcert_check.stdout'
+
     - name: "🔐 Check for Windows certificates"
       stat:
         path: "/mnt/c/Users/{{ windows_username }}/AppData/Local/mkcert/dev-localhost-wild.crt"
       register: windows_cert_check
+
+    - name: "🔐 Generate certificates on Windows"
+      block:
+        - name: Prompt to generate certificates
+          pause:
+            prompt: |
+
+              🔐 Certificates need to be generated on Windows!
+
+              Run this in Windows PowerShell (regular user, NO admin needed):
+              ================================================================
+
+              # Quick one-liner to run from GitHub:
+              irm https://raw.githubusercontent.com/Troubladore/airflow-data-platform/main/scripts/setup-certificates-windows.ps1 | iex
+
+              OR manually:
+              ============
+              mkcert -install
+              cd $env:LOCALAPPDATA\mkcert
+
+              mkcert -cert-file dev-localhost-wild.crt -key-file dev-localhost-wild.key `
+                "*.localhost" localhost "traefik.localhost" "registry.localhost" `
+                "airflow.localhost" "*.airflow.localhost" 127.0.0.1 ::1
+
+              mkcert -cert-file dev-registry.localhost.crt -key-file dev-registry.localhost.key `
+                "registry.localhost" 127.0.0.1 ::1
+
+              Press Enter after generating certificates...
+      when: not windows_cert_check.stat.exists
 
     - name: "🔐 Copy certificates from Windows"
       block:
@@ -282,19 +350,6 @@
 
       when: windows_cert_check.stat.exists
 
-    - name: "⚠️  Certificate setup guidance"
-      debug:
-        msg: |
-          ⚠️  Certificates Not Found
-
-          Please complete Windows certificate setup first:
-          1. Install mkcert on Windows
-          2. Run: mkcert -install
-          3. Generate certificates
-          4. Re-run this playbook
-
-          Expected location: /mnt/c/Users/{{ windows_username }}/AppData/Local/mkcert/
-      when: not windows_cert_check.stat.exists
 
     # ================================
     # Traefik Configuration
