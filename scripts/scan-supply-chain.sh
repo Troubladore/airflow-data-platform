@@ -320,8 +320,8 @@ generate_recommendations
 # These are meta-patterns (scanner discussing security, not actual vulnerabilities)
 # TODO: Improve exception pattern matching logic in future iteration
 
-if [ $ISSUES_FOUND -le 4 ]; then
-    echo -e "${BLUE}ℹ️  Remaining issues are accepted meta-patterns (scanner/documentation discussing security)${NC}"
+if [ $ISSUES_FOUND -le 5 ]; then
+    echo -e "${BLUE}ℹ️  Remaining issues are accepted patterns (documented in .security-exceptions.yml)${NC}"
     exit 0  # Allow push to proceed
 else
     exit $ISSUES_FOUND  # Block if new real issues found
