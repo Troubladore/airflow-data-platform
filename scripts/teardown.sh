@@ -100,9 +100,27 @@ cleanup_docker_services() {
 
     # Check if Docker daemon is running
     if ! docker info &> /dev/null; then
-        log_warning "Docker daemon not running - skipping Docker cleanup"
-        log_info "To clean up Docker resources later, start Docker and re-run this script"
-        return 0
+        log_warning "Docker Desktop not running - Docker cleanup needed"
+        echo
+        echo "The platform teardown requires Docker Desktop to remove containers, images, and networks."
+        echo
+        echo "Please:"
+        echo "1. Start Docker Desktop on Windows"
+        echo "2. Wait for Docker to fully start (system tray icon stops animating)"
+        echo "3. Press Enter here to continue teardown"
+        echo
+        echo "Or press Ctrl+C to skip Docker cleanup (you can run teardown again later)"
+        echo
+        read -p "Press Enter once Docker Desktop is running..."
+
+        # Re-check Docker after user action
+        if ! docker info &> /dev/null; then
+            log_warning "Docker still not accessible - skipping Docker cleanup"
+            log_info "You can re-run teardown later to clean up Docker resources"
+            return 0
+        else
+            log_success "Docker Desktop is now running - proceeding with cleanup"
+        fi
     fi
 
     # Stop and remove Traefik/Registry services
