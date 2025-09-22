@@ -124,12 +124,31 @@ check_unpinned_dependencies() {
 check_dangerous_downloads() {
     echo "🌐 Checking for dangerous download patterns..."
 
-    # Check for pipe-to-shell patterns, excluding documentation examples
-    if grep -r "curl.*|.*bash\|wget.*|.*bash\|curl.*|.*sh\|wget.*|.*sh" . --include="*.sh" --include="*.md" --include="*.yml" --exclude-dir=".git" | \
-       grep -v "SECURITY.md" | grep -v "# Example" | grep -v "curl.*scan-supply-chain.sh"; then
-        echo -e "${RED}🚨 Found pipe-to-shell patterns (curl|bash, wget|sh)${NC}"
-        echo -e "${YELLOW}   These bypass package managers and security verification${NC}"
-        ISSUES_FOUND=$((ISSUES_FOUND + 1))
+    # Check for pipe-to-shell patterns, excluding documentation examples and security files
+    local findings=$(grep -r "curl.*|.*bash\|wget.*|.*bash\|curl.*|.*sh\|wget.*|.*sh\|irm.*|.*iex" . --include="*.sh" --include="*.md" --include="*.yml" --exclude-dir=".git" | \
+                    grep -v "SECURITY.md" | grep -v "# Example" | grep -v "scan-supply-chain.sh" | \
+                    grep -v ".security-exceptions.yml" | grep -v "SECURITY-RISK-ACCEPTANCE.md" || true)
+
+    if [ -n "$findings" ]; then
+        local found_unaccepted=false
+        local unaccepted_findings=""
+
+        # Check each finding against exceptions
+        while IFS= read -r finding; do
+            if ! is_exception_accepted "$finding" "dynamic_downloads"; then
+                found_unaccepted=true
+                unaccepted_findings="${unaccepted_findings}${finding}\n"
+            fi
+        done <<< "$findings"
+
+        if [ "$found_unaccepted" = true ]; then
+            echo -e "${RED}🚨 Found pipe-to-shell patterns (curl|bash, wget|sh, irm|iex)${NC}"
+            echo -e "${YELLOW}   These bypass package managers and security verification${NC}"
+            echo -e "$unaccepted_findings"
+            ISSUES_FOUND=$((ISSUES_FOUND + 1))
+        else
+            echo -e "${GREEN}✅ All pipe-to-shell patterns are accepted exceptions${NC}"
+        fi
     else
         echo -e "${GREEN}✅ No dangerous pipe-to-shell patterns found${NC}"
     fi
@@ -141,22 +160,27 @@ check_ansible_security() {
 
     # Check for dynamic downloads in Ansible
     local found_downloads=false
-    if find ansible -name "*.yml" -exec grep -l "win_shell:\|shell:\|command:" {} \; 2>/dev/null | \
-       xargs grep -n "curl\|wget\|Invoke-WebRequest\|iwr\|iex" 2>/dev/null; then
+    local unaccepted_findings=""
 
-        # Check each finding against exceptions
+    # First collect all findings
+    local all_findings=$(find ansible -name "*.yml" -exec grep -l "win_shell:\|shell:\|command:" {} \; 2>/dev/null | \
+                         xargs grep -n "curl\|wget\|Invoke-WebRequest\|iwr\|iex" 2>/dev/null || true)
+
+    if [ -n "$all_findings" ]; then
+        # Process each finding
         while IFS= read -r finding; do
             if ! is_exception_accepted "$finding" "dynamic_downloads"; then
                 if [ "$found_downloads" = false ]; then
-                    echo -e "${YELLOW}⚠️  Found dynamic downloads in Ansible tasks${NC}"
                     found_downloads=true
                 fi
-                echo "   $finding"
+                unaccepted_findings="${unaccepted_findings}   ${finding}\n"
             fi
-        done < <(find ansible -name "*.yml" -exec grep -l "win_shell:\|shell:\|command:" {} \; 2>/dev/null | \
-                 xargs grep -n "curl\|wget\|Invoke-WebRequest\|iwr\|iex" 2>/dev/null)
+        done <<< "$all_findings"
 
+        # Only show warning if we have unaccepted findings
         if [ "$found_downloads" = true ]; then
+            echo -e "${YELLOW}⚠️  Found dynamic downloads in Ansible tasks${NC}"
+            echo -e "$unaccepted_findings"
             ISSUES_FOUND=$((ISSUES_FOUND + 1))
         fi
     fi
@@ -167,10 +191,11 @@ check_ansible_security() {
 
     # Check for hardcoded secrets (basic patterns) - exclude certificate filenames and key_size configs
     local found_secrets=false
-    if find ansible -name "*.yml" -exec grep -i "password\|secret\|key\|token" {} \; 2>/dev/null | \
-       grep -v "no_log\|vault" | grep -v "password:\|secret:\|key:\|token:" | \
-       grep -v "\.key\|\.crt\|key_size\|ssh_key\|api_key:" | head -5; then
+    local secret_findings=$(find ansible -name "*.yml" -exec grep -i "password\|secret\|key\|token" {} \; 2>/dev/null | \
+                            grep -v "no_log\|vault" | grep -v "password:\|secret:\|key:\|token:" | \
+                            grep -v "\.key\|\.crt\|key_size\|ssh_key\|api_key:" | head -5 || true)
 
+    if [ -n "$secret_findings" ]; then
         # Check each finding against exceptions
         while IFS= read -r finding; do
             if ! is_exception_accepted "$finding" "hardcoded_secrets"; then
@@ -320,9 +345,10 @@ generate_recommendations
 # These are meta-patterns (scanner discussing security, not actual vulnerabilities)
 # TODO: Improve exception pattern matching logic in future iteration
 
-if [ $ISSUES_FOUND -le 5 ]; then
-    echo -e "${BLUE}ℹ️  Remaining issues are accepted patterns (documented in .security-exceptions.yml)${NC}"
+if [ $ISSUES_FOUND -eq 0 ]; then
+    echo -e "${GREEN}✅ All security checks passed (accepted exceptions documented in .security-exceptions.yml)${NC}"
     exit 0  # Allow push to proceed
 else
-    exit $ISSUES_FOUND  # Block if new real issues found
+    echo -e "${RED}❌ Found $ISSUES_FOUND security issues that are not accepted exceptions${NC}"
+    exit $ISSUES_FOUND  # Block if any unaccepted issues found
 fi
