@@ -150,22 +150,57 @@
       failed_when: false
       changed_when: false
 
-    - name: "⚠️  Docker setup guidance"
-      debug:
-        msg: |
-          ⚠️  Docker Configuration Required
+    - name: "⚠️  Docker Desktop not running - user action required"
+      pause:
+        prompt: |
 
-          Docker Desktop WSL2 Integration:
-          1. Open Docker Desktop on Windows
-          2. Go to Settings → Resources → WSL Integration
-          3. Enable integration for this WSL2 distribution
-          4. Apply & Restart Docker Desktop
-          5. Restart this WSL2 terminal
+          ⚠️  Docker Desktop Not Running!
+
+          The platform setup requires Docker Desktop to be running on Windows.
+
+          Please:
+          1. Start Docker Desktop on Windows (look for Docker icon in system tray)
+          2. Wait for Docker Desktop to fully start (icon stops animating)
+          3. Press Enter here to continue setup
+
+          Or press Ctrl+C to exit setup and start Docker Desktop first.
 
           Current Status:
-          - Docker CLI: {{ '✅' if docker_version_check.rc == 0 else '❌' }}
-          - Docker Daemon: {{ '✅' if docker_daemon_check.rc == 0 else '❌ (Enable WSL2 integration)' }}
+          - Docker CLI Available: {{ '✅' if docker_version_check.rc == 0 else '❌' }}
+          - Docker Daemon Running: {{ '✅' if docker_daemon_check.rc == 0 else '❌' }}
       when: docker_version_check.rc != 0 or docker_daemon_check.rc != 0
+
+    - name: "🔄 Re-check Docker after user action"
+      command: docker info
+      register: docker_recheck
+      failed_when: false
+      changed_when: false
+      when: docker_version_check.rc != 0 or docker_daemon_check.rc != 0
+
+    - name: "⚠️  Docker WSL2 Integration guidance"
+      debug:
+        msg: |
+          ⚠️  Docker WSL2 Integration Required
+
+          Docker Desktop is running but WSL2 integration isn't configured:
+          1. Open Docker Desktop on Windows
+          2. Go to Settings → Resources → WSL Integration
+          3. Enable integration for this WSL2 distribution ({{ ansible_distribution }})
+          4. Apply & Restart Docker Desktop
+          5. Restart this WSL2 terminal and re-run setup
+
+          This is a one-time configuration step.
+      when:
+        - docker_version_check.rc != 0 or docker_daemon_check.rc != 0
+        - docker_recheck is defined
+        - docker_recheck.rc != 0
+
+    - name: "✅ Docker setup complete"
+      debug:
+        msg: "✅ Docker Desktop is running and WSL2 integration is working!"
+      when:
+        - docker_version_check.rc == 0 and docker_daemon_check.rc == 0
+        - docker_recheck is not defined or docker_recheck.rc == 0
 
     - name: "🔍 Check Docker proxy configuration"
       shell: docker info --format '{{"{{"}}.HTTPProxy{{"}}"}}'
