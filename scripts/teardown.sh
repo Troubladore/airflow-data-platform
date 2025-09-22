@@ -147,13 +147,52 @@ cleanup_docker_services() {
         log_success "PostgreSQL test sandbox stopped"
     fi
 
-    # Remove any remaining platform containers (check various naming patterns)
-    log_info "Removing remaining platform containers..."
+    # Stop any Airflow projects (Astro CLI)
+    log_info "Stopping any running Airflow projects..."
+    if [ -d "$REPO_ROOT/test-airflow-certs" ]; then
+        cd "$REPO_ROOT/test-airflow-certs"
+        if command -v astro &> /dev/null; then
+            astro dev stop || log_warning "No Astro dev environment to stop"
+        fi
+    fi
+
+    # Look for any docker-compose.yml files in common locations and stop them
+    for compose_dir in "$HOME" "$REPO_ROOT" "$REPO_ROOT"/*; do
+        if [ -d "$compose_dir" ] && [ -f "$compose_dir/docker-compose.yml" ]; then
+            log_info "Found docker-compose.yml in $compose_dir, stopping services..."
+            cd "$compose_dir"
+            docker compose down --volumes --remove-orphans 2>/dev/null || true
+        fi
+    done
+
+    # Remove any remaining platform containers (comprehensive cleanup)
+    log_info "Removing all platform-related containers..."
+
+    # Platform service containers
     docker ps -aq --filter "name=traefik" | xargs -r docker rm -f 2>/dev/null || true
     docker ps -aq --filter "name=registry" | xargs -r docker rm -f 2>/dev/null || true
-    docker ps -aq --filter "name=pagila-source-db" | xargs -r docker rm -f 2>/dev/null || true
+
+    # Database containers
+    docker ps -aq --filter "name=pagila" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=postgres" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=data-warehouse" | xargs -r docker rm -f 2>/dev/null || true
     docker ps -aq --filter "name=datakit-test-db" | xargs -r docker rm -f 2>/dev/null || true
+
+    # Airflow containers (various patterns)
+    docker ps -aq --filter "name=airflow" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=scheduler" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=webserver" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=triggerer" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=dag-processor" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=api-server" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=db-migration" | xargs -r docker rm -f 2>/dev/null || true
+
+    # Test containers (test-certs, etc.)
+    docker ps -aq | xargs -r docker inspect --format '{{.Name}} {{.Config.Labels}}' 2>/dev/null | grep -E "(test-certs|test_)" | awk '{print $1}' | sed 's|^/||' | xargs -r docker rm -f 2>/dev/null || true
+
+    # Compose project containers
     docker ps -aq --filter "label=com.docker.compose.project=traefik-bundle" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "label=com.docker.compose.project" | xargs -r docker inspect --format '{{.Config.Labels}}' 2>/dev/null | grep -E "(pagila|airflow|platform|test)" | cut -d'"' -f4 | xargs -r docker ps -aq --filter "label=com.docker.compose.project=" 2>/dev/null | xargs -r docker rm -f 2>/dev/null || true
 
     # Clean up networks (check various naming patterns)
     log_info "Cleaning up Docker networks..."
@@ -161,24 +200,48 @@ cleanup_docker_services() {
     docker network ls --filter "name=traefik" -q | xargs -r docker network rm 2>/dev/null || true
     docker network ls --filter "label=com.docker.compose.project=traefik-bundle" -q | xargs -r docker network rm 2>/dev/null || true
 
-    # Remove platform images (using grep since Docker filters don't support wildcards the way we need)
-    log_info "Cleaning up platform images..."
-    # Remove registry.localhost images (custom built images)
+    # Remove platform images (comprehensive cleanup)
+    log_info "Cleaning up all platform-related images..."
+
+    # Custom registry images
     docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "^registry\.localhost" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
-    # Remove demo images
-    docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "/demo/" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
-    # Remove traefik images (including traefik/whoami test image)
+    docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "^localhost:5000" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
+
+    # Platform-specific images
+    docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep -E "(pagila|airflow|platform)" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
+    docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "data-eng-airflow" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
+
+    # Base service images
     docker images --filter "reference=traefik*" -q | xargs -r docker rmi -f 2>/dev/null || true
     docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "^traefik/" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
-    # Remove registry base images
     docker images --filter "reference=registry" -q | xargs -r docker rmi -f 2>/dev/null || true
 
-    # Remove platform volumes by name (including compose-generated names)
-    log_info "Cleaning up platform volumes..."
-    docker volume ls -q | grep -E "(traefik|registry|pagila)" | xargs -r docker volume rm 2>/dev/null || true
+    # Database images (if only used for platform)
+    docker images --filter "reference=postgres" -q | xargs -r docker rmi -f 2>/dev/null || true
+    docker images --filter "reference=bitnami/postgresql" -q | xargs -r docker rmi -f 2>/dev/null || true
 
-    # Clean up any remaining unused volumes
-    docker volume prune -f || log_warning "Volume cleanup had issues"
+    # Airflow images
+    docker images --filter "reference=apache/airflow*" -q | xargs -r docker rmi -f 2>/dev/null || true
+    docker images --filter "reference=astrocrpublic.azurecr.io/runtime*" -q | xargs -r docker rmi -f 2>/dev/null || true
+
+    # Development images
+    docker images --filter "reference=mcr.microsoft.com/devcontainers*" -q | xargs -r docker rmi -f 2>/dev/null || true
+
+    # Demo and test images
+    docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "/demo/" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
+
+    # Remove platform volumes (comprehensive)
+    log_info "Cleaning up all platform-related volumes..."
+    docker volume ls -q | grep -E "(traefik|registry|pagila|airflow|postgres|test)" | xargs -r docker volume rm 2>/dev/null || true
+    docker volume ls -q | grep -E "(data-warehouse|platform|certs)" | xargs -r docker volume rm 2>/dev/null || true
+
+    # Remove anonymous volumes (often created by compose)
+    log_info "Cleaning up anonymous and unused volumes..."
+    docker volume ls -q -f "dangling=true" | xargs -r docker volume rm 2>/dev/null || true
+
+    # Final cleanup of any remaining unused resources
+    log_info "Final cleanup of unused Docker resources..."
+    docker system prune -f --volumes || log_warning "System prune had issues"
 
     log_success "Docker cleanup completed"
 }
