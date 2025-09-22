@@ -1,4 +1,4 @@
-version: "3.8"
+# Traefik with Kerberos authentication example
 
 networks:
   edge:

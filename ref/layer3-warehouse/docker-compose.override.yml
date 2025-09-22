@@ -1,4 +1,4 @@
-version: "3.8"
+# Docker Compose override for Layer 3 warehouse
 
 networks:
   edge:

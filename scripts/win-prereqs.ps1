@@ -9,6 +9,10 @@ param(
     [switch]$Force
 )
 
+# Set console encoding to handle Unicode properly
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 # Colors for output (ASCII-safe for cross-platform execution)
 function Write-Info { param($Message) Write-Host "[INFO] $Message" -ForegroundColor Blue }
 function Write-Success { param($Message) Write-Host "[OK] $Message" -ForegroundColor Green }
@@ -308,28 +312,36 @@ if (-not $SkipHostsFile) {
     }
 
     if ($missingEntries.Count -gt 0) {
+        Write-Info "Missing entries detected: $($missingEntries.Count) entries need to be added"
+        Write-Info "Admin status: $isAdmin"
+
         if ($isAdmin) {
-            Write-Info "Adding entries to hosts file (admin mode)..."
+            Write-Info "Attempting to add entries to hosts file automatically (admin mode)..."
             try {
                 # Create backup
                 Copy-Item $hostsFile "$hostsFile.backup" -Force
+                Write-Info "Created backup: $hostsFile.backup"
 
                 # Add missing entries
-                $hostsContent += $missingEntries
-                $hostsContent | Set-Content $hostsFile -Force
+                Add-Content $hostsFile -Value $missingEntries -Force
 
-                Write-Success "Hosts file updated with entries:"
+                Write-Success "Successfully updated hosts file with entries:"
                 $missingEntries | ForEach-Object { Write-Host "  + $_" -ForegroundColor Green }
             } catch {
-                Write-Error "Failed to update hosts file: $($_.Exception.Message)"
-                Write-Warning "You may need to add these entries manually"
+                Write-Error "Failed to update hosts file automatically: $($_.Exception.Message)"
+                Write-Warning "Falling back to manual instructions..."
+                Write-Host ""
+                Write-Host "Run PowerShell as Administrator and execute:" -ForegroundColor Yellow
+                Write-Host "Add-Content `"$hostsFile`" @(" -ForegroundColor Gray
+                $missingEntries | ForEach-Object { Write-Host "  `"$_`"," -ForegroundColor Gray }
+                Write-Host ")" -ForegroundColor Gray
             }
         } else {
             Write-Warning "Hosts file entries need to be added manually (requires admin):"
             Write-Host ""
             Write-Host "Run PowerShell as Administrator and execute:" -ForegroundColor Yellow
             Write-Host "Add-Content `"$hostsFile`" @(" -ForegroundColor Gray
-            $missingEntries | ForEach-Object { Write-Host "  $_," -ForegroundColor Gray }
+            $missingEntries | ForEach-Object { Write-Host "  `"$_`"," -ForegroundColor Gray }
             Write-Host ")" -ForegroundColor Gray
             Write-Host ""
             Write-Host "Or manually edit: $hostsFile" -ForegroundColor Gray

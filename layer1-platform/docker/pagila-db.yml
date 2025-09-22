@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Pagila Source Database - References External Implementation
 # Uses the external pagila repository for actual database setup
 # This file provides the Docker configuration to connect to pagila data
