@@ -86,7 +86,7 @@
           apt:
             update_cache: yes
             cache_valid_time: 3600
-          become: yes
+          become: yes  # Admin required: Updating system package cache needs root privileges
           async: 300  # 5 minute timeout
           poll: 5     # Check every 5 seconds
           register: apt_update_result
@@ -200,7 +200,7 @@
                 owner: root
                 group: root
                 remote_src: yes
-              become: yes
+              become: yes  # Admin required: Installing mkcert binary to /usr/local/bin needs root privileges
 
             - name: Clean up temporary file
               file:
@@ -329,7 +329,7 @@
 
             - name: Update system certificate trust store
               command: update-ca-certificates
-              become: yes
+              become: yes  # Admin required: Updating system CA certificates needs root privileges
               register: ca_update_result
               changed_when: "'added' in ca_update_result.stdout"
 
