@@ -45,7 +45,37 @@ exceptions:
     expires: "2026-03-19"  # 6 months out
     review_frequency: "biannual"
 
-  # Exception 4: Scanner meta-patterns (business decision)
+  # Exception 4: PowerShell certificate setup scripts
+  - pattern: "irm.*setup-certificates-windows.ps1.*iex"
+    category: "dynamic_downloads"
+    justification: |
+      WHAT: PowerShell one-liner to download and run certificate setup script
+      WHY FLAGGED: Scanner detects pipe-to-shell pattern (irm | iex)
+      WHY ACCEPTED: This is our own script from our own GitHub repository for certificate setup
+      RISK LEVEL: Low - script source is trusted (our repository), used only during initial setup
+      CONTEXT: Simplifies Windows certificate generation for developers during platform setup
+      MITIGATION: Script is read-only on GitHub main branch, protected by branch rules
+    accepted_by: "Platform Team"
+    accepted_date: "2025-09-22"
+    expires: "2026-03-22"  # 6 months out
+    review_frequency: "biannual"
+
+  # Exception 5: Scoop package manager installation
+  - pattern: "irm get.scoop.sh.*iex"
+    category: "dynamic_downloads"
+    justification: |
+      WHAT: Official Scoop package manager installation command for Windows
+      WHY FLAGGED: Scanner detects pipe-to-shell pattern (irm | iex)
+      WHY ACCEPTED: This is the official installation method from Scoop's documentation
+      RISK LEVEL: Medium - third-party script but from official source
+      CONTEXT: Scoop is needed to install mkcert on Windows for certificate generation
+      MITIGATION: Only used during initial developer setup, not in production
+    accepted_by: "Platform Team"
+    accepted_date: "2025-09-22"
+    expires: "2026-03-22"  # 6 months out
+    review_frequency: "biannual"
+
+  # Exception 6: Scanner meta-patterns (business decision)
   - pattern: "scan-supply-chain.sh"
     category: "dynamic_downloads"
     justification: |
