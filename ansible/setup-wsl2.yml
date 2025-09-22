@@ -264,9 +264,9 @@
               Could not automatically update Docker Desktop settings from WSL2.
               The Windows prerequisites script will handle this.
 
-              Please run the Windows script (if not already done):
-              - From PowerShell: cd \\wsl$\Ubuntu\home\{{ ansible_env.USER }}\repos\airflow-data-platform && .\scripts\win-prereqs.ps1
-              - OR from WSL2: powershell.exe -File scripts/win-prereqs.ps1
+              Please run the Windows script AS ADMINISTRATOR (if not already done):
+              - From PowerShell (Run as Administrator): cd \\wsl$\Ubuntu\home\{{ ansible_env.USER }}\repos\airflow-data-platform && .\scripts\win-prereqs.ps1
+              - OR from WSL2: powershell.exe -Command "Start-Process powershell -Verb RunAs -ArgumentList '-File scripts/win-prereqs.ps1'"
 
               Current proxy: {{ docker_proxy.stdout | default('none') }}
               Current bypass list: {{ docker_noproxy.stdout | default('none') }}

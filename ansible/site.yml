@@ -80,7 +80,7 @@
             • Hosts file entries (registry.localhost, traefik.localhost, airflow.localhost)
             • Windows CA trust store
 
-          Open a Windows PowerShell terminal and run:
+          Open Windows PowerShell **AS ADMINISTRATOR** and run:
 
             cd \\wsl$\Ubuntu\home\{{ ansible_env.USER }}\repos\airflow-data-platform
             .\scripts\win-prereqs.ps1
@@ -88,7 +88,12 @@
           OR from WSL2 terminal (separate tab):
 
             cd /home/{{ ansible_env.USER }}/repos/airflow-data-platform
-            powershell.exe -File scripts/win-prereqs.ps1
+            powershell.exe -Command "Start-Process powershell -Verb RunAs -ArgumentList '-File scripts/win-prereqs.ps1'"
+
+          ⚠️  IMPORTANT: Administrator privileges are required for:
+            • Adding entries to Windows hosts file
+            • Installing certificates in system trust store
+            • Docker Desktop proxy configuration
 
           This script will:
             1. Check what's already installed

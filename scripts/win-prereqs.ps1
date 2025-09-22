@@ -1,8 +1,13 @@
 # Windows Prerequisites Setup Script
-# Automates Windows-side setup as much as possible without admin complexity
+# Automates Windows-side setup as much as possible
 #
-# Usage: Run this in Windows PowerShell (regular user is fine for most tasks)
-# .\scripts\win-prereqs.ps1
+# RECOMMENDED: Run as Administrator for full automation
+# Right-click PowerShell → "Run as Administrator" then: .\scripts\win-prereqs.ps1
+#
+# If you can't run as Administrator:
+# - The script will still work for most tasks (Scoop, mkcert installation)
+# - You'll get clear instructions for manual steps that require admin privileges
+# - No harm will be done - the script detects permissions and adapts accordingly
 
 param(
     [switch]$SkipHostsFile,
