@@ -67,19 +67,28 @@
           🚀 Execution Mode: {{ execution_mode }}
           🪟 Windows Host: {{ 'Available' if windows_available else 'WSL2-only (requires Windows prerequisites)' }}
 
-    - name: Check if Windows prerequisites might be needed
+    - name: Run comprehensive system diagnostics
       when: not windows_available
       block:
-        - name: Check if certificates exist in WSL2
-          stat:
-            path: "{{ ansible_env.HOME }}/.local/share/certs/dev-localhost-wild.crt"
-          register: cert_check
-
-        - name: Check hosts file entries from WSL2
-          shell: getent hosts registry.localhost traefik.localhost airflow.localhost | wc -l
-          register: hosts_check
+        - name: Execute system state diagnostic
+          script: "{{ playbook_dir }}/../scripts/diagnostics/system-state.sh"
+          register: system_diagnostics
           failed_when: false
           changed_when: false
+
+        - name: Parse diagnostic results
+          set_fact:
+            needs_mkcert: "{{ 'mkcert: Not installed' in system_diagnostics.stdout }}"
+            needs_certificates: "{{ 'Certificates: Not found' in system_diagnostics.stdout }}"
+            needs_ca_trust: "{{ 'Windows CA trust: mkcert CA not found' in system_diagnostics.stdout }}"
+            has_hosts: "{{ 'Windows hosts file: All entries present' in system_diagnostics.stdout }}"
+            needs_proxy_bypass: "{{ 'Proxy bypass: *.localhost missing' in system_diagnostics.stdout }}"
+
+        - name: Show diagnostic summary
+          debug:
+            msg: |
+              🔍 System State Analysis:
+              {{ system_diagnostics.stdout_lines | join('\n') }}
 
         - name: Windows prerequisites required
           pause:
@@ -87,48 +96,29 @@
 
               ⚠️  Windows Prerequisites Required!
 
-              Some Windows setup appears to be missing:
-              - Certificates: {{ '✅ Found' if cert_check.stat.exists else '❌ Missing' }}
-              - Hosts entries: {{ '✅ Found (' + hosts_check.stdout + '/3)' if hosts_check.stdout|int > 0 else '❌ Missing' }}
-
-              Since WinRM is not available, you need to run Windows setup manually.
-              This will handle:
-                • mkcert installation {{ '(✅ may be done)' if cert_check.stat.exists else '' }}
-                • Certificate generation {{ '(✅ may be done)' if cert_check.stat.exists else '' }}
-                • Hosts file entries (registry.localhost, traefik.localhost, airflow.localhost)
-                • Windows CA trust store
-                • Docker Desktop proxy configuration
+              System diagnostic shows missing components:
+              {{ '• mkcert installation' if needs_mkcert else '' }}
+              {{ '• Certificate generation' if needs_certificates else '' }}
+              {{ '• Windows CA trust store' if needs_ca_trust else '' }}
+              {{ '• Docker proxy bypass configuration' if needs_proxy_bypass else '' }}
 
               Open Windows PowerShell **AS ADMINISTRATOR** and run:
 
                 cd \\wsl$\Ubuntu\home\{{ ansible_env.USER }}\repos\airflow-data-platform
                 .\scripts\win-prereqs.ps1
 
-              OR from WSL2 terminal (separate tab):
-
-                cd /home/{{ ansible_env.USER }}/repos/airflow-data-platform
-                powershell.exe -Command "Start-Process powershell -Verb RunAs -ArgumentList '-File scripts/win-prereqs.ps1'"
-
-              The script will:
-                1. Check what's already installed
-                2. Skip things that exist
-                3. Only prompt for admin if needed for hosts file
-                4. Show exactly what was done
-
+              The script will detect current state and only fix what's missing.
               After running the script, press Enter here to continue...
-          when: not cert_check.stat.exists or hosts_check.stdout|int < 3
+          when: needs_mkcert or needs_certificates or needs_ca_trust or needs_proxy_bypass
 
         - name: Windows prerequisites appear complete
           debug:
             msg: |
-              ✅ Windows Prerequisites Appear Complete
+              ✅ Windows Prerequisites Complete
 
-              - Certificates: ✅ Found in WSL2
-              - Hosts entries: ✅ Found ({{ hosts_check.stdout }}/3)
-
-              Skipping Windows prerequisites prompt since everything appears to be set up.
-              If you encounter issues, you can still run: .\scripts\win-prereqs.ps1
-          when: cert_check.stat.exists and hosts_check.stdout|int >= 3
+              All Windows components detected successfully.
+              Proceeding with platform setup.
+          when: not (needs_mkcert or needs_certificates or needs_ca_trust or needs_proxy_bypass)
 
 - name: "🪟 Windows Prerequisites and Setup"
   import_playbook: validate-windows.yml
