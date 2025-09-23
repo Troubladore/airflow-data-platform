@@ -113,12 +113,14 @@
             openssl x509 -in "{{ cert_dir }}/dev-localhost-wild.crt" -noout -dates
           register: cert_expiry
           changed_when: false
+          failed_when: false
 
         - name: Validate certificate SAN entries
           shell: |
             openssl x509 -in "{{ cert_dir }}/dev-localhost-wild.crt" -text -noout | grep -A5 "Subject Alternative Name"
           register: cert_san
           changed_when: false
+          failed_when: false
 
         - name: Certificate validation summary
           debug:
@@ -130,14 +132,33 @@
 
               Key Permissions:
               {% for result in cert_perms.results %}
+              {% if result.stat.exists %}
               - {{ result.item }}: {{ '✅ 0600' if result.stat.mode == '0600' else '⚠️  ' + result.stat.mode }}
+              {% else %}
+              - {{ result.item }}: ❌ Missing
+              {% endif %}
               {% endfor %}
 
               Certificate Details:
+              {% if cert_expiry.rc == 0 %}
               {{ cert_expiry.stdout }}
+              {% else %}
+              ❌ Certificate not accessible for expiration check
+              {% endif %}
 
               SAN Entries:
+              {% if cert_san.rc == 0 %}
               {{ cert_san.stdout }}
+              {% else %}
+              ❌ Certificate not accessible for SAN validation
+              {% endif %}
+
+              {% if cert_files.results | selectattr('stat.exists') | list | length == 0 %}
+
+              ⚠️  No certificates found in {{ cert_dir }}
+              This suggests Windows prerequisites haven't been completed yet.
+              Run: .\scripts\win-prereqs.ps1 from Windows PowerShell as Administrator
+              {% endif %}
 
     # ================================
     # Network Connectivity
