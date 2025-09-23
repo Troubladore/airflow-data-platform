@@ -295,9 +295,9 @@
           failed_when: false
           timeout: 30
 
-        - name: Check if test image is available locally
-          command: docker images busybox:latest --format "{{.Repository}}:{{.Tag}}"
-          register: local_image_check
+        - name: Check if busybox is available locally
+          command: docker images -q busybox:latest
+          register: busybox_local_check
           failed_when: false
 
         - name: Use alpine as fallback if busybox unavailable
@@ -305,14 +305,16 @@
           register: pull_fallback
           failed_when: false
           timeout: 30
-          when: pull_busybox.rc != 0 and local_image_check.stdout == ""
+          when: pull_busybox.rc != 0 and busybox_local_check.stdout == ""
 
         - name: Tag available image for local registry
-          command: |
-            if docker images busybox:latest --format "{{.Repository}}:{{.Tag}}" | grep -q busybox; then
+          shell: |
+            if [ -n "$(docker images -q busybox:latest 2>/dev/null)" ]; then
               docker tag busybox:latest registry.localhost/test/busybox:validation
-            elif docker images alpine:latest --format "{{.Repository}}:{{.Tag}}" | grep -q alpine; then
+              echo "Tagged busybox:latest"
+            elif [ -n "$(docker images -q alpine:latest 2>/dev/null)" ]; then
               docker tag alpine:latest registry.localhost/test/busybox:validation
+              echo "Tagged alpine:latest"
             else
               echo "No suitable test image available for registry test"
               exit 1
