@@ -1,0 +1,44 @@
+# Simple Kerberos Ticket Sharing for Developers
+# ==============================================
+# NOT a full Kerberos service - just shares existing WSL2 tickets
+
+version: '3.8'
+
+services:
+  # Simple ticket refresher - uses developer's existing Kerberos setup
+  ticket-refresher:
+    image: alpine:3.19
+    container_name: ticket-refresher
+    command: |
+      sh -c "
+        apk add --no-cache krb5 krb5-libs &&
+        while true; do
+          echo 'Checking ticket status...'
+          if [ -f /host-ticket/krb5cc_* ]; then
+            cp /host-ticket/krb5cc_* /shared-ticket/krb5cc
+            echo 'Ticket copied from host'
+          else
+            echo 'No host ticket found - developers need to kinit in WSL2'
+          fi
+          sleep 300
+        done
+      "
+    volumes:
+      # Mount developer's WSL2 ticket cache (read-only)
+      - ${HOME}/.krb5_cache:/host-ticket:ro
+
+      # Share with other containers
+      - kerberos_ticket:/shared-ticket:rw
+
+      # Use existing krb5.conf
+      - /etc/krb5.conf:/etc/krb5.conf:ro
+    networks:
+      - platform-net
+
+volumes:
+  kerberos_ticket:
+    name: developer_krb_ticket
+
+networks:
+  platform-net:
+    name: platform_network

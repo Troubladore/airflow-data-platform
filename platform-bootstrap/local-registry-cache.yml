@@ -1,0 +1,59 @@
+# Local Registry as Artifactory Cache
+# =====================================
+# Provides disconnected development capability
+
+version: '3.8'
+
+services:
+  # Local registry that caches Artifactory images
+  local-registry-cache:
+    image: registry:2
+    container_name: registry-cache
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - registry_cache_data:/var/lib/registry
+      - ./config/registry-config.yml:/etc/docker/registry/config.yml:ro
+    environment:
+      REGISTRY_PROXY_REMOTEURL: https://artifactory.company.com
+      REGISTRY_PROXY_USERNAME: ${ARTIFACTORY_USERNAME}
+      REGISTRY_PROXY_PASSWORD: ${ARTIFACTORY_PASSWORD}
+      # Cache settings
+      REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR: redis
+      REGISTRY_REDIS_ADDR: redis-cache:6379
+    networks:
+      - platform-net
+
+  # Redis for registry caching metadata
+  redis-cache:
+    image: redis:7-alpine
+    container_name: registry-redis
+    restart: unless-stopped
+    volumes:
+      - redis_cache_data:/data
+    networks:
+      - platform-net
+
+  # UI for browsing cached images (optional but helpful)
+  registry-ui:
+    image: joxit/docker-registry-ui:latest
+    container_name: registry-ui
+    ports:
+      - "5080:80"
+    environment:
+      REGISTRY_URL: http://local-registry-cache:5000
+      DELETE_IMAGES: "false"
+      REGISTRY_TITLE: "Local Artifactory Cache"
+    depends_on:
+      - local-registry-cache
+    networks:
+      - platform-net
+
+volumes:
+  registry_cache_data:
+  redis_cache_data:
+
+networks:
+  platform-net:
+    driver: bridge

@@ -1,0 +1,56 @@
+# Registry Configuration for Artifactory Caching
+version: 0.1
+
+log:
+  level: info
+  formatter: json
+
+storage:
+  filesystem:
+    rootdirectory: /var/lib/registry
+  cache:
+    blobdescriptor: redis
+  maintenance:
+    uploadpurging:
+      enabled: true
+      age: 168h
+      interval: 24h
+      dryrun: false
+
+redis:
+  addr: redis-cache:6379
+  db: 0
+  dialtimeout: 10ms
+  readtimeout: 10ms
+  writetimeout: 10ms
+
+http:
+  addr: :5000
+  headers:
+    X-Content-Type-Options: [nosniff]
+  debug:
+    addr: :5001
+    prometheus:
+      enabled: true
+      path: /metrics
+
+health:
+  storagedriver:
+    enabled: true
+    interval: 10s
+    threshold: 3
+
+proxy:
+  # Primary: Try Artifactory first
+  remoteurl: https://artifactory.company.com
+  username: ${ARTIFACTORY_USERNAME}
+  password: ${ARTIFACTORY_PASSWORD}
+
+  # Cache configuration
+  ttl: 168h  # Cache images for 1 week
+
+# Fallback behavior when Artifactory is unreachable
+# If Artifactory is down, serve from cache
+offline_mode:
+  enabled: true
+  fallback_to_cache: true
