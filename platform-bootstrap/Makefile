@@ -10,8 +10,8 @@ REGISTRY_UI_PORT ?= 5080
 COMPANY_DOMAIN ?= COMPANY.COM
 ARTIFACTORY_URL ?= artifactory.company.com
 
-# Detect Docker Compose command (v1 vs v2)
-DOCKER_COMPOSE := $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
+# Use modern Docker Compose syntax (v2+)
+DOCKER_COMPOSE := docker compose
 
 # Detect if we have Artifactory access
 HAS_ARTIFACTORY := $(shell curl -s -o /dev/null -w "%{http_code}" https://$(ARTIFACTORY_URL) | grep -q "200\|401" && echo "yes" || echo "no")
