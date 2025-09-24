@@ -114,7 +114,7 @@ kerberos-start: ## Start Kerberos platform service
 		echo "✓ Ticket sharing started"; \
 	else \
 		echo "  ⚠️  No Kerberos ticket found"; \
-		echo "  Run 'kinit YOUR_USERNAME@DOMAIN.COM' to get a ticket"; \
+		echo "  Run 'kinit $$(whoami)@$(COMPANY_DOMAIN)' to get a ticket"; \
 		echo "  Skipping Kerberos setup"; \
 	fi
 
