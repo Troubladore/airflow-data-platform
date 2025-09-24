@@ -4,8 +4,8 @@ A modern data platform framework that provides table mixins, schema management, 
 
 ## 📦 Two Repositories, Clear Separation
 
-- **This repo**: Platform framework and enhancements
-- **[Examples repo](https://github.com/Troubladore/airflow-data-platform-examples)**: How to use it (start there!)
+- **This repo**: Platform framework and enhancement services
+- **[Examples repo](https://github.com/Troubladore/airflow-data-platform-examples)**: How to use it (once platform is deployed)
 
 ## 🎯 The Problem We're Solving
 
@@ -43,21 +43,12 @@ This framework provides a thin layer of enterprise patterns on top of Astronomer
 └─────────────────────────────────────┘
 ```
 
-## 🚀 Quick Start
+## 🚀 Getting Started
 
-1. **Set up platform services** (this repo):
-   ```bash
-   git clone https://github.com/Troubladore/airflow-data-platform.git
-   cd airflow-data-platform/platform-bootstrap
-   make start
-   ```
+Start with platform setup, then explore examples:
 
-2. **Try hello-world example** (examples repo):
-   ```bash
-   git clone https://github.com/Troubladore/airflow-data-platform-examples.git
-   cd airflow-data-platform-examples/hello-world
-   # Follow README there
-   ```
+1. **[Platform Setup Guide](docs/getting-started-simple.md)** - Deploy the enhancement services
+2. **[Hello World Example](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/hello-world)** - Your first project (after platform setup)
 
 ## 📚 Documentation
 
