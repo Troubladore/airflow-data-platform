@@ -10,6 +10,9 @@ REGISTRY_UI_PORT ?= 5080
 COMPANY_DOMAIN ?= COMPANY.COM
 ARTIFACTORY_URL ?= artifactory.company.com
 
+# Detect Docker Compose command (v1 vs v2)
+DOCKER_COMPOSE := $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
+
 # Detect if we have Artifactory access
 HAS_ARTIFACTORY := $(shell curl -s -o /dev/null -w "%{http_code}" https://$(ARTIFACTORY_URL) | grep -q "200\|401" && echo "yes" || echo "no")
 
@@ -63,8 +66,8 @@ platform-stop: registry-stop kerberos-stop mock-stop ## Stop all platform servic
 platform-status: ## Check status of platform services
 	@echo "Platform Services Status:"
 	@echo "========================"
-	@docker-compose -f local-registry-cache.yml ps
-	@docker-compose -f developer-kerberos-standalone.yml ps
+	@$(DOCKER_COMPOSE) -f local-registry-cache.yml ps
+	@$(DOCKER_COMPOSE) -f developer-kerberos-standalone.yml ps
 	@echo ""
 	@make registry-test
 	@make kerberos-test
@@ -77,7 +80,7 @@ registry-start: ## Start local registry cache
 	@echo "Starting registry cache..."
 ifeq ($(HAS_ARTIFACTORY),yes)
 	@echo "  Artifactory detected, configuring as pull-through cache"
-	@docker-compose -f local-registry-cache.yml up -d
+	@$(DOCKER_COMPOSE) -f local-registry-cache.yml up -d
 else
 	@echo "  No Artifactory access, using local-only registry"
 	@docker run -d -p $(REGISTRY_CACHE_PORT):5000 --name registry-cache registry:2 2>/dev/null || true
@@ -85,7 +88,7 @@ endif
 	@echo "✓ Registry cache started at localhost:$(REGISTRY_CACHE_PORT)"
 
 registry-stop: ## Stop registry cache
-	@docker-compose -f local-registry-cache.yml down 2>/dev/null || true
+	@$(DOCKER_COMPOSE) -f local-registry-cache.yml down 2>/dev/null || true
 	@docker stop registry-cache 2>/dev/null || true
 	@docker rm registry-cache 2>/dev/null || true
 
@@ -110,11 +113,11 @@ kerberos-start: ## Start Kerberos platform service
 	else \
 		echo "  No ticket found, will prompt for password"; \
 	fi
-	@docker-compose -f developer-kerberos-standalone.yml up -d
+	@$(DOCKER_COMPOSE) -f developer-kerberos-standalone.yml up -d
 	@echo "✓ Kerberos service started"
 
 kerberos-stop: ## Stop Kerberos service
-	@docker-compose -f developer-kerberos-standalone.yml down
+	@$(DOCKER_COMPOSE) -f developer-kerberos-standalone.yml down
 
 kerberos-test: ## Test Kerberos ticket
 	@echo -n "Kerberos service: "
@@ -131,11 +134,11 @@ kerberos-refresh: ## Refresh Kerberos ticket
 
 mock-start: ## Start mock services (Delinea, etc.)
 	@echo "Starting mock services..."
-	@docker-compose -f mock-services.yml up -d 2>/dev/null || true
+	@$(DOCKER_COMPOSE) -f mock-services.yml up -d 2>/dev/null || true
 	@echo "✓ Mock services started"
 
 mock-stop: ## Stop mock services
-	@docker-compose -f mock-services.yml down 2>/dev/null || true
+	@$(DOCKER_COMPOSE) -f mock-services.yml down 2>/dev/null || true
 
 # ==========================================
 # Developer Tools
@@ -158,8 +161,8 @@ test-connection: ## Test SQL Server connection through Kerberos
 
 debug-logs: ## Show logs from all platform services
 	@echo "Platform service logs:"
-	@docker-compose -f local-registry-cache.yml logs --tail=20
-	@docker-compose -f developer-kerberos-standalone.yml logs --tail=20
+	@$(DOCKER_COMPOSE) -f local-registry-cache.yml logs --tail=20
+	@$(DOCKER_COMPOSE) -f developer-kerberos-standalone.yml logs --tail=20
 
 # ==========================================
 # Offline Mode
