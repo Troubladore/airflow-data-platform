@@ -37,13 +37,15 @@ python3 --version    # Python 3.8+
 Start the 3 enhancement services mentioned above:
 
 ```bash
-# 1. Clone the platform repository
+# 1. Clone the platform repository (use correct branch)
 git clone https://github.com/Troubladore/airflow-data-platform.git
 cd airflow-data-platform
+# Note: If platform-bootstrap is missing, check you're on the right branch:
+# git checkout feature/kerberos-sidecar-implementation
 
 # 2. Start the platform services
 cd platform-bootstrap
-make start
+make platform-start
 
 # You should see:
 # ✓ Registry cache started at localhost:5000
@@ -72,13 +74,13 @@ Each day when you start development, you'll need these platform services running
 ```bash
 # Morning - Start platform services
 cd airflow-data-platform/platform-bootstrap
-make start
+make platform-start
 
 # Work on your Astronomer projects...
 # The services enable faster builds and SQL Server auth
 
 # Evening - Stop platform services
-make stop
+make platform-stop
 ```
 
 ## 🎯 Next Steps
@@ -101,7 +103,7 @@ When you're done for the day:
 
 ```bash
 cd platform-bootstrap
-make stop
+make platform-stop
 ```
 
 ## 🚨 Troubleshooting
