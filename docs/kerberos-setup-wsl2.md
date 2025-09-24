@@ -212,53 +212,68 @@ The script will:
 - ✓ Attempt SQL Server connection using your ticket
 - ✓ Provide helpful troubleshooting if something's wrong
 
-### B. Run the Test (This Will Actually Work!)
+### B. Run the Test (Get Your Exact Commands!)
+
+**🎯 IMPORTANT**: The diagnostic tool will give you the EXACT test commands to run!
 
 ```bash
 # Make sure you're in platform-bootstrap directory
 cd airflow-data-platform/platform-bootstrap
 
-# OPTION 1: Simple test (no SQL Server needed)
-# Just verify tickets are shared with containers
-docker run --rm \
-  --network platform_network \
-  -v platform_kerberos_cache:/krb5/cache:ro \
-  -v $(pwd)/test_kerberos_simple.py:/app/test.py \
-  -e KRB5CCNAME=/krb5/cache/krb5cc \
-  python:3.11-alpine \
-  sh -c "apk add --no-cache krb5 && python /app/test.py"
+# The diagnostic tool shows your personalized test commands in Section 7
+./diagnose-kerberos.sh
+
+# Look for "=== 7. TEST COMMANDS ===" section
+# It will show you the exact commands with proper paths
 ```
 
-**✅ If Option 1 shows "SUCCESS! Kerberos tickets are accessible", continue to Option 2:**
+**The diagnostic will provide:**
 
+**OPTION 1: Simple test (no SQL Server needed)**
 ```bash
-# OPTION 2: Full SQL Server test
-# Just replace these two values with your actual server details:
-docker run --rm \
-  --network platform_network \
-  -v platform_kerberos_cache:/krb5/cache:ro \
-  -v $(pwd)/test_kerberos.py:/app/test_kerberos.py \
-  -e KRB5CCNAME=/krb5/cache/krb5cc \
-  -e SQL_SERVER="sqlserver01.company.com" \
-  -e SQL_DATABASE="AdventureWorks" \
-  python:3.11-alpine \
-  sh -c "apk add --no-cache krb5 gcc musl-dev unixodbc-dev && \
-         pip install --no-cache-dir pyodbc && \
-         python /app/test_kerberos.py"
+# The diagnostic shows this exact command:
+make test-kerberos-simple
 ```
 
-**🎯 Quick Configuration Guide:**
-- `SQL_SERVER`: Replace `sqlserver01.company.com` with your SQL Server hostname
-- `SQL_DATABASE`: Replace `AdventureWorks` with any database you can access
+This verifies that your Kerberos tickets are being shared with Docker containers.
 
-**Example with real values:**
-```bash
-# For a server called "analytics-sql-prod" with database "DataWarehouse":
--e SQL_SERVER="analytics-sql-prod.mycompany.com" \
--e SQL_DATABASE="DataWarehouse" \
-```
+**OPTION 2: Full SQL Server test**
 
-**💡 Tip**: Ask your DBA or check your existing connection strings for these values.
+The diagnostic will show you a complete Docker command. You just need to:
+
+1. **Get your SQL Server details:**
+   - Ask your DBA: "What's a SQL Server hostname and database I can test with?"
+   - Or check existing connection strings in your applications
+   - Example: `sqlserver01.company.com` and database `TestDB`
+
+2. **Replace the placeholders in the command shown by diagnostic:**
+   ```bash
+   # The diagnostic shows this template:
+   -e SQL_SERVER="YOUR_SERVER.company.com" \
+   -e SQL_DATABASE="YOUR_DATABASE" \
+
+   # You change it to your actual values:
+   -e SQL_SERVER="sqlserver01.company.com" \
+   -e SQL_DATABASE="TestDB" \
+   ```
+
+3. **Or use the interactive helper (easiest!):**
+   ```bash
+   ./test-kerberos.sh
+   # It will prompt you for server and database names
+   ```
+
+**📝 Where to find SQL Server details:**
+- **Option A**: Ask your DBA or team lead
+- **Option B**: Check your existing ETL scripts or connection configs
+- **Option C**: Look in your team's documentation or wiki
+- **Option D**: Check environment variables in existing projects
+
+**Example conversation with DBA:**
+> "Hi, I need to test Kerberos authentication. Can you provide a SQL Server hostname and a database name I can connect to for testing?"
+
+They'll typically respond with something like:
+> "Use `analytics-sql-dev.ourcompany.com` and connect to the `SandboxDB` database."
 
 ### C. Even Easier: Use Our Helper Script
 

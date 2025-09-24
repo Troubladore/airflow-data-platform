@@ -148,6 +148,21 @@ kerberos-refresh: ## Refresh Kerberos ticket
 kerberos-diagnose: ## Diagnose Kerberos configuration issues
 	@./diagnose-kerberos.sh
 
+test-kerberos-simple: ## Test that Kerberos tickets are shared with containers
+	@echo "Testing Kerberos ticket sharing..."
+	@docker run --rm \
+		--network platform_network \
+		-v platform_kerberos_cache:/krb5/cache:ro \
+		-v $$(pwd)/test_kerberos_simple.py:/app/test.py \
+		-e KRB5CCNAME=/krb5/cache/krb5cc \
+		python:3.11-alpine \
+		sh -c "apk add --no-cache krb5 >/dev/null 2>&1 && python /app/test.py" && \
+		echo "✅ SUCCESS: Kerberos tickets are being shared!" || \
+		(echo "❌ FAILED: Check that 'make platform-start' has been run" && exit 1)
+
+test-kerberos-full: ## Interactive test of SQL Server connection with Kerberos
+	@./test-kerberos.sh
+
 # ==========================================
 # Mock Services
 # ==========================================

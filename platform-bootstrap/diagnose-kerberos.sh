@@ -509,8 +509,8 @@ elif [ -n "$TICKET_CACHE" ]; then
     fi
 fi
 
-# 7. Quick fixes
-echo -e "\n${BLUE}=== 7. QUICK FIXES ===${NC}"
+# 7. Test Commands
+echo -e "\n${BLUE}=== 7. TEST COMMANDS ===${NC}"
 
 if [ -n "$DETECTED_CACHE_TYPE" ]; then
     echo "Your Kerberos is configured! Next steps:"
@@ -520,8 +520,30 @@ if [ -n "$DETECTED_CACHE_TYPE" ]; then
     echo "   cd platform-bootstrap"
     echo "   make platform-start"
     echo ""
-    echo "3. Test the connection:"
+    echo "3. Test ticket sharing (Option 1 - Simple):"
     echo "   make test-kerberos-simple"
+    echo ""
+    echo "4. Test SQL Server connection (Option 2 - Full):"
+    echo ""
+    echo "   First, identify your SQL Server:"
+    echo "   - Ask your DBA for server hostname and a test database"
+    echo "   - Or check your existing connection strings"
+    echo ""
+    echo "   Then run this exact command (replace SERVER and DB):"
+    echo "   docker run --rm \\"
+    echo "     --network platform_network \\"
+    echo "     -v platform_kerberos_cache:/krb5/cache:ro \\"
+    echo "     -v \$(pwd)/test_kerberos.py:/app/test_kerberos.py \\"
+    echo "     -e KRB5CCNAME=/krb5/cache/krb5cc \\"
+    echo "     -e SQL_SERVER=\"YOUR_SERVER.company.com\" \\"
+    echo "     -e SQL_DATABASE=\"YOUR_DATABASE\" \\"
+    echo "     python:3.11-alpine \\"
+    echo "     sh -c \"apk add --no-cache krb5 gcc musl-dev unixodbc-dev && \\"
+    echo "            pip install --no-cache-dir pyodbc && \\"
+    echo "            python /app/test_kerberos.py\""
+    echo ""
+    echo "   Or use the interactive helper:"
+    echo "   ./test-kerberos.sh"
 else
     echo "Try these commands in order:"
     echo ""
