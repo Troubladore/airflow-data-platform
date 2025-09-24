@@ -1,0 +1,64 @@
+# Astronomer Runtime with Kerberos Support
+# Base image for Airflow with SQL Server NT Authentication capabilities
+
+ARG ASTRONOMER_VERSION=11.10.0
+FROM quay.io/astronomer/astro-runtime:${ASTRONOMER_VERSION}
+
+USER root
+
+# Install system dependencies for Kerberos and SQL Server
+RUN apt-get update && apt-get install -y \
+    # Kerberos client
+    krb5-user \
+    libkrb5-dev \
+    # ODBC and SQL Server drivers
+    unixodbc \
+    unixodbc-dev \
+    freetds-bin \
+    freetds-dev \
+    tdsodbc \
+    # Build tools
+    gcc \
+    g++ \
+    build-essential \
+    # Utilities
+    curl \
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Microsoft ODBC Driver for SQL Server
+RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
+    && curl https://packages.microsoft.com/config/debian/11/prod.list > /etc/apt/sources.list.d/mssql-release.list \
+    && apt-get update \
+    && ACCEPT_EULA=Y apt-get install -y msodbcsql18 mssql-tools18 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add SQL Server tools to PATH
+ENV PATH="$PATH:/opt/mssql-tools18/bin"
+
+# Create Kerberos directories
+RUN mkdir -p /krb5/cache /krb5/conf /krb5/keytabs \
+    && chmod 755 /krb5 /krb5/cache /krb5/conf /krb5/keytabs
+
+# Switch back to astro user
+USER astro
+
+# Install Python packages for SQL Server connectivity
+RUN pip install --no-cache-dir \
+    pyodbc==5.1.0 \
+    pymssql==2.3.1 \
+    sqlalchemy-pytds==0.3.5 \
+    python-tds==1.15.0
+
+# Set Kerberos environment variables
+ENV KRB5_CONFIG=/krb5/conf/krb5.conf \
+    KRB5CCNAME=/krb5/cache/krb5cc \
+    KRB5_TRACE=/dev/stdout
+
+# Copy custom plugins (will be mounted in production)
+# These are placeholders that will be overridden by volume mounts
+COPY --chown=astro:astro plugins /usr/local/airflow/plugins
+
+# Health check for Airflow
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD airflow db check || exit 1
