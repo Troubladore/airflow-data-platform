@@ -1,5 +1,20 @@
 # Deprecated Components - Migration Rationale
 
+## 📅 Latest Additions (September 2024)
+
+The following components have been moved here as part of repository cleanup:
+
+### Reference Materials
+- **ref/** - Old reference implementations we've grown beyond
+- **examples/** - Should be in airflow-data-platform-examples repo
+- **pagila-implementations/** - Example implementations, belongs in examples repo
+- **test-airflow-certs/** - Testing artifacts from certificate setup
+
+### Layer Components (Pending Migration)
+- **layer2-dbt-projects/** - Being evaluated for examples repo (Issue #6)
+- **layer3-warehouses/** - Being evaluated for examples repo (Issue #7)
+- **orchestration-workspace/** - Old orchestration patterns, superseded by Astronomer
+
 ## 🎯 Migration Philosophy
 
 We're aligning with Astronomer's architecture rather than reinventing wheels. However, we're preserving valuable **patterns** that work ON TOP of Astronomer.
