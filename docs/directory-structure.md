@@ -74,21 +74,18 @@ platform-bootstrap/
 
 ```
 scripts/
-├── deploy_datakit.py                 # Deploy datakit to database
-├── test-with-postgres-sandbox.sh    # PostgreSQL testing
-├── install-pipx-deps.sh            # Development dependencies
-└── scan-supply-chain.sh            # Security scanning
+├── test-with-postgres-sandbox.sh    # PostgreSQL sandbox for testing
+├── install-pipx-deps.sh             # Development dependencies setup
+├── scan-supply-chain.sh             # Security vulnerability scanning
+└── run-tests.sh                     # Test runner for framework
 ```
 
-### `tests/`
-**Purpose**: Repository-level test infrastructure
+### `tests/` (Note: Currently in sqlmodel-framework/tests/)
+**Purpose**: Test infrastructure lives within each component
 
-```
-tests/
-├── unit/                            # Unit tests
-├── integration/                     # Integration tests
-└── fixtures/                        # Test fixtures and data
-```
+- SQLModel framework tests: `sqlmodel-framework/tests/`
+- Runtime environment tests: Within each `runtime-environments/*/tests/`
+- Platform bootstrap tests: `platform-bootstrap/tests/` (if needed)
 
 ### `docs/`
 **Purpose**: Comprehensive documentation
