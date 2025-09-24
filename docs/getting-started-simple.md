@@ -37,11 +37,9 @@ python3 --version    # Python 3.8+
 Start the 3 enhancement services mentioned above:
 
 ```bash
-# 1. Clone the platform repository (use correct branch)
+# 1. Clone the platform repository
 git clone https://github.com/Troubladore/airflow-data-platform.git
 cd airflow-data-platform
-# Note: If platform-bootstrap is missing, check you're on the right branch:
-# git checkout feature/kerberos-sidecar-implementation
 
 # 2. Start the platform services
 cd platform-bootstrap
