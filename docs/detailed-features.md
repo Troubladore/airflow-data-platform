@@ -20,7 +20,7 @@ class Customer(ReferenceTable):
 deploy_data_objects([Customer], target="business_unit_a")
 deploy_data_objects([Customer], target="business_unit_b")
 ```
-→ [Learn more about SQLModel Framework](../data-platform/sqlmodel-workspace/sqlmodel-framework/README.md)
+→ [Learn more about SQLModel Framework](../sqlmodel-framework/README.md)
 
 ### 2. **Runtime Environments** - Team Autonomy
 Enable teams to use their tools without conflicts:
@@ -77,7 +77,7 @@ astro dev init my-project
 # 4. Add our frameworks (optional)
 cd my-project
 # Add to requirements.txt:
-# sqlmodel-framework @ git+https://github.com/Troubladore/airflow-data-platform.git@main#subdirectory=data-platform/sqlmodel-workspace/sqlmodel-framework
+# sqlmodel-framework @ git+https://github.com/Troubladore/airflow-data-platform.git@main#subdirectory=sqlmodel-framework
 
 # 5. Start Airflow
 astro dev start

@@ -1,25 +1,23 @@
 # Directory Structure
 
-Complete overview of the repository organization and the purpose of each directory.
+Clean, focused repository organization with only core platform components.
 
 ## 📁 Repository Root
 
 ```
 airflow-data-platform/
-├── data-platform/                 # SQLModel framework core
+├── sqlmodel-framework/            # Core data engineering framework
 ├── runtime-environments/          # Isolated execution containers
 ├── platform-bootstrap/            # Developer environment setup
-├── deprecated/                    # Components being phased out
-├── docs/                          # Documentation
-├── ansible/                       # Infrastructure automation (being simplified)
 ├── scripts/                       # Utility scripts
-├── prerequisites/                 # Setup requirements
-└── ref/                          # Reference implementations
+├── tests/                        # Test suite
+├── docs/                          # Documentation
+└── deprecated/                    # Archived components (not detailed here)
 ```
 
 ## 🔷 Core Platform Components
 
-### `data-platform/sqlmodel-workspace/sqlmodel-framework/`
+### `sqlmodel-framework/`
 **Purpose**: Core data engineering framework built on SQLModel
 
 ```
@@ -36,7 +34,9 @@ sqlmodel-framework/
 ├── tests/                        # Comprehensive test suite
 │   ├── unit/                    # Unit tests
 │   └── integration/             # Integration tests
-└── docs/                        # Framework documentation
+├── scripts/                     # Deployment and utility scripts
+├── pyproject.toml              # Package configuration
+└── README.md                   # Framework documentation
 ```
 
 ### `runtime-environments/`
@@ -44,17 +44,12 @@ sqlmodel-framework/
 
 ```
 runtime-environments/
-├── base-images/                  # Standard base containers
-│   ├── python-transform/        # Python data transformation base
-│   │   ├── Dockerfile
-│   │   └── requirements-base.txt
-│   ├── pyspark-transform/       # PySpark processing base
-│   └── dbt-transform/           # dbt execution base
-├── templates/                    # Templates for new environments
-│   └── create-runtime.sh        # Script to generate new runtime
-└── patterns/                    # Usage patterns and examples
-    ├── version-management.md
-    └── dependency-isolation.md
+├── base-images/                  # Standard base containers (future)
+├── dbt-runner/                   # dbt execution environment
+├── postgres-runner/              # PostgreSQL data processing
+├── spark-runner/                # Spark processing environment
+├── sqlserver-runner/            # SQL Server data processing
+└── README.md                    # Documentation
 ```
 
 ### `platform-bootstrap/`
@@ -62,142 +57,85 @@ runtime-environments/
 
 ```
 platform-bootstrap/
-├── registry-cache.yml            # Local Docker registry for offline work
-├── ticket-sharer.yml            # Simple Kerberos ticket sharing
-├── setup-scripts/               # Environment setup utilities
-│   ├── doctor.sh               # Diagnose environment issues
-│   └── configure-environment.sh # Initial configuration
-├── Makefile                     # Simple command interface
-└── README.md                   # Bootstrap documentation
-```
-
-## 📚 Documentation
-
-### `docs/`
-**Purpose**: Layered documentation following drill-down pattern
-
-```
-docs/
-├── getting-started-simple.md    # Quick start guide (10 minutes)
-├── directory-structure.md       # This file
-├── patterns/                    # How-to guides
-│   ├── sqlmodel-patterns.md   # SQLModel usage patterns
-│   ├── runtime-patterns.md    # Container isolation patterns
-│   └── migration-patterns.md  # Migration strategies
-├── reference/                   # Detailed specifications
-│   ├── configuration.md       # All configuration options
-│   ├── api.md                 # API documentation
-│   └── troubleshooting.md    # Common issues
-└── archive/                    # Outdated documentation
-    └── [old complex docs]      # Kept for reference only
+├── developer-kerberos-simple.yml     # Simple Kerberos ticket sharing
+├── developer-kerberos-standalone.yml # Standalone Kerberos service
+├── local-registry-cache.yml          # Local Docker registry for offline work
+├── setup-scripts/                    # Environment setup utilities
+│   └── doctor.sh                    # Diagnose environment issues
+├── config/                          # Configuration files
+├── Makefile                         # Simple command interface
+└── README.md                        # Bootstrap documentation
 ```
 
 ## 🔧 Supporting Infrastructure
-
-### `ansible/`
-**Purpose**: Automation for complex setups (being simplified)
-
-```
-ansible/
-├── inventory/                   # Environment definitions
-├── components/                  # Atomic, idempotent tasks
-├── orchestrators/              # Task coordination
-└── group_vars/                 # Configuration variables
-```
-
-**Note**: Being simplified as we move to Astronomer-native patterns
 
 ### `scripts/`
 **Purpose**: Utility scripts for development and deployment
 
 ```
 scripts/
-├── install-pipx-deps.sh        # Development dependencies
-├── deploy_datakit.py           # Deploy datakit to database
-├── test-with-postgres-sandbox.sh # PostgreSQL testing
-└── validate-*.sh               # Various validation scripts
+├── deploy_datakit.py                 # Deploy datakit to database
+├── test-with-postgres-sandbox.sh    # PostgreSQL testing
+├── install-pipx-deps.sh            # Development dependencies
+└── scan-supply-chain.sh            # Security scanning
 ```
 
-## 🗄️ Deprecated Components
-
-### `deprecated/`
-**Purpose**: Components being removed in alignment with Astronomer
+### `tests/`
+**Purpose**: Repository-level test infrastructure
 
 ```
-deprecated/
-├── layer1-platform/            # Astronomer provides platform layer
-├── kerberos-astronomer/        # Over-engineered, replaced with simple sharing
-└── README.md                  # Explains deprecation rationale
+tests/
+├── unit/                            # Unit tests
+├── integration/                     # Integration tests
+└── fixtures/                        # Test fixtures and data
 ```
 
-## 🔄 Components Pending Migration
-
-These will move to `airflow-data-platform-examples`:
-
-```
-layer2-dbt-projects/            # → examples/dbt-patterns/
-layer3-warehouses/              # → examples/warehouse-patterns/
-```
-
-## 📦 Prerequisites
-
-### `prerequisites/`
-**Purpose**: Required setup components
+### `docs/`
+**Purpose**: Comprehensive documentation
 
 ```
-prerequisites/
-├── certificates/               # mkcert certificate management
-└── traefik-registry/          # Being removed (see issue #14)
-```
-
-## 📖 Reference Materials
-
-### `ref/`
-**Purpose**: Reference implementations and examples
-
-```
-ref/
-├── docs/                      # Additional documentation
-├── jupyter-exploratory/       # Experimental notebooks
-└── layer3-warehouse/         # Warehouse patterns (moving to examples)
+docs/
+├── getting-started-simple.md       # Quick start guide
+├── kerberos-setup-wsl2.md         # Kerberos configuration guide
+├── directory-structure.md         # This file
+├── detailed-features.md           # Detailed feature documentation
+├── patterns/                      # Usage patterns
+│   ├── sqlmodel-patterns.md      # SQLModel usage patterns
+│   └── runtime-patterns.md       # Container isolation patterns
+├── working-notes/                 # Development notes and decisions
+├── archive/                       # Outdated documentation
+├── CLAUDE.md                      # Development guidelines
+└── SECURITY.md                    # Security documentation
 ```
 
 ## 🎯 Key Files at Root
 
-- `README.md` - Main entry point (being updated)
-- `README-NEW.md` - Updated vision-aligned documentation
-- `CLAUDE.md` - Development guidelines and patterns
-- `MIGRATION_PLAN.md` - Repository restructuring plan
-- `pyproject.toml` - Python project configuration
+- `README.md` - Main entry point
+- `pyproject.toml` - Repository-level Python configuration
 - `.gitignore` - Git ignore rules
 - `.pre-commit-config.yaml` - Code quality automation
-
-## 📝 Documentation Files (Root)
-
-Migration and planning documents at root:
-- `MIGRATE_TO_EXAMPLES.md` - Components moving to examples repo
-- `PHASE1_COMPLETE.md` - Migration status tracking
-- `DATAKITS_STAY_HERE.md` - Rationale for runtime-environments
-- `DOCUMENTATION_AUDIT.md` - Documentation improvement plan
+- `.security-exceptions.yml` - Security scan exceptions
 
 ## 🔍 Finding What You Need
 
 | If you're looking for... | Look in... |
 |-------------------------|------------|
-| SQLModel table patterns | `data-platform/sqlmodel-workspace/sqlmodel-framework/` |
-| Container base images | `runtime-environments/base-images/` |
+| SQLModel table patterns | `sqlmodel-framework/` |
+| Container base images | `runtime-environments/` |
 | Developer setup | `platform-bootstrap/` |
 | Documentation | `docs/` |
 | Utility scripts | `scripts/` |
-| Deprecated code | `deprecated/` |
-| Examples | [airflow-data-platform-examples](https://github.com/Troubladore/airflow-data-platform-examples) repo |
 
 ## 🚀 Quick Navigation
 
 - **Start here**: [README.md](../README.md)
 - **Get started**: [docs/getting-started-simple.md](getting-started-simple.md)
-- **Core framework**: [data-platform/sqlmodel-workspace/sqlmodel-framework/README.md](../data-platform/sqlmodel-workspace/sqlmodel-framework/README.md)
+- **Core framework**: [sqlmodel-framework/](../sqlmodel-framework/)
 - **Developer tools**: [platform-bootstrap/README.md](../platform-bootstrap/README.md)
+
+## 📝 Note on deprecated/
+
+The `deprecated/` folder contains archived components that are being phased out or migrated. We don't detail its structure here as it's not part of the active platform. See [deprecated/README.md](../deprecated/README.md) for what's archived there.
 
 ---
 

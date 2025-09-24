@@ -71,7 +71,7 @@ Add our SQLModel framework to get enterprise table patterns:
 cd my-first-project
 
 # Edit requirements.txt and add:
-echo "sqlmodel-framework @ git+https://github.com/Troubladore/airflow-data-platform.git@main#subdirectory=data-platform/sqlmodel-workspace/sqlmodel-framework" >> requirements.txt
+echo "sqlmodel-framework @ git+https://github.com/Troubladore/airflow-data-platform.git@main#subdirectory=sqlmodel-framework" >> requirements.txt
 ```
 
 ## 🎯 Step 4: Start Airflow
