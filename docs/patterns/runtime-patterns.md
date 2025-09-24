@@ -38,12 +38,15 @@ For Python-based data transformations:
 # runtime-environments/base-images/python-transform/Dockerfile
 FROM python:3.11-slim
 
+# Install uv for fast, reliable dependency management
+RUN pip install uv
+
 # Enterprise patterns
 COPY logging_config.py /usr/local/lib/python3.11/site-packages/
 COPY auth_utils.py /usr/local/lib/python3.11/site-packages/
 
-# Base data engineering packages
-RUN pip install \
+# Base data engineering packages (using uv for speed!)
+RUN uv pip install --system \
     pandas>=2.0,<3.0 \
     sqlalchemy>=2.0,<3.0 \
     pyodbc>=4.0,<5.0 \
@@ -60,8 +63,8 @@ ENTRYPOINT ["python", "/usr/local/bin/transform_runner.py"]
 # Team A's custom environment
 FROM runtime-environments/python-transform:v2.1
 
-# Team A specific packages
-RUN pip install \
+# Team A specific packages (uv is already installed!)
+RUN uv pip install --system \
     pandas==1.5.3 \
     scikit-learn==1.3.0 \
     team-a-proprietary-lib==2.1.0
@@ -78,12 +81,15 @@ For big data processing:
 # runtime-environments/base-images/pyspark-transform/Dockerfile
 FROM apache/spark-py:v3.5.0
 
+# Install uv for Python package management
+RUN pip install uv
+
 # Enterprise patterns
 COPY spark_utils.py /opt/spark/python/
 COPY enterprise_logging.py /opt/spark/python/
 
 # Additional packages for data engineering
-RUN pip install \
+RUN uv pip install --system \
     pyspark-extension-lib \
     delta-spark \
     enterprise-spark-utils
@@ -100,8 +106,11 @@ For dbt-based transformations:
 # runtime-environments/base-images/dbt-transform/Dockerfile
 FROM python:3.11-slim
 
-# Install dbt with enterprise adapters
-RUN pip install \
+# Install uv first for fast package installation
+RUN pip install uv
+
+# Install dbt with enterprise adapters (uv is SO much faster!)
+RUN uv pip install --system \
     dbt-core==1.7.0 \
     dbt-sqlserver==1.7.0 \
     dbt-snowflake==1.7.0
@@ -230,7 +239,7 @@ cd runtime-environments
 # This creates:
 # runtime-environments/team-environments/team-analytics/
 # ├── Dockerfile                    # Extends base python-transform
-# ├── requirements.txt              # Team-specific packages
+# ├── pyproject.toml                # Team-specific packages (uv-compatible!)
 # ├── transforms/                   # Team's transform library
 # ├── tests/                        # Unit tests
 # └── Makefile                      # Build/test/deploy
@@ -241,8 +250,12 @@ cd runtime-environments
 FROM runtime-environments/python-transform:v2.1
 
 # Team Analytics specific packages
-COPY requirements.txt /tmp/
-RUN pip install -r /tmp/requirements.txt
+# Using pyproject.toml for modern Python packaging
+COPY pyproject.toml /tmp/
+WORKDIR /tmp
+
+# uv sync is MUCH faster than pip install!
+RUN uv sync --system
 
 # Team's transform library
 COPY transforms/ /app/transforms/
@@ -252,6 +265,22 @@ COPY tests/ /app/tests/
 ENV TEAM_NAME=analytics
 ENV LOG_LEVEL=INFO
 ENV DEFAULT_SCHEMA=analytics_bronze
+```
+
+**Generated pyproject.toml** (uv-native!):
+```toml
+[project]
+name = "team-analytics-transforms"
+version = "1.3.2"
+dependencies = [
+    "pandas==1.5.3",
+    "scikit-learn==1.3.0",
+    "team-a-proprietary-lib==2.1.0",
+]
+
+[tool.uv]
+# uv-specific optimizations
+compile = true
 ```
 
 ### 2. Versioning Strategy
@@ -520,11 +549,11 @@ USER transform
 # Only include necessary packages
 # Use multi-stage builds to minimize attack surface
 FROM python:3.11-slim as builder
-COPY requirements.txt .
-RUN pip install --user -r requirements.txt
+COPY pyproject.toml .
+RUN pip install uv && uv pip install --user --system .
 
 FROM python:3.11-slim as runtime
-COPY --from=builder /root/.local /root/.local
+COPY --from=builder /home/transform/.local /home/transform/.local
 # Copy only what's needed for runtime
 ```
 
@@ -645,7 +674,7 @@ gold_task = DockerOperator(
 bronze_task >> silver_task >> gold_task  # Clean isolation
 ```
 
-## 🎉 Real-World Example
+## 🎉 Real-World Example with uv
 
 Complete team workflow for a data science team:
 
@@ -653,13 +682,13 @@ Complete team workflow for a data science team:
 # runtime-environments/team-environments/data-science/Dockerfile
 FROM runtime-environments/python-transform:v2.1
 
-# Data science specific packages
-RUN pip install \
-    scikit-learn==1.3.0 \
-    matplotlib==3.7.2 \
-    seaborn==0.12.2 \
-    jupyter==1.0.0 \
-    mlflow==2.6.0
+# Data science team's pyproject.toml
+COPY pyproject.toml uv.lock* /tmp/
+WORKDIR /tmp
+
+# uv sync is INCREDIBLY fast compared to pip!
+# It also ensures reproducible builds with uv.lock
+RUN uv sync --system
 
 # Team's proprietary ML library
 COPY ml_utils/ /usr/local/lib/python3.11/site-packages/ml_utils/
@@ -670,6 +699,29 @@ COPY models/ /app/models/
 
 ENV TEAM_NAME=data-science
 ENV MLFLOW_TRACKING_URI=https://mlflow.company.com
+```
+
+**Team's pyproject.toml**:
+```toml
+[project]
+name = "data-science-transforms"
+version = "2.3.0"
+dependencies = [
+    "scikit-learn==1.3.0",
+    "matplotlib==3.7.2",
+    "seaborn==0.12.2",
+    "jupyter==1.0.0",
+    "mlflow==2.6.0",
+    "pandas==2.1.0",
+    "numpy==1.24.3",
+]
+
+[tool.uv]
+# Enable compilation for faster imports
+compile = true
+
+# Resolution strategy
+resolution = "highest"
 ```
 
 ```python
@@ -731,6 +783,16 @@ model_validation = DockerOperator(
 
 feature_engineering >> model_training >> model_validation
 ```
+
+## 💡 Why uv is Better
+
+Using `uv` instead of `pip` in runtime environments provides:
+
+1. **Speed**: 10-100x faster package installation
+2. **Reproducibility**: `uv.lock` files ensure exact same deps
+3. **Better resolution**: Smarter dependency resolver
+4. **Compiled packages**: Option to compile Python for faster imports
+5. **Modern tooling**: Built for modern Python packaging (pyproject.toml)
 
 This pattern gives each team complete control over their dependencies while maintaining enterprise standards and Astronomer integration!
 
