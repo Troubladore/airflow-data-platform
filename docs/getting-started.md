@@ -1,17 +1,23 @@
 # Platform Setup
 
-Complete setup guide for testing and developing with the Airflow Data Platform.
+Complete setup guide for the Airflow Data Platform with component-based deployment.
 
 ## What You'll Have When Done
 
 After completing this setup, your workstation will have:
 
-- **Local HTTPS services** - `https://traefik.localhost` and `https://registry.localhost` working without certificate errors
-- **Docker registry** - Push/pull custom images locally for development and testing
-- **Reverse proxy** - Traefik handling routing and TLS termination for all services
-- **Development certificates** - Trusted CA and certificates for secure local development
+- **Apache Airflow** - Full workflow orchestration platform at `https://airflow.localhost`
+- **Docker Registry** - Private image storage at `https://registry.localhost` with web UI
+- **Traefik Proxy** - HTTPS termination and routing for all platform services
+- **Development Certificates** - Trusted mkcert CA for `*.localhost` domains without warnings
+- **Component Architecture** - Six atomic, idempotent components that can be deployed individually
 
-**This is initial platform setup.** The platform evolves with new versions and images over time. See the issue tracker for maintenance/update workflows as they become available.
+**Platform Services:**
+- `https://airflow.localhost` - Apache Airflow (username: admin, password: admin)
+- `https://registry.localhost/v2/` - Docker Registry API
+- `https://registry-ui.localhost` - Registry Web UI
+- `https://traefik.localhost/dashboard/` - Traefik Dashboard
+- `https://whoami.localhost` - Test service for verification
 
 ---
 
@@ -33,18 +39,58 @@ ansible-galaxy install -r ansible/requirements.yml
 
 ---
 
-## Step 2: Run Platform Setup
+## Step 2: Run Platform Setup (Component-Based)
 
-**What you're doing:** Deploying Traefik reverse proxy, Docker registry, and development certificates for local HTTPS services.
+**The setup uses atomic components.** Each component is idempotent and can be run independently or all together.
+
+### Option A: Run All Components at Once
 
 ```bash
 # 🐧 WSL2 Ubuntu terminal
-ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml --ask-become-pass
+ansible-playbook -i ansible/inventory/local-dev.ini ansible/orchestrators/setup-simple.yml
 ```
 
-**Note:** The playbook will detect if you have passwordless sudo configured. If not, you'll be prompted for your password as needed.
+### Option B: Run Components Individually (Recommended for First Time)
 
-**What gets installed:** Local Docker registry, Traefik proxy, mkcert certificates, and host file entries for `*.localhost` domains.
+```bash
+# Component 1: Install mkcert binary in WSL2
+ansible-playbook -i ansible/inventory/local-dev.ini \
+  -e "component_only=01-mkcert-binary-tasks.yml" \
+  ansible/orchestrators/setup-simple.yml
+
+# Component 2: Windows CA Trust (will prompt for Windows PowerShell steps)
+ansible-playbook -i ansible/inventory/local-dev.ini \
+  -e "component_only=02-windows-ca-trust-tasks.yml" \
+  ansible/orchestrators/setup-simple.yml
+
+# Component 3: Certificate File Management
+ansible-playbook -i ansible/inventory/local-dev.ini \
+  -e "component_only=03-certificate-file-management-tasks.yml" \
+  ansible/orchestrators/setup-simple.yml
+
+# Component 4: Traefik Platform Deployment
+ansible-playbook -i ansible/inventory/local-dev.ini \
+  -e "component_only=04-traefik-platform-deployment-tasks.yml" \
+  ansible/orchestrators/setup-simple.yml
+
+# Component 5: Docker Registry Deployment
+ansible-playbook -i ansible/inventory/local-dev.ini \
+  -e "component_only=05-docker-registry-deployment-tasks.yml" \
+  ansible/orchestrators/setup-simple.yml
+
+# Component 6: Apache Airflow Deployment
+ansible-playbook -i ansible/inventory/local-dev.ini \
+  -e "component_only=06-airflow-platform-deployment-tasks.yml" \
+  ansible/orchestrators/setup-simple.yml
+```
+
+**What each component does:**
+1. **mkcert Binary** - Installs certificate generation tool
+2. **Windows CA Trust** - Installs CA to Windows store (requires PowerShell)
+3. **Certificate Management** - Copies certificates from Windows to WSL2
+4. **Traefik Platform** - Deploys HTTPS reverse proxy
+5. **Docker Registry** - Private image storage with web UI
+6. **Apache Airflow** - Workflow orchestration platform
 
 ---
 
@@ -52,14 +98,30 @@ ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml --ask-becom
 
 **What you're doing:** Testing that all services are running and accessible with proper HTTPS certificates.
 
+### Quick Browser Test
+Open these URLs in your browser - they should all work without certificate warnings:
+
+- ✅ `https://airflow.localhost` - Apache Airflow (login: admin/admin)
+- ✅ `https://traefik.localhost/dashboard/` - Traefik dashboard
+- ✅ `https://registry-ui.localhost` - Docker Registry UI
+- ✅ `https://whoami.localhost` - Test service showing headers
+
+### Command Line Validation
+
 ```bash
 # 🐧 WSL2 Ubuntu terminal
-ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml --ask-become-pass
+# Test all HTTPS endpoints
+for url in https://traefik.localhost/api/overview \
+           https://registry.localhost/v2/ \
+           https://registry-ui.localhost/ \
+           https://airflow.localhost/health \
+           https://whoami.localhost/; do
+  echo "Testing $url..."
+  curl -s -o /dev/null -w "  Status: %{http_code}\n" "$url"
+done
 ```
 
-**Success means these work without certificate errors:**
-- ✅ `https://traefik.localhost` - Traefik dashboard
-- ✅ `https://registry.localhost/v2/_catalog` - Docker registry API
+**Expected:** All services return HTTP 200 or 401 (for authenticated endpoints)
 
 ---
 
@@ -83,10 +145,22 @@ ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml --a
 
 ## Setup Complete! 🎉
 
-Your local development environment is ready. The platform includes:
-- **Traefik proxy** for routing HTTPS traffic
-- **Docker registry** for custom images
-- **Development certificates** for secure local connections
+Your local development environment is ready with all platform services:
+
+### Platform Services Running
+- **Apache Airflow** - Workflow orchestration at `https://airflow.localhost`
+- **Docker Registry** - Private image storage at `https://registry.localhost`
+- **Registry UI** - Web interface at `https://registry-ui.localhost`
+- **Traefik Proxy** - HTTPS routing and dashboard at `https://traefik.localhost`
+- **Development Certificates** - Trusted mkcert CA for all `*.localhost` domains
+
+### Component Architecture Benefits
+The platform uses 6 atomic, idempotent components that:
+- ✅ **Can be run individually** - Debug or update specific parts
+- ✅ **Are truly idempotent** - Safe to run multiple times
+- ✅ **Check prerequisites** - Each component validates dependencies
+- ✅ **Handle Windows/WSL2 boundary** - Certificates generated in Windows, used in WSL2
+- ✅ **Provide clear feedback** - Know exactly what each component does
 
 ## 🚀 Next Steps
 
@@ -145,9 +219,11 @@ curl -k https://traefik.localhost/api/http/services
 - Restart WSL2: `wsl --shutdown` then reopen terminal
 
 **"Certificate errors" or HTTPS warnings**
-- Run `mkcert -install` to trust the local CA
+- Ensure Component 2 completed successfully (Windows CA trust)
 - Check certificates exist: `ls ~/.local/share/certs/`
-- Verify hosts file has the required entries
+- Verify certificate domains: `openssl x509 -in ~/.local/share/certs/dev-localhost-wild.crt -text | grep DNS`
+- Clear browser cache (especially Brave browser)
+- Re-run Component 3 to sync certificates from Windows
 
 **Services not responding**
 - Check containers are running: `docker ps`
@@ -160,6 +236,41 @@ curl -k https://traefik.localhost/api/http/services
   curl -k https://registry.localhost/v2/_catalog
   curl -k https://traefik.localhost/api/http/services
   ```
+
+**Traefik not routing to service (404 errors)**
+- Check if router is detected: `curl -s http://localhost:8080/api/http/routers | grep service_name`
+- Verify container labels: `docker inspect container_name | grep traefik`
+- Check for "too many services" error in Traefik logs: `docker logs traefik | grep ERR`
+- Solution: Ensure service names are explicitly defined in labels
+- Restart Traefik to clear cache: `docker restart traefik`
+
+**🚨 CRITICAL: Wrong Docker Compose Configuration**
+**Symptom**: HTTPS certificate errors when accessing services, registry logs showing "open /certs/cert.pem: no such file or directory"
+
+**Root Cause**: Using static `prerequisites/traefik-registry/docker-compose.yml` instead of Ansible-generated platform services
+
+**Solution**:
+1. Stop incorrect services: `docker compose -f /path/to/airflow-data-platform/prerequisites/traefik-registry/docker-compose.yml down`
+2. Use proper platform services: `cd ~/platform-services/traefik && docker compose up -d`
+3. Verify: `curl -k https://traefik.localhost` should work
+
+**Prevention**: Always use Ansible-generated services (`~/platform-services/traefik/`) which properly mount WSL2 certificates from `~/.local/share/certs/`. The static prerequisite files are templates only.
+
+**🚨 Docker Desktop Proxy Issues**
+**Symptom**: Timeout errors when pulling from registry.localhost: "proxyconnect tcp: dial tcp 192.168.65.1:3128: i/o timeout"
+
+**Root Cause**: Docker Desktop has a proxy configured but *.localhost domains aren't in the bypass list
+
+**Solution**:
+1. Open Docker Desktop → Settings → Resources → Proxies
+2. In "Bypass proxy settings for these hosts & domains" add:
+   ```
+   localhost,*.localhost,127.0.0.1,registry.localhost,traefik.localhost,airflow.localhost
+   ```
+3. Click "Apply & restart"
+4. Re-run validation
+
+**Note**: This is common in corporate environments or when Docker Desktop auto-detects Windows proxy settings. The platform setup now detects this and prompts you to fix it.
 </details>
 
 <details>

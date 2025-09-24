@@ -1,0 +1,157 @@
+---
+# Prerequisites Detection and Validation
+# Checks environment and ensures basic requirements are met
+# Fails fast if fundamentals are missing
+
+- name: "🔍 Environment Detection and Prerequisites"
+  hosts: localhost
+  gather_facts: yes
+  become: no
+  vars:
+    ansible_become_pass: "{{ ansible_sudo_pass | default(omit) }}"
+  tasks:
+    - name: Display prerequisites banner
+      debug:
+        msg: |
+          🔍 STEP 1: Prerequisites Detection
+
+          Checking:
+          - WSL2 environment
+          - Windows PowerShell accessibility
+          - Docker availability
+          - Basic system requirements
+
+          This step fails fast if critical prerequisites are missing.
+
+    # WSL2 Environment Check
+    - name: Check if running in WSL2
+      shell: uname -r | grep -i microsoft
+      register: wsl2_check
+      failed_when: false
+      changed_when: false
+
+    - name: Verify WSL2 environment
+      fail:
+        msg: |
+          ❌ This must be run from within WSL2
+
+          Current environment: {{ ansible_system }}
+          Kernel: {{ ansible_kernel }}
+
+          Please:
+          1. Open WSL2 terminal (Ubuntu, Debian, etc.)
+          2. cd to this repository
+          3. Re-run the installer
+      when: wsl2_check.rc != 0
+
+    # Windows PowerShell Access Check
+    - name: Check Windows PowerShell accessibility
+      shell: |
+        if command -v powershell.exe &>/dev/null; then
+          echo "powershell.exe"
+        elif [ -f "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe" ]; then
+          echo "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+        else
+          exit 1
+        fi
+      register: powershell_check
+      failed_when: false
+      changed_when: false
+
+    - name: Set Windows accessibility
+      set_fact:
+        windows_powershell_available: "{{ powershell_check.rc == 0 }}"
+        windows_powershell_path: "{{ powershell_check.stdout | trim if powershell_check.rc == 0 else '' }}"
+
+    # Docker Availability Check
+    - name: Check Docker CLI availability
+      command: docker --version
+      register: docker_cli_check
+      failed_when: false
+      changed_when: false
+
+    - name: Check Docker daemon accessibility
+      command: docker info
+      register: docker_daemon_check
+      failed_when: false
+      changed_when: false
+
+    # Basic System Diagnostics
+    - name: Run system state diagnostic
+      script: "{{ playbook_dir }}/../scripts/diagnostics/system-state.sh"
+      register: system_diagnostics
+      failed_when: false
+      changed_when: false
+      args:
+        executable: /bin/bash
+
+    - name: Parse system diagnostic results
+      set_fact:
+        diagnostic_output: "{{ system_diagnostics.stdout_lines | join('\n') if system_diagnostics.stdout_lines is defined else 'No diagnostic output available' }}"
+        mkcert_installed: "{{ 'mkcert: Installed' in system_diagnostics.stdout if system_diagnostics.stdout is defined else false }}"
+        certificates_exist: "{{ 'Certificates: Found' in system_diagnostics.stdout if system_diagnostics.stdout is defined else false }}"
+        docker_running: "{{ 'Docker daemon: Running and accessible' in system_diagnostics.stdout if system_diagnostics.stdout is defined else false }}"
+        windows_hosts_configured: "{{ 'Windows hosts file: All entries present' in system_diagnostics.stdout if system_diagnostics.stdout is defined else false }}"
+
+    # Prerequisites Summary and Validation
+    - name: Prerequisites validation summary
+      debug:
+        msg: |
+          🔍 Prerequisites Check Results:
+
+          Environment:
+          - WSL2: {{ '✅' if wsl2_check.rc | default(1) == 0 else '❌' }}
+          - Windows PowerShell: {{ '✅' if windows_powershell_available | default(false) else '❌' }}
+
+          Docker:
+          - Docker CLI: {{ '✅' if docker_cli_check.rc | default(1) == 0 else '❌' }}
+          - Docker Daemon: {{ '✅' if docker_daemon_check.rc | default(1) == 0 else '❌' }}
+
+          Platform Components:
+          - mkcert: {{ '✅' if mkcert_installed | default(false) else '❌' }}
+          - Certificates: {{ '✅' if certificates_exist | default(false) else '❌' }}
+          - Windows hosts: {{ '✅' if windows_hosts_configured | default(false) else '❌' }}
+
+    # Fail if critical prerequisites are missing
+    - name: Check critical prerequisites
+      set_fact:
+        critical_missing: >-
+          {{
+            (not windows_powershell_available | default(false)) or
+            (docker_cli_check.rc | default(1) != 0) or
+            (docker_daemon_check.rc | default(1) != 0) or
+            (not mkcert_installed | default(false))
+          }}
+
+    - name: Fail if critical prerequisites missing
+      fail:
+        msg: |
+          ❌ CRITICAL PREREQUISITES MISSING
+
+          The following critical components are missing or not working:
+          {{ '- Windows PowerShell not accessible' if not windows_powershell_available | default(false) else '' }}
+          {{ '- Docker CLI not available' if docker_cli_check.rc | default(1) != 0 else '' }}
+          {{ '- Docker daemon not running' if docker_daemon_check.rc | default(1) != 0 else '' }}
+          {{ '- mkcert not installed' if not mkcert_installed | default(false) else '' }}
+
+          Please install missing prerequisites before continuing.
+
+          For Windows prerequisites, run:
+          cd \\wsl$\Ubuntu\home\{{ ansible_env.USER }}\repos\airflow-data-platform
+          .\scripts\win-prereqs.ps1
+
+      when: critical_missing
+
+    - name: Prerequisites validation complete
+      debug:
+        msg: |
+          ✅ PREREQUISITES CHECK PASSED
+
+          All critical prerequisites are available:
+          - WSL2 environment: Ready
+          - Windows PowerShell: {{ windows_powershell_path | default('Not detected') }}
+          - Docker: CLI and daemon available
+          - mkcert: Installed
+
+          Ready to proceed to platform setup.
+      when: not critical_missing

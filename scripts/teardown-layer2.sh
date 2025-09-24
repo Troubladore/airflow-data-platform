@@ -200,6 +200,18 @@ verify_teardown() {
         docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" | grep "$REGISTRY_HOST/datakits" || true
     fi
 
+    # Check platform certificate health (informational only)
+    if [ -x "$REPO_ROOT/scripts/test-certificate-trust.sh" ]; then
+        log_info "Checking platform certificate health..."
+        if timeout 10 curl -s https://traefik.localhost >/dev/null 2>&1; then
+            log_info "✅ Platform HTTPS services are accessible"
+        else
+            log_warning "⚠️ Platform HTTPS services have trust issues"
+            echo "  Run: ./scripts/test-certificate-trust.sh"
+            echo "  Or: ./scripts/teardown.sh (complete certificate reset)"
+        fi
+    fi
+
     if [ $issues_found -eq 0 ]; then
         log_success "Teardown verification passed - Layer 2 components are clean"
     else
@@ -233,6 +245,11 @@ show_rebuild_instructions() {
     echo
     echo -e "${YELLOW}💡 Note: Layer 1 (platform foundation) is preserved${NC}"
     echo "Your Traefik and registry services continue running normally."
+    echo
+    echo -e "${YELLOW}💡 Certificate Trust Issues?${NC}"
+    echo "If you're experiencing HTTPS certificate warnings:"
+    echo "  ./scripts/teardown.sh  # For complete certificate cleanup"
+    echo "  ./scripts/test-certificate-trust.sh  # To diagnose issues"
     echo
     echo -e "${BLUE}🚀 Next Steps:${NC}"
     echo "After validating components, move to Layer 3 for pipeline orchestration."

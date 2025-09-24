@@ -100,9 +100,27 @@ cleanup_docker_services() {
 
     # Check if Docker daemon is running
     if ! docker info &> /dev/null; then
-        log_warning "Docker daemon not running - skipping Docker cleanup"
-        log_info "To clean up Docker resources later, start Docker and re-run this script"
-        return 0
+        log_warning "Docker Desktop not running - Docker cleanup needed"
+        echo
+        echo "The platform teardown requires Docker Desktop to remove containers, images, and networks."
+        echo
+        echo "Please:"
+        echo "1. Start Docker Desktop on Windows"
+        echo "2. Wait for Docker to fully start (system tray icon stops animating)"
+        echo "3. Press Enter here to continue teardown"
+        echo
+        echo "Or press Ctrl+C to skip Docker cleanup (you can run teardown again later)"
+        echo
+        read -p "Press Enter once Docker Desktop is running..."
+
+        # Re-check Docker after user action
+        if ! docker info &> /dev/null; then
+            log_warning "Docker still not accessible - skipping Docker cleanup"
+            log_info "You can re-run teardown later to clean up Docker resources"
+            return 0
+        else
+            log_success "Docker Desktop is now running - proceeding with cleanup"
+        fi
     fi
 
     # Stop and remove Traefik/Registry services
@@ -129,36 +147,101 @@ cleanup_docker_services() {
         log_success "PostgreSQL test sandbox stopped"
     fi
 
-    # Remove any remaining platform containers (check various naming patterns)
-    log_info "Removing remaining platform containers..."
+    # Stop any Airflow projects (Astro CLI)
+    log_info "Stopping any running Airflow projects..."
+    if [ -d "$REPO_ROOT/test-airflow-certs" ]; then
+        cd "$REPO_ROOT/test-airflow-certs"
+        if command -v astro &> /dev/null; then
+            astro dev stop || log_warning "No Astro dev environment to stop"
+        fi
+    fi
+
+    # Look for any docker-compose.yml files in common locations and stop them
+    for compose_dir in "$HOME" "$REPO_ROOT" "$REPO_ROOT"/*; do
+        if [ -d "$compose_dir" ] && [ -f "$compose_dir/docker-compose.yml" ]; then
+            log_info "Found docker-compose.yml in $compose_dir, stopping services..."
+            cd "$compose_dir"
+            docker compose down --volumes --remove-orphans 2>/dev/null || true
+        fi
+    done
+
+    # Remove any remaining platform containers (comprehensive cleanup)
+    log_info "Removing all platform-related containers..."
+
+    # Platform service containers
     docker ps -aq --filter "name=traefik" | xargs -r docker rm -f 2>/dev/null || true
     docker ps -aq --filter "name=registry" | xargs -r docker rm -f 2>/dev/null || true
-    docker ps -aq --filter "name=pagila-source-db" | xargs -r docker rm -f 2>/dev/null || true
+
+    # Database containers
+    docker ps -aq --filter "name=pagila" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=postgres" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=data-warehouse" | xargs -r docker rm -f 2>/dev/null || true
     docker ps -aq --filter "name=datakit-test-db" | xargs -r docker rm -f 2>/dev/null || true
+
+    # Airflow containers (various patterns)
+    docker ps -aq --filter "name=airflow" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=scheduler" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=webserver" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=triggerer" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=dag-processor" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=api-server" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "name=db-migration" | xargs -r docker rm -f 2>/dev/null || true
+
+    # Test containers (test-certs, etc.)
+    docker ps -aq | xargs -r docker inspect --format '{{.Name}} {{.Config.Labels}}' 2>/dev/null | grep -E "(test-certs|test_)" | awk '{print $1}' | sed 's|^/||' | xargs -r docker rm -f 2>/dev/null || true
+
+    # Compose project containers
     docker ps -aq --filter "label=com.docker.compose.project=traefik-bundle" | xargs -r docker rm -f 2>/dev/null || true
+    docker ps -aq --filter "label=com.docker.compose.project" | xargs -r docker inspect --format '{{.Config.Labels}}' 2>/dev/null | grep -E "(pagila|airflow|platform|test)" | cut -d'"' -f4 | xargs -r docker ps -aq --filter "label=com.docker.compose.project=" 2>/dev/null | xargs -r docker rm -f 2>/dev/null || true
 
     # Clean up networks (check various naming patterns)
     log_info "Cleaning up Docker networks..."
+    docker network ls --filter "name=edge" -q | xargs -r docker network rm 2>/dev/null || true
     docker network ls --filter "name=traefik" -q | xargs -r docker network rm 2>/dev/null || true
     docker network ls --filter "label=com.docker.compose.project=traefik-bundle" -q | xargs -r docker network rm 2>/dev/null || true
 
-    # Remove platform images (using grep since Docker filters don't support wildcards the way we need)
-    log_info "Cleaning up platform images..."
-    # Remove registry.localhost images (custom built images)
+    # Remove platform images (comprehensive cleanup)
+    log_info "Cleaning up all platform-related images..."
+
+    # Custom registry images
     docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "^registry\.localhost" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
-    # Remove demo images
-    docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "/demo/" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
-    # Remove traefik base images
-    docker images --filter "reference=traefik" -q | xargs -r docker rmi -f 2>/dev/null || true
-    # Remove registry base images
+    docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "^localhost:5000" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
+
+    # Platform-specific images
+    docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep -E "(pagila|airflow|platform)" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
+    docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "data-eng-airflow" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
+
+    # Base service images
+    docker images --filter "reference=traefik*" -q | xargs -r docker rmi -f 2>/dev/null || true
+    docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "^traefik/" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
     docker images --filter "reference=registry" -q | xargs -r docker rmi -f 2>/dev/null || true
 
-    # Remove platform volumes by name (including compose-generated names)
-    log_info "Cleaning up platform volumes..."
-    docker volume ls -q | grep -E "(traefik|registry|pagila)" | xargs -r docker volume rm 2>/dev/null || true
+    # Database images (if only used for platform)
+    docker images --filter "reference=postgres" -q | xargs -r docker rmi -f 2>/dev/null || true
+    docker images --filter "reference=bitnami/postgresql" -q | xargs -r docker rmi -f 2>/dev/null || true
 
-    # Clean up any remaining unused volumes
-    docker volume prune -f || log_warning "Volume cleanup had issues"
+    # Airflow images
+    docker images --filter "reference=apache/airflow*" -q | xargs -r docker rmi -f 2>/dev/null || true
+    docker images --filter "reference=astrocrpublic.azurecr.io/runtime*" -q | xargs -r docker rmi -f 2>/dev/null || true
+
+    # Development images
+    docker images --filter "reference=mcr.microsoft.com/devcontainers*" -q | xargs -r docker rmi -f 2>/dev/null || true
+
+    # Demo and test images
+    docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "/demo/" | awk '{print $2}' | xargs -r docker rmi -f 2>/dev/null || true
+
+    # Remove platform volumes (comprehensive)
+    log_info "Cleaning up all platform-related volumes..."
+    docker volume ls -q | grep -E "(traefik|registry|pagila|airflow|postgres|test)" | xargs -r docker volume rm 2>/dev/null || true
+    docker volume ls -q | grep -E "(data-warehouse|platform|certs)" | xargs -r docker volume rm 2>/dev/null || true
+
+    # Remove anonymous volumes (often created by compose)
+    log_info "Cleaning up anonymous and unused volumes..."
+    docker volume ls -q -f "dangling=true" | xargs -r docker volume rm 2>/dev/null || true
+
+    # Final cleanup of any remaining unused resources
+    log_info "Final cleanup of unused Docker resources..."
+    docker system prune -f --volumes || log_warning "System prune had issues"
 
     log_success "Docker cleanup completed"
 }
@@ -195,18 +278,29 @@ cleanup_certificates() {
         echo "1) Keep WSL2 certificates (recommended for quick rebuild)"
         echo "2) Remove WSL2 certificates only"
         echo "3) Complete teardown (removes WSL2 certs + attempts Windows cleanup)"
+        echo "4) AGGRESSIVE PURGE (complete certificate removal for clean testing)"
+        echo "5) Regenerate certificates (fix wildcard/SAN issues)"
         echo
-        read -p "Enter choice (1-3): " -n 1 -r cert_choice
+        read -p "Enter choice (1-5): " -n 1 -r cert_choice
         echo
         CLEANUP_CHOICE="$cert_choice"
 
         case $cert_choice in
             2)
                 rm -rf "$CERT_DIR"
-                log_success "Removed WSL2 certificates"
+                cleanup_wsl2_trust_store
+                log_success "Removed WSL2 certificates and trust store"
                 ;;
             3)
                 perform_complete_teardown
+                ;;
+            4)
+                perform_aggressive_purge
+                ;;
+            5)
+                log_info "Launching certificate regeneration..."
+                "$SCRIPT_DIR/regenerate-certificates.sh"
+                exit 0
                 ;;
             *)
                 log_info "Keeping WSL2 certificates for quick rebuild"
@@ -220,17 +314,116 @@ cleanup_certificates() {
         echo "1) Skip certificate cleanup"
         echo "2) Skip certificate cleanup"
         echo "3) Complete teardown (attempts Windows cleanup)"
+        echo "4) AGGRESSIVE PURGE (complete certificate removal for clean testing)"
         echo
-        read -p "Enter choice (1-3): " -n 1 -r cert_choice
+        read -p "Enter choice (1-4): " -n 1 -r cert_choice
         echo
         CLEANUP_CHOICE="$cert_choice"
 
         if [ "$cert_choice" == "3" ]; then
             perform_complete_teardown
+        elif [ "$cert_choice" == "4" ]; then
+            perform_aggressive_purge
         else
             log_info "No WSL2 certificates to clean up"
         fi
     fi
+}
+
+# Clean up WSL2 system trust store
+cleanup_wsl2_trust_store() {
+    log_info "Cleaning up WSL2 system trust store..."
+
+    # Remove mkcert CA certificates from system trust store
+    local ca_removed_count=0
+    local ca_certs_dir="/usr/local/share/ca-certificates"
+
+    if [ -d "$ca_certs_dir" ]; then
+        # Find and remove ALL mkcert CA certificates (including duplicates)
+        local mkcert_certs=$(find "$ca_certs_dir" -name "mkcert*.crt" 2>/dev/null || true)
+
+        if [ -n "$mkcert_certs" ]; then
+            log_info "Found mkcert CA certificates in system trust store:"
+            echo "$mkcert_certs" | while read cert_file; do
+                if [ -n "$cert_file" ] && [ -f "$cert_file" ]; then
+                    echo "  • Removing: $(basename "$cert_file")"
+                    sudo rm -f "$cert_file" 2>/dev/null || log_warning "Could not remove $cert_file"
+                    ca_removed_count=$((ca_removed_count + 1))
+                fi
+            done
+
+            # Update system certificate trust store
+            log_info "Updating system certificate trust store..."
+            sudo update-ca-certificates --fresh >/dev/null 2>&1 || log_warning "Could not update system trust store"
+            log_success "Removed all mkcert CA certificates from WSL2 system trust store"
+        else
+            log_info "No mkcert CA certificates found in system trust store"
+        fi
+    else
+        log_warning "System CA certificates directory not found: $ca_certs_dir"
+    fi
+
+    # Remove mkcert from NSS database if exists
+    if command -v certutil >/dev/null 2>&1; then
+        local nss_home="$HOME/.pki/nssdb"
+        if [ -d "$nss_home" ]; then
+            log_info "Cleaning mkcert from NSS database..."
+            # List and remove mkcert certificates from NSS
+            certutil -L -d "$nss_home" 2>/dev/null | grep -i mkcert | awk '{print $1}' | while read cert_name; do
+                if [ -n "$cert_name" ]; then
+                    certutil -D -n "$cert_name" -d "$nss_home" 2>/dev/null || true
+                    log_info "Removed $cert_name from NSS database"
+                fi
+            done
+        fi
+    fi
+}
+
+# Aggressive purge for complete certificate removal (testing)
+perform_aggressive_purge() {
+    log_info "Performing AGGRESSIVE certificate purge for clean testing..."
+
+    # Step 1: Remove WSL2 certificates
+    if [ -d "$CERT_DIR" ]; then
+        rm -rf "$CERT_DIR"
+        log_success "Removed WSL2 certificates"
+    fi
+
+    # Step 2: Clean up WSL2 system trust store
+    cleanup_wsl2_trust_store
+
+    # Step 3: Remove mkcert binary to force fresh installation
+    if [ -f "/usr/local/bin/mkcert" ]; then
+        log_info "Removing mkcert binary to force fresh installation..."
+        sudo rm -f "/usr/local/bin/mkcert"
+        log_success "Removed mkcert binary"
+    fi
+
+    # Step 4: Provide Windows aggressive cleanup instructions
+    log_info "Windows aggressive cleanup required for complete purge..."
+
+    local aggressive_cleanup="$SCRIPT_DIR/teardown-windows.ps1"
+
+    echo
+    echo -e "${YELLOW}🔥 AGGRESSIVE WINDOWS CLEANUP REQUIRED${NC}"
+    echo
+    echo "For COMPLETE certificate purge (all users, all stores), run this from Windows:"
+    echo
+    echo -e "${RED}⚠️  Run PowerShell as Administrator:${NC}"
+    echo "PowerShell -ExecutionPolicy Bypass -File \"\\\\wsl\$\\Ubuntu\\home\\$(whoami)\\repos\\airflow-data-platform\\scripts\\teardown-windows.ps1\" -Force"
+    echo
+    echo "This AGGRESSIVE cleanup will:"
+    echo "• Remove ALL mkcert CAs for ALL users on this machine"
+    echo "• Clean LocalMachine and CurrentUser certificate stores"
+    echo "• Remove all certificate directories"
+    echo "• Clean up hosts file entries"
+    echo "• Optionally uninstall mkcert program"
+    echo
+    echo -e "${YELLOW}⚠️  This affects ALL WSL2 distros and Windows users on this machine${NC}"
+    echo
+    read -p "Press ENTER after you've run the Windows cleanup script..."
+    echo
+    log_success "Aggressive purge completed - you now have a completely clean slate for testing"
 }
 
 # Complete teardown with Windows cleanup attempts
@@ -242,6 +435,9 @@ perform_complete_teardown() {
         rm -rf "$CERT_DIR"
         log_success "Removed WSL2 certificates"
     fi
+
+    # Step 1.5: Clean up WSL2 system trust store
+    cleanup_wsl2_trust_store
 
     # Step 2: Attempt Windows certificate cleanup
     log_info "Attempting Windows certificate cleanup..."
@@ -278,39 +474,75 @@ perform_complete_teardown() {
             log_info "No Windows mkcert certificates found"
         fi
 
-        # Check if mkcert CA is installed before attempting to remove it
-        log_info "Checking for mkcert CA certificates in system trust store..."
-        local ca_exists=false
+        # Windows certificate cleanup with clean architecture
+        log_info "Running Windows certificate cleanup..."
+        local conservative_cleanup="$SCRIPT_DIR/diagnostics/cleanup-mkcert-ca.ps1"
+        local aggressive_cleanup="$SCRIPT_DIR/teardown-windows.ps1"
 
-        # Check if CA is installed using mkcert -CAROOT (safer than -uninstall)
-        if /mnt/c/Windows/System32/cmd.exe /c "mkcert -CAROOT" >/dev/null 2>&1; then
-            ca_exists=true
-        elif /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command "mkcert -CAROOT" >/dev/null 2>&1; then
-            ca_exists=true
-        fi
+        # Use our Windows PowerShell detection utility
+        source "$SCRIPT_DIR/diagnostics/system-state.sh"
+        init_windows_interaction >/dev/null 2>&1
 
-        if [ "$ca_exists" = true ]; then
-            log_info "Removing mkcert CA certificates from system trust store..."
-            local ca_uninstalled=false
+        if [ "$WINDOWS_ACCESSIBLE" = true ]; then
+            if [ -f "$conservative_cleanup" ]; then
+                log_info "Using conservative certificate cleanup: $(basename "$WINDOWS_PS")"
+                local cleanup_output
+                cleanup_output=$($WINDOWS_PS -NoProfile -ExecutionPolicy Bypass -File "$conservative_cleanup" -Force 2>&1)
+                local cleanup_exit_code=$?
 
-            # Try direct mkcert command first (works if mkcert is in PATH)
-            if /mnt/c/Windows/System32/cmd.exe /c "mkcert -uninstall" 2>/dev/null; then
-                log_success "Removed mkcert CA certificates from trust store (direct)"
-                ca_uninstalled=true
-            # Try PowerShell (Scoop adds programs to PATH, so just call mkcert directly)
-            elif /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command "mkcert -uninstall" 2>/dev/null; then
-                log_success "Removed mkcert CA certificates from trust store (via PowerShell)"
-                ca_uninstalled=true
-            fi
+                echo "$cleanup_output"
 
-            if [ "$ca_uninstalled" = false ]; then
-                log_warning "Could not remove mkcert CA certificates - manual cleanup needed"
-                echo "  Try these commands:"
-                echo "    mkcert -uninstall"
-                echo "    OR in PowerShell: mkcert -uninstall"
+                # Check if conservative cleanup was insufficient (found issues but couldn't resolve)
+                if [[ "$cleanup_output" == *"Access is denied"* ]] || [[ "$cleanup_exit_code" -ne 0 ]]; then
+                    log_warning "Conservative cleanup encountered issues - aggressive cleanup may be needed"
+                    echo ""
+                    echo -e "${YELLOW}📋 Complete Windows Certificate Cleanup Recommended${NC}"
+                    echo ""
+                    echo "For complete certificate cleanup (removes ALL platform certificates):"
+                    echo ""
+                    echo "From Windows (Run as Administrator):"
+                    echo "  PowerShell -ExecutionPolicy Bypass -File \"$(cygpath -w "$aggressive_cleanup")\" -Force"
+                    echo ""
+                    echo "This will:"
+                    echo "• Remove ALL mkcert CAs for this machine (Windows + WSL2 users)"
+                    echo "• Clean up certificate directories"
+                    echo "• Handle LocalMachine store cleanup"
+                    echo ""
+                    echo "After Windows cleanup, re-run this teardown script to complete the process."
+                    echo ""
+                else
+                    log_success "Conservative certificate cleanup completed successfully"
+                fi
+            else
+                log_warning "Conservative cleanup script not found"
+                echo "  Manual cleanup option: Use aggressive teardown from Windows"
+                echo "  PowerShell -ExecutionPolicy Bypass -File \"$(cygpath -w "$aggressive_cleanup")\" -Force"
             fi
         else
-            log_info "No mkcert CA certificates found in system trust store"
+            log_warning "PowerShell not accessible - manual Windows cleanup required"
+            echo ""
+            echo -e "${YELLOW}📋 Manual Windows Certificate Cleanup Required${NC}"
+            echo ""
+            echo "From Windows Command Prompt or PowerShell:"
+            echo "  PowerShell -ExecutionPolicy Bypass -File \"$(cygpath -w "$conservative_cleanup")\" -Force"
+            echo ""
+            echo "For complete cleanup (if conservative fails):"
+            echo "  PowerShell -ExecutionPolicy Bypass -File \"$(cygpath -w "$aggressive_cleanup")\" -Force"
+            echo ""
+        fi
+
+        # Legacy cleanup attempt using mkcert -uninstall (as fallback)
+        log_info "Running mkcert -uninstall for additional cleanup..."
+        if command -v mkcert &>/dev/null; then
+            local uninstall_output
+            uninstall_output=$(mkcert -uninstall 2>&1 || true)
+            if [[ "$uninstall_output" == *"no certs found"* ]]; then
+                log_info "No additional mkcert CA certificates found"
+            else
+                log_info "Additional mkcert cleanup completed"
+            fi
+        else
+            log_info "mkcert command not available - skipping additional cleanup"
         fi
 
         # Check if mkcert program is actually installed before prompting
@@ -446,15 +678,15 @@ verify_teardown() {
     # Check for remaining containers (skip if Docker not available)
     local remaining_containers=0
     if command -v docker &> /dev/null && docker info &> /dev/null; then
-        remaining_containers=$(docker ps -aq 2>/dev/null | xargs -r docker inspect --format '{{.Name}} {{.Config.Labels}}' 2>/dev/null | grep -E "(traefik|registry)" | wc -l)
+        # Check containers with name containing traefik or registry
+        remaining_containers=$(docker ps -a --format "{{.Names}}" 2>/dev/null | grep -E "(traefik|registry)" | wc -l)
     else
         log_info "Skipping container verification - Docker not available"
     fi
     if [ "$remaining_containers" -gt 0 ]; then
         log_warning "Found $remaining_containers remaining platform containers:"
         docker ps -a --format "table {{.Names}}\t{{.Status}}" 2>/dev/null | grep -E "(traefik|registry)" || true
-        echo "  Remove by name: docker ps -aq --filter \"name=traefik\" --filter \"name=registry\" | xargs docker rm -f"
-        echo "  Remove by label: docker ps -aq --filter \"label=com.docker.compose.project=traefik-bundle\" | xargs docker rm -f"
+        echo "  Remove: docker ps -a --format '{{.Names}}' | grep -E '(traefik|registry)' | xargs docker rm -f"
         issues_found=$((issues_found + 1))
     fi
 
@@ -528,17 +760,23 @@ show_rebuild_instructions() {
     echo
     echo -e "${BLUE}🔄 To Rebuild Platform:${NC}"
     echo
-    echo "Full rebuild (Ansible method - recommended):"
-    echo "  cd $REPO_ROOT"
-    echo "  ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml"
+    echo "Hybrid WSL2/Windows Approach (recommended):"
+    echo "  1. From Windows PowerShell:"
+    echo "     powershell.exe ./scripts/setup-certificates-windows-auto.ps1"
+    echo "  2. Return to WSL2:"
+    echo "     ansible-playbook ansible/site.yml"
     echo
-    echo "Alternative rebuild (manual scripts):"
+    echo "Full rebuild (Ansible method - if certificates exist):"
+    echo "  cd $REPO_ROOT"
+    echo "  ansible-playbook ansible/site.yml"
+    echo
+    echo "Alternative rebuild (legacy scripts):"
     echo "  ./scripts/setup.sh"
     echo
     echo "Quick validation after rebuild:"
-    echo "  ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml"
+    echo "  ansible-playbook ansible/validate-all.yml"
     echo
-    echo -e "${YELLOW}💡 Tip: If you kept certificates, rebuild will be much faster!${NC}"
+    echo -e "${YELLOW}💡 Tip: The hybrid approach automatically installs mkcert and handles Windows certificate trust${NC}"
     echo
 }
 

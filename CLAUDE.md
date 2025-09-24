@@ -225,19 +225,33 @@ The framework separation provides:
 - Production-ready table mixins and triggers
 - Comprehensive deployment tooling
 
-## 🔄 Development Process Insights
+## 🔧 Core Development Principles
 
-### 1. Real-World Testing is Essential
+### 1. Test-Driven Problem Resolution (CRITICAL)
+**Every discovered issue MUST have a test added FIRST:**
+- Write test that fails (proves issue exists)
+- Fix the issue in the standard setup
+- Verify test passes (proves fix works)
+- Test remains in suite (prevents regression)
+
+**Never assert completion without:**
+- Running formal test suites (not ad-hoc commands)
+- Having test evidence to back assertions
+- Tests for ALL discovered issues
+
+**If it's not in the standard setup, it doesn't exist** - No manual hacks or workarounds allowed.
+
+### 2. Real-World Testing is Essential
 - Corporate environment constraints surface different issues
 - User feedback reveals assumptions in documentation
 - Cross-platform boundaries (Windows/WSL2) multiply complexity
 
-### 2. Repository Architecture Decisions Have Long-Term Impact
+### 3. Repository Architecture Decisions Have Long-Term Impact
 - Early platform/examples separation prevents future merge conflicts
 - Clean dependency patterns enable automated updates
 - Test infrastructure design affects development velocity
 
-### 3. Framework Compatibility is Critical
+### 4. Framework Compatibility is Critical
 - SQLModel patterns must be precisely correct
 - UV dependency management requires specific configuration
 - Import structure changes must be complete and consistent

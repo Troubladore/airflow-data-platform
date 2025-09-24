@@ -1,0 +1,327 @@
+---
+# ATOMIC COMPONENT 5: Docker Registry Deployment
+# Scope: Deploy Docker Registry with HTTPS using mkcert certificates
+# Dependencies: Components 1-4 (mkcert, certificates, Traefik)
+# Idempotent: Yes
+
+- name: "🏷️  Component 5 - Docker Registry Deployment"
+  debug:
+    msg: |
+      ATOMIC COMPONENT: Docker Registry Deployment
+      Scope: Deploy Docker Registry with HTTPS support
+      Method: Docker Compose with Traefik integration
+      Dependencies: Components 1-4 (Traefik must be running)
+
+- name: "🔍 Check Component 4 prerequisite (Traefik)"
+  shell: |
+    {% raw %}
+    if docker ps --filter "name=traefik" --format '{{.Names}}' | grep -q '^traefik$'; then
+      echo "TRAEFIK_RUNNING=true"
+      echo "Traefik is running and ready"
+    else
+      echo "TRAEFIK_RUNNING=false"
+      echo "Traefik is not running"
+    fi
+    {% endraw %}
+  args:
+    executable: /bin/bash
+  register: traefik_check
+  changed_when: false
+
+- name: "❌ PREREQUISITE FAILED: Traefik not running"
+  fail:
+    msg: |
+      COMPONENT 5 PREREQUISITE FAILED ❌
+
+      Component 5 requires Traefik to be running from Component 4.
+
+      Expected: Traefik container running
+      Actual: {{ traefik_check.stdout }}
+
+      Solution: Run Component 4 first
+      ansible-playbook -i inventory/local-dev.ini orchestrators/setup-simple.yml
+  when: "'TRAEFIK_RUNNING=false' in traefik_check.stdout"
+
+- name: "🔍 Check if registry certificate exists"
+  stat:
+    path: "{{ ansible_env.HOME }}/.local/share/certs/dev-registry.localhost.crt"
+  register: registry_cert_check
+
+- name: "🔐 Generate registry certificate if missing"
+  shell: |
+    cd {{ ansible_env.HOME }}/.local/share/certs
+
+    # Use mkcert to generate registry-specific certificate
+    mkcert -cert-file dev-registry.localhost.crt -key-file dev-registry.localhost.key registry.localhost
+
+    echo "CERT_GENERATED=true"
+    echo "Generated certificate for registry.localhost"
+  args:
+    executable: /bin/bash
+  when: not registry_cert_check.stat.exists
+  register: cert_generation
+
+- name: "📁 Create Registry platform services directory"
+  file:
+    path: "{{ ansible_env.HOME }}/platform-services/registry"
+    state: directory
+    mode: '0755'
+
+- name: "📝 Create Registry docker-compose.yml"
+  copy:
+    content: |
+      services:
+        registry:
+          image: registry:2
+          container_name: registry
+          restart: unless-stopped
+          environment:
+            # Registry configuration - HTTP only, Traefik handles TLS
+            REGISTRY_HTTP_ADDR: 0.0.0.0:5000
+            REGISTRY_STORAGE_DELETE_ENABLED: "true"
+
+            # CORS headers for web UI access - must specify exact origin for registry-ui
+            REGISTRY_HTTP_HEADERS_Access-Control-Allow-Origin: "['https://registry-ui.localhost']"
+            REGISTRY_HTTP_HEADERS_Access-Control-Allow-Methods: "['HEAD', 'GET', 'OPTIONS', 'DELETE', 'PUT']"
+            REGISTRY_HTTP_HEADERS_Access-Control-Allow-Headers: "['Authorization', 'Accept', 'Content-Type']"
+            REGISTRY_HTTP_HEADERS_Access-Control-Allow-Credentials: "['true']"
+            REGISTRY_HTTP_HEADERS_Access-Control-Max-Age: "[1728000]"
+            REGISTRY_HTTP_HEADERS_Access-Control-Expose-Headers: "['Docker-Content-Digest']"
+          ports:
+            - "5000:5000"  # Direct HTTP access
+          volumes:
+            - registry_data:/var/lib/registry
+            - {{ ansible_env.HOME }}/.local/share/certs:/certs:ro
+          networks:
+            - edge
+          labels:
+            # Traefik configuration
+            - "traefik.enable=true"
+            - "traefik.docker.network=edge"
+
+            # HTTPS router
+            - "traefik.http.routers.registry.rule=Host(`registry.localhost`)"
+            - "traefik.http.routers.registry.entrypoints=websecure"
+            - "traefik.http.routers.registry.tls=true"
+            - "traefik.http.services.registry.loadbalancer.server.port=5000"
+            # Backend is HTTP, Traefik handles TLS termination
+            - "traefik.http.services.registry.loadbalancer.server.scheme=http"
+
+        # Optional: Registry UI for browsing
+        registry-ui:
+          image: joxit/docker-registry-ui:latest
+          container_name: registry-ui
+          restart: unless-stopped
+          environment:
+            SINGLE_REGISTRY: "true"
+            REGISTRY_TITLE: "Local Docker Registry"
+            DELETE_IMAGES: "true"
+            SHOW_CONTENT_DIGEST: "true"
+            REGISTRY_URL: "https://registry.localhost"
+            CATALOG_ELEMENTS_LIMIT: "1000"
+          networks:
+            - edge
+          labels:
+            - "traefik.enable=true"
+            - "traefik.docker.network=edge"
+            - "traefik.http.routers.registry-ui.rule=Host(`registry-ui.localhost`)"
+            - "traefik.http.routers.registry-ui.entrypoints=websecure"
+            - "traefik.http.routers.registry-ui.tls=true"
+            - "traefik.http.services.registry-ui.loadbalancer.server.port=80"
+
+      volumes:
+        registry_data:
+          name: registry_data
+
+      networks:
+        edge:
+          external: true
+    dest: "{{ ansible_env.HOME }}/platform-services/registry/docker-compose.yml"
+    mode: '0644'
+
+- name: "🔍 Check if Registry is already running"
+  shell: |
+    {% raw %}
+    if docker ps --filter "name=^registry$" --format '{{.Names}}' | grep -q '^registry$'; then
+      echo "REGISTRY_RUNNING=true"
+      echo "Status: $(docker ps --filter 'name=^registry$' --format '{{.Status}}')"
+    else
+      echo "REGISTRY_RUNNING=false"
+    fi
+    {% endraw %}
+  args:
+    executable: /bin/bash
+  register: registry_status
+  changed_when: false
+
+- name: "🚀 Start Registry if not running"
+  shell: |
+    cd {{ ansible_env.HOME }}/platform-services/registry
+    docker compose up -d
+  args:
+    executable: /bin/bash
+  when: "'REGISTRY_RUNNING=false' in registry_status.stdout"
+  register: registry_start
+
+- name: "🔄 Reload Registry if already running (config might have changed)"
+  shell: |
+    cd {{ ansible_env.HOME }}/platform-services/registry
+    # Pull latest images and recreate if needed
+    docker compose pull
+    docker compose up -d
+  args:
+    executable: /bin/bash
+  when: "'REGISTRY_RUNNING=true' in registry_status.stdout"
+  register: registry_reload
+  changed_when: "'Recreating' in registry_reload.stdout or 'Created' in registry_reload.stdout"
+
+- name: "⏳ Wait for Registry to be healthy"
+  shell: |
+    MAX_ATTEMPTS=30
+    ATTEMPT=0
+
+    echo "Waiting for Registry to be ready..."
+    while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+      # Check if container is running
+      {% raw %}
+      if docker ps --filter "name=^registry$" --format '{{.Status}}' | grep -q 'Up'; then
+      {% endraw %}
+        # Check if Registry API is responding via Traefik
+        if curl -sk https://registry.localhost/v2/_catalog >/dev/null 2>&1; then
+          echo "REGISTRY_READY=true"
+          echo "Registry is up and responding via Traefik"
+          exit 0
+        fi
+        # Also check direct port
+        if curl -sk https://localhost:5000/v2/_catalog >/dev/null 2>&1; then
+          echo "REGISTRY_READY=true"
+          echo "Registry is up and responding on port 5000"
+          exit 0
+        fi
+      fi
+
+      ATTEMPT=$((ATTEMPT + 1))
+      echo "Attempt $ATTEMPT/$MAX_ATTEMPTS - Registry not ready yet..."
+      sleep 2
+    done
+
+    echo "REGISTRY_READY=false"
+    echo "Registry failed to start properly after $MAX_ATTEMPTS attempts"
+    exit 1
+  args:
+    executable: /bin/bash
+  register: registry_health
+  changed_when: false
+
+- name: "🧪 Test Registry API endpoints"
+  shell: |
+    echo "Testing Registry API endpoints..."
+
+    # Test via Traefik (registry.localhost)
+    TRAEFIK_CODE=$(curl -sk -o /dev/null -w "%{http_code}" https://registry.localhost/v2/ || echo "000")
+    if [ "$TRAEFIK_CODE" = "200" ] || [ "$TRAEFIK_CODE" = "401" ]; then
+      echo "TRAEFIK_TEST=success"
+      echo "Registry accessible via Traefik at registry.localhost"
+    else
+      echo "TRAEFIK_TEST=failed"
+      echo "Registry not accessible via Traefik (HTTP $TRAEFIK_CODE)"
+    fi
+
+    # Test direct port access
+    DIRECT_CODE=$(curl -sk -o /dev/null -w "%{http_code}" https://localhost:5000/v2/ || echo "000")
+    if [ "$DIRECT_CODE" = "200" ] || [ "$DIRECT_CODE" = "401" ]; then
+      echo "DIRECT_TEST=success"
+      echo "Registry accessible directly at localhost:5000"
+    else
+      echo "DIRECT_TEST=failed"
+      echo "Registry not accessible on port 5000 (HTTP $DIRECT_CODE)"
+    fi
+
+    # Test catalog endpoint
+    CATALOG=$(curl -sk https://registry.localhost/v2/_catalog 2>/dev/null)
+    if echo "$CATALOG" | grep -q "repositories"; then
+      echo "CATALOG_TEST=success"
+      echo "Registry catalog endpoint working"
+    else
+      echo "CATALOG_TEST=failed"
+    fi
+  args:
+    executable: /bin/bash
+  register: registry_test
+  changed_when: false
+  failed_when: false
+
+- name: "📝 Configure Docker daemon for local registry"
+  debug:
+    msg: |
+      Docker Client Configuration Needed:
+
+      To use the registry with Docker, add to Docker daemon config:
+
+      Linux/WSL2 (/etc/docker/daemon.json):
+      {
+        "insecure-registries": ["registry.localhost:443"]
+      }
+
+      Or for Docker Desktop, add in Settings → Docker Engine
+
+      Then restart Docker daemon/Desktop
+
+- name: "✅ Registry deployment successful"
+  debug:
+    msg: |
+      COMPONENT 5 COMPLETE ✅
+
+      Docker Registry Deployment: SUCCESS
+      Location: {{ ansible_env.HOME }}/platform-services/registry
+      Status: Running with HTTPS support
+
+      Test Results:
+      {{ registry_test.stdout | indent(2) }}
+
+      Access Points:
+      • Registry API: https://registry.localhost/v2/
+      • Registry UI: https://registry-ui.localhost
+      • Direct HTTPS: https://localhost:5000/v2/
+
+      Example Usage:
+      • Tag image: docker tag myapp:latest registry.localhost/myapp:latest
+      • Push image: docker push registry.localhost/myapp:latest
+      • Pull image: docker pull registry.localhost/myapp:latest
+
+      What this enables:
+      • Private Docker image storage
+      • HTTPS secured with mkcert certificates
+      • Integration with CI/CD pipelines
+      • Local development image caching
+  when: "'REGISTRY_READY=true' in registry_health.stdout"
+
+- name: "❌ Registry deployment failed"
+  fail:
+    msg: |
+      COMPONENT 5 FAILED ❌
+
+      Registry failed to start properly.
+
+      {{ registry_health.stdout }}
+
+      Troubleshooting:
+      1. Check Docker logs: docker logs registry
+      2. Verify certificates are accessible
+      3. Check if port 5000 is already in use
+      4. Ensure Traefik is running (Component 4)
+  when: "'REGISTRY_READY=false' in registry_health.stdout"
+
+- name: "📊 Component 5 Summary"
+  debug:
+    msg: |
+      COMPONENT 5 STATUS: {{ 'COMPLETE ✅' if 'REGISTRY_READY=true' in registry_health.stdout else 'FAILED ❌' }}
+
+      Docker Registry: {{ 'Deployed and running' if 'REGISTRY_READY=true' in registry_health.stdout else 'Deployment failed' }}
+      Registry UI: {{ 'Available at registry-ui.localhost' if 'REGISTRY_READY=true' in registry_health.stdout else 'Not deployed' }}
+
+      Component Scope: Docker Registry with HTTPS
+      Dependencies: Traefik platform (Component 4)
+
+      Certificate Status: Using mkcert certificates
+      Network: Connected to edge network for Traefik integration

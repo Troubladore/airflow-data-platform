@@ -1,0 +1,172 @@
+---
+# UNIT TESTS: Atomic Validators (Individual Testing)
+# Tests each atomic validator in isolation
+
+- name: "Unit Tests: Atomic Validators"
+  hosts: localhost
+  gather_facts: yes
+
+  vars:
+    test_results: []
+    original_binary_path: "/usr/local/bin/mkcert"
+
+  tasks:
+    - name: "🧪 Atomic Validator Unit Tests"
+      debug:
+        msg: |
+          ATOMIC VALIDATOR UNIT TESTS
+          ==========================
+
+          Testing individual validator components:
+          1. mkcert-binary-exists.yml
+          2. mkcert-binary-executable.yml
+          3. mkcert-binary-functional.yml
+
+          Each validator is tested independently for modularity.
+
+    # Setup: Backup original binary
+    - name: "Setup: Backup original binary if exists"
+      stat:
+        path: "{{ original_binary_path }}"
+      register: original_binary_stat
+
+    - name: "Setup: Create backup"
+      copy:
+        src: "{{ original_binary_path }}"
+        dest: "{{ original_binary_path }}.atomic-test-backup"
+        remote_src: yes
+      become: yes
+      when: original_binary_stat.stat.exists
+
+    # TEST: Binary exists validator
+    - name: "🧪 TEST: mkcert-binary-exists validator"
+      block:
+        # Test when binary missing
+        - name: "Setup: Remove binary"
+          file:
+            path: "{{ original_binary_path }}"
+            state: absent
+          become: yes
+
+        - name: "Test: Binary exists validator (binary missing)"
+          include_tasks: "../../../ansible/components/validators/mkcert-binary-exists.yml"
+
+        - name: "Assert: Should detect binary missing"
+          assert:
+            that:
+              - not (mkcert_binary_exists | default(true))
+            fail_msg: "FAILED: Binary exists validator should return false when binary missing"
+            success_msg: "✅ PASSED: Binary exists validator correctly detected missing binary"
+
+        # Test when binary present
+        - name: "Setup: Create test binary"
+          copy:
+            content: "test binary"
+            dest: "{{ original_binary_path }}"
+            mode: '0644'
+          become: yes
+
+        - name: "Test: Binary exists validator (binary present)"
+          include_tasks: "../../../ansible/components/validators/mkcert-binary-exists.yml"
+
+        - name: "Assert: Should detect binary present"
+          assert:
+            that:
+              - mkcert_binary_exists | default(false)
+            fail_msg: "FAILED: Binary exists validator should return true when binary present"
+            success_msg: "✅ PASSED: Binary exists validator correctly detected present binary"
+
+        - name: "Record test result"
+          set_fact:
+            test_results: "{{ test_results + ['Binary exists validator: PASSED'] }}"
+
+      rescue:
+        - name: "Record test failure"
+          set_fact:
+            test_results: "{{ test_results + ['Binary exists validator: FAILED'] }}"
+
+    # TEST: Binary executable validator
+    - name: "🧪 TEST: mkcert-binary-executable validator"
+      block:
+        # Test non-executable binary
+        - name: "Setup: Create non-executable binary"
+          copy:
+            content: "#!/bin/bash\necho test"
+            dest: "{{ original_binary_path }}"
+            mode: '0644'  # Not executable
+          become: yes
+
+        - name: "Test: Binary executable validator (not executable)"
+          include_tasks: "../../../ansible/components/validators/mkcert-binary-exists.yml"
+
+        - name: "Test: Binary executable validator (not executable) - part 2"
+          include_tasks: "../../../ansible/components/validators/mkcert-binary-executable.yml"
+
+        - name: "Assert: Should detect not executable"
+          assert:
+            that:
+              - not (mkcert_binary_executable | default(true))
+            fail_msg: "FAILED: Binary executable validator should return false for non-executable binary"
+            success_msg: "✅ PASSED: Binary executable validator correctly detected non-executable binary"
+
+        # Test executable binary
+        - name: "Setup: Make binary executable"
+          file:
+            path: "{{ original_binary_path }}"
+            mode: '0755'
+          become: yes
+
+        - name: "Test: Binary executable validator (executable)"
+          include_tasks: "../../../ansible/components/validators/mkcert-binary-exists.yml"
+
+        - name: "Test: Binary executable validator (executable) - part 2"
+          include_tasks: "../../../ansible/components/validators/mkcert-binary-executable.yml"
+
+        - name: "Assert: Should detect executable"
+          assert:
+            that:
+              - mkcert_binary_executable | default(false)
+            fail_msg: "FAILED: Binary executable validator should return true for executable binary"
+            success_msg: "✅ PASSED: Binary executable validator correctly detected executable binary"
+
+        - name: "Record test result"
+          set_fact:
+            test_results: "{{ test_results + ['Binary executable validator: PASSED'] }}"
+
+      rescue:
+        - name: "Record test failure"
+          set_fact:
+            test_results: "{{ test_results + ['Binary executable validator: FAILED'] }}"
+
+    # Cleanup and restore
+    - name: "Cleanup: Restore original binary"
+      copy:
+        src: "{{ original_binary_path }}.atomic-test-backup"
+        dest: "{{ original_binary_path }}"
+        mode: '0755'
+        remote_src: yes
+      become: yes
+      when: original_binary_stat.stat.exists
+
+    - name: "Cleanup: Remove backup"
+      file:
+        path: "{{ original_binary_path }}.atomic-test-backup"
+        state: absent
+      become: yes
+
+    - name: "🧪 Atomic Validator Test Results"
+      debug:
+        msg: |
+          ATOMIC VALIDATOR TEST RESULTS
+          ============================
+
+          {% for result in test_results %}
+          {{ result }}
+          {% endfor %}
+
+          Overall: {{ 'ALL TESTS PASSED' if test_results | select('search', 'FAILED') | list | length == 0 else 'SOME TESTS FAILED' }}
+
+    - name: "Fail if any tests failed"
+      fail:
+        msg: "Atomic validator tests failed"
+      when: test_results | select('search', 'FAILED') | list | length > 0

@@ -7,6 +7,43 @@
     - group_vars/all.yml
 
   tasks:
+    - name: "🔍 Detect Windows username"
+      block:
+        - name: Get Windows username from WINDOWS_USERNAME env
+          set_fact:
+            windows_username: "{{ lookup('env', 'WINDOWS_USERNAME') }}"
+          when: lookup('env', 'WINDOWS_USERNAME') != ''
+
+        - name: Get Windows username from WSL interop
+          shell: |
+            wslpath "$(cmd.exe /c 'echo %USERNAME%' 2>/dev/null | tr -d '\r')" 2>/dev/null | xargs -I {} basename {} || echo ""
+          register: windows_user_cmd
+          changed_when: false
+          when: windows_username is not defined
+
+        - name: Set Windows username from detection
+          set_fact:
+            windows_username: "{{ windows_user_cmd.stdout | trim }}"
+          when:
+            - windows_username is not defined
+            - windows_user_cmd.stdout | trim != ""
+
+        - name: Prompt for Windows username if not detected
+          pause:
+            prompt: |
+
+              👤 Windows Username Required
+
+              Unable to auto-detect Windows username.
+              Please enter your Windows username (e.g., john.doe)
+          register: username_prompt
+          when: windows_username is not defined
+
+        - name: Set Windows username from prompt
+          set_fact:
+            windows_username: "{{ username_prompt.user_input }}"
+          when: username_prompt.user_input is defined
+
     - name: "🧹 Platform Teardown Overview"
       debug:
         msg: |
@@ -97,6 +134,12 @@
             path: "{{ cert_dir }}"
           register: wsl2_cert_check
 
+        - name: Show certificate status
+          debug:
+            msg: |
+              🔐 Certificate Status:
+              WSL2 certificates: {{ '✅ Found at ' + cert_dir if wsl2_cert_check.stat.exists else '❌ Not found (already removed or never created)' }}
+
         - name: Certificate cleanup choice
           pause:
             prompt: |
@@ -107,42 +150,81 @@
               Choose cleanup level:
               1) Keep certificates (recommended for quick rebuild)
               2) Remove WSL2 certificates only
-              3) Manual cleanup guidance for complete removal
+              3) Remove everything (will attempt automatic removal, prompt for manual steps if needed)
 
               Enter choice (1-3)
           register: cleanup_choice
           when: wsl2_cert_check.stat.exists
 
-        - name: Remove WSL2 certificates (option 2)
+        - name: Remove WSL2 certificates (option 2 or 3)
           file:
             path: "{{ cert_dir }}"
             state: absent
           when:
             - wsl2_cert_check.stat.exists
-            - cleanup_choice.user_input | default('1') == '2'
+            - cleanup_choice.user_input | default('1') in ['2', '3']
+          register: wsl_cert_removal
 
-        - name: Manual cleanup guidance (option 3)
-          debug:
-            msg: |
-              🔐 Manual Certificate Cleanup Guide:
+        - name: Attempt complete cleanup (option 3)
+          block:
+            - name: Try to uninstall mkcert CA from WSL2
+              command: mkcert -uninstall
+              failed_when: false
+              register: mkcert_uninstall
 
-              WSL2 Certificates:
-              rm -rf {{ cert_dir }}
+            - name: Try to remove Windows certificates via WSL2
+              file:
+                path: "/mnt/c/Users/{{ windows_username | default(ansible_env.USER) }}/AppData/Local/mkcert"
+                state: absent
+              failed_when: false
+              register: windows_cert_removal
 
-              Windows Certificates (run as admin):
-              Remove-Item "$env:LOCALAPPDATA\mkcert" -Recurse -Force
+            - name: Try to remove host entries
+              lineinfile:
+                path: /etc/hosts
+                regexp: "{{ item }}"
+                state: absent
+              become: yes
+              loop:
+                - ".*traefik\\.localhost.*"
+                - ".*registry\\.localhost.*"
+                - ".*airflow\\.localhost.*"
+              failed_when: false
+              register: hosts_removal
 
-              Windows Certificate Authority (run as admin):
-              mkcert -uninstall
+            - name: Show what needs manual cleanup
+              debug:
+                msg: |
+                  🔐 Cleanup Results:
 
-              Windows Hosts File (run as admin):
-              1. Edit C:\Windows\System32\drivers\etc\hosts
-              2. Remove lines containing:
-                 - 127.0.0.1 registry.localhost
-                 - 127.0.0.1 traefik.localhost
+                  ✅ Automatic cleanup completed:
+                  - WSL2 certificates: {{ '✅ Removed' if wsl_cert_removal is succeeded else '❌ Failed' }}
+                  - mkcert CA uninstall: {{ '✅ Done' if mkcert_uninstall.rc == 0 else '⚠️ Manual action needed' }}
+                  - Windows certificates: {{ '✅ Removed' if windows_cert_removal is succeeded else '⚠️ Manual action needed' }}
+                  - Host entries: {{ '✅ Removed' if hosts_removal is succeeded else '⚠️ Manual action needed' }}
 
-              Corporate Environments:
-              Use your organization's host management tool to remove entries.
+                  {% if mkcert_uninstall.rc != 0 or windows_cert_removal is failed or hosts_removal is failed %}
+                  ⚠️ Manual steps required for complete cleanup:
+                  {% if windows_cert_removal is failed %}
+
+                  Windows Certificates (PowerShell as admin):
+                  Remove-Item "$env:LOCALAPPDATA\mkcert" -Recurse -Force
+                  {% endif %}
+                  {% if mkcert_uninstall.rc != 0 %}
+
+                  Certificate Authority (PowerShell as admin):
+                  mkcert -uninstall
+                  {% endif %}
+                  {% if hosts_removal is failed %}
+
+                  Windows Hosts File (run as admin):
+                  1. Edit C:\Windows\System32\drivers\etc\hosts
+                  2. Remove lines containing localhost entries
+                  {% endif %}
+                  {% else %}
+
+                  🎉 All components successfully removed automatically!
+                  {% endif %}
           when:
             - cleanup_choice is defined
             - cleanup_choice.user_input | default('1') == '3'

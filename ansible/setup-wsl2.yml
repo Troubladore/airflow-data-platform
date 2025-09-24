@@ -86,7 +86,7 @@
           apt:
             update_cache: yes
             cache_valid_time: 3600
-          become: yes
+          become: yes  # Admin required: Updating system package cache needs root privileges
           async: 300  # 5 minute timeout
           poll: 5     # Check every 5 seconds
           register: apt_update_result
@@ -129,6 +129,7 @@
           - libffi-dev
           - gnupg
           - lsb-release
+          - libnss3-tools  # Required for mkcert browser certificate trust
           - pipx  # For isolated Python tool installations
           - python3-pip
         state: present
@@ -149,22 +150,168 @@
       failed_when: false
       changed_when: false
 
-    - name: "⚠️  Docker setup guidance"
-      debug:
-        msg: |
-          ⚠️  Docker Configuration Required
+    - name: "⚠️  Docker Desktop not running - user action required"
+      pause:
+        prompt: |
 
-          Docker Desktop WSL2 Integration:
-          1. Open Docker Desktop on Windows
-          2. Go to Settings → Resources → WSL Integration
-          3. Enable integration for this WSL2 distribution
-          4. Apply & Restart Docker Desktop
-          5. Restart this WSL2 terminal
+          ⚠️  Docker Desktop Not Running!
+
+          The platform setup requires Docker Desktop to be running on Windows.
+
+          Please:
+          1. Start Docker Desktop on Windows (look for Docker icon in system tray)
+          2. Wait for Docker Desktop to fully start (icon stops animating)
+          3. Press Enter here to continue setup
+
+          Or press Ctrl+C to exit setup and start Docker Desktop first.
 
           Current Status:
-          - Docker CLI: {{ '✅' if docker_version_check.rc == 0 else '❌' }}
-          - Docker Daemon: {{ '✅' if docker_daemon_check.rc == 0 else '❌ (Enable WSL2 integration)' }}
+          - Docker CLI Available: {{ '✅' if docker_version_check.rc == 0 else '❌' }}
+          - Docker Daemon Running: {{ '✅' if docker_daemon_check.rc == 0 else '❌' }}
       when: docker_version_check.rc != 0 or docker_daemon_check.rc != 0
+
+    - name: "🔄 Re-check Docker after user action"
+      command: docker info
+      register: docker_recheck
+      failed_when: false
+      changed_when: false
+      when: docker_version_check.rc != 0 or docker_daemon_check.rc != 0
+
+    - name: "⚠️  Docker WSL2 Integration still needed"
+      debug:
+        msg: |
+          ⚠️  Docker WSL2 Integration Required
+
+          Docker Desktop is running but WSL2 integration still isn't working:
+          1. Open Docker Desktop on Windows
+          2. Go to Settings → Resources → WSL Integration
+          3. Enable integration for this WSL2 distribution ({{ ansible_distribution }})
+          4. Apply & Restart Docker Desktop
+          5. Restart this WSL2 terminal and re-run setup
+
+          This is a one-time configuration step.
+      when:
+        - docker_version_check.rc != 0 or docker_daemon_check.rc != 0
+        - docker_recheck is defined and docker_recheck.rc != 0
+
+    - name: "✅ Docker setup working after user action"
+      debug:
+        msg: "✅ Docker Desktop started successfully and WSL2 integration is working!"
+      when:
+        - docker_version_check.rc != 0 or docker_daemon_check.rc != 0
+        - docker_recheck is defined and docker_recheck.rc == 0
+
+    - name: "✅ Docker was already working"
+      debug:
+        msg: "✅ Docker Desktop is running and WSL2 integration was already working!"
+      when: docker_version_check.rc == 0 and docker_daemon_check.rc == 0
+
+    - name: "🔍 Check Docker proxy configuration"
+      shell: docker info --format '{{"{{"}}.HTTPProxy{{"}}"}}'
+      register: docker_proxy
+      failed_when: false
+      changed_when: false
+      when: docker_daemon_check.rc == 0
+
+    - name: "🔍 Check Docker no-proxy list"
+      shell: docker info --format '{{"{{"}}.NoProxy{{"}}"}}'
+      register: docker_noproxy
+      failed_when: false
+      changed_when: false
+      when: docker_daemon_check.rc == 0
+
+    - name: "🔧 Docker proxy bypass configuration"
+      when:
+        - docker_daemon_check.rc == 0
+        - docker_proxy.stdout != ""
+        - "'*.localhost' not in (docker_noproxy.stdout | default(''))"
+      block:
+        - name: Attempt to fix Docker Desktop proxy settings from WSL2
+          shell: |
+            DOCKER_SETTINGS="/mnt/c/Users/{{ windows_username }}/AppData/Roaming/Docker/settings.json"
+            if [ -f "$DOCKER_SETTINGS" ]; then
+              # Backup current settings
+              cp "$DOCKER_SETTINGS" "${DOCKER_SETTINGS}.backup"
+
+              # Update the proxy bypass list using Python
+              python3 -c "
+            import json
+            import sys
+
+            settings_path = '$DOCKER_SETTINGS'
+            try:
+                with open(settings_path, 'r') as f:
+                    settings = json.load(f)
+
+                # Check if proxy is configured
+                if settings.get('proxyHttpMode') == 'system' or settings.get('overrideProxyHttp'):
+                    current_bypass = settings.get('overrideProxyExclude', '')
+                    required_domains = 'localhost,*.localhost,127.0.0.1,registry.localhost,traefik.localhost,airflow.localhost'
+
+                    if '*.localhost' not in current_bypass:
+                        # Update bypass list
+                        if current_bypass:
+                            settings['overrideProxyExclude'] = f'{current_bypass},{required_domains}'
+                        else:
+                            settings['overrideProxyExclude'] = required_domains
+
+                        # Write updated settings
+                        with open(settings_path, 'w') as f:
+                            json.dump(settings, f, indent=2)
+
+                        print('SUCCESS: Updated Docker Desktop proxy bypass settings')
+                        sys.exit(0)
+                    else:
+                        print('INFO: Docker proxy bypass already configured')
+                        sys.exit(0)
+                else:
+                    print('INFO: Docker not using proxy')
+                    sys.exit(0)
+            except Exception as e:
+                print(f'ERROR: Could not update Docker settings: {e}')
+                sys.exit(1)
+            "
+              exit $?
+            else
+              echo "Docker settings file not found"
+              exit 1
+            fi
+          register: docker_proxy_fix
+          failed_when: false
+          changed_when: docker_proxy_fix.rc == 0 and 'SUCCESS' in docker_proxy_fix.stdout
+
+        - name: Docker Desktop restart required
+          pause:
+            prompt: |
+
+              ✅ Docker Desktop proxy bypass configuration has been updated!
+
+              Docker Desktop needs to be restarted for the changes to take effect:
+              1. Right-click Docker Desktop icon in system tray
+              2. Select "Restart"
+              3. Wait for Docker to fully restart
+
+              After Docker Desktop has restarted, press Enter to continue...
+          when: docker_proxy_fix.rc == 0 and 'SUCCESS' in docker_proxy_fix.stdout
+
+        - name: Docker proxy configuration failed - Windows script needed
+          pause:
+            prompt: |
+
+              ⚠️  Docker Desktop Proxy Configuration Required!
+
+              Could not automatically update Docker Desktop settings from WSL2.
+              The Windows prerequisites script will handle this.
+
+              Please run the Windows script AS ADMINISTRATOR (if not already done):
+              - From PowerShell (Run as Administrator): cd \\wsl$\Ubuntu\home\{{ ansible_env.USER }}\repos\airflow-data-platform && .\scripts\win-prereqs.ps1
+              - OR from WSL2: powershell.exe -Command "Start-Process powershell -Verb RunAs -ArgumentList '-File scripts/win-prereqs.ps1'"
+
+              Current proxy: {{ docker_proxy.stdout | default('none') }}
+              Current bypass list: {{ docker_noproxy.stdout | default('none') }}
+
+              After running the Windows script and restarting Docker Desktop, press Enter to continue...
+          when: docker_proxy_fix.rc != 0 or 'ERROR' in docker_proxy_fix.stdout
 
     # ================================
     # Certificate Management
@@ -175,13 +322,84 @@
         state: directory
         mode: '0755'
 
-    - name: "🔐 Check for Windows certificates"
+    - name: "🔐 Install mkcert in WSL2"
+      block:
+        - name: Check if mkcert is already installed
+          command: which mkcert
+          register: mkcert_installed
+          failed_when: false
+          changed_when: false
+
+        - name: Download and install mkcert
+          block:
+            - name: Download mkcert binary
+              get_url:
+                url: "https://dl.filippo.io/mkcert/latest?for=linux/amd64"
+                dest: "/tmp/mkcert-linux-amd64"
+                mode: '0755'
+
+            - name: Install mkcert binary
+              copy:
+                src: "/tmp/mkcert-linux-amd64"
+                dest: "/usr/local/bin/mkcert"
+                mode: '0755'
+                owner: root
+                group: root
+                remote_src: yes
+              become: yes  # Admin required: Installing mkcert binary to /usr/local/bin needs root privileges
+
+            - name: Clean up temporary file
+              file:
+                path: "/tmp/mkcert-linux-amd64"
+                state: absent
+          when: mkcert_installed.rc != 0
+
+
+    - name: "🔐 Check for existing certificates"
       stat:
-        path: "/mnt/c/Users/{{ windows_username }}/AppData/Local/mkcert/dev-localhost-wild.crt"
-      register: windows_cert_check
+        path: "{{ item }}"
+      register: cert_checks
+      loop:
+        - "/mnt/c/Users/{{ windows_username }}/AppData/Local/mkcert/dev-localhost-wild.crt"
+        - "{{ cert_dir }}/dev-localhost-wild.crt"
+      failed_when: false
+
+    - name: "🔐 Generate certificates on Windows"
+      block:
+        - name: Prompt to generate certificates
+          pause:
+            prompt: |
+
+              🔐 Certificates need to be generated on Windows!
+
+              Run this in Windows PowerShell (regular user, NO admin needed):
+              ================================================================
+
+              # Quick one-liner to run from GitHub:
+              irm https://raw.githubusercontent.com/Troubladore/airflow-data-platform/main/scripts/setup-certificates-windows.ps1 | iex
+
+              OR manually:
+              ============
+              mkcert -install
+              cd $env:LOCALAPPDATA\mkcert
+
+              mkcert -cert-file dev-localhost-wild.crt -key-file dev-localhost-wild.key `
+                "*.localhost" localhost "traefik.localhost" "registry.localhost" `
+                "airflow.localhost" "*.airflow.localhost" 127.0.0.1 ::1
+
+              mkcert -cert-file dev-registry.localhost.crt -key-file dev-registry.localhost.key `
+                "registry.localhost" 127.0.0.1 ::1
+
+              Press Enter after generating certificates...
+      when: cert_checks.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | list | length == 0
 
     - name: "🔐 Copy certificates from Windows"
       block:
+        - name: Check if certificates already exist in WSL2
+          stat:
+            path: "{{ cert_dir }}/dev-localhost-wild.crt"
+          register: wsl_cert_check
+
         - name: Copy certificate files
           copy:
             src: "/mnt/c/Users/{{ windows_username }}/AppData/Local/mkcert/{{ item.src }}"
@@ -192,6 +410,7 @@
             - { src: "dev-localhost-wild.key", dest: "dev-localhost-wild.key", mode: "0600" }
             - { src: "dev-registry.localhost.crt", dest: "dev-registry.localhost.crt", mode: "0644" }
             - { src: "dev-registry.localhost.key", dest: "dev-registry.localhost.key", mode: "0600" }
+          when: not wsl_cert_check.stat.exists
 
         - name: Verify certificates copied
           stat:
@@ -211,21 +430,44 @@
               - {{ result.item }}: {{ '✅' if result.stat.exists else '❌' }}
               {% endfor %}
 
-      when: windows_cert_check.stat.exists
+        - name: Install mkcert CA in WSL2 trust store
+          block:
+            - name: Set CAROOT environment variable to Windows mkcert location
+              set_fact:
+                windows_caroot: "/mnt/c/Users/{{ windows_username }}/AppData/Local/mkcert"
 
-    - name: "⚠️  Certificate setup guidance"
-      debug:
-        msg: |
-          ⚠️  Certificates Not Found
+            - name: Install CA from Windows mkcert
+              shell: |
+                export CAROOT="{{ windows_caroot }}"
+                mkcert -install
+              environment:
+                CAROOT: "{{ windows_caroot }}"
+              register: ca_install_result
+              changed_when: "'installed the local CA' in ca_install_result.stderr or 'updated the local CA' in ca_install_result.stderr"
 
-          Please complete Windows certificate setup first:
-          1. Install mkcert on Windows
-          2. Run: mkcert -install
-          3. Generate certificates
-          4. Re-run this playbook
+            - name: Update system certificate trust store
+              command: update-ca-certificates
+              become: yes  # Admin required: Updating system CA certificates needs root privileges
+              register: ca_update_result
+              changed_when: "'added' in ca_update_result.stdout"
 
-          Expected location: /mnt/c/Users/{{ windows_username }}/AppData/Local/mkcert/
-      when: not windows_cert_check.stat.exists
+            - name: Verify CA installation
+              command: mkcert -CAROOT
+              register: caroot_verify
+              changed_when: false
+
+            - name: Display CA installation status
+              debug:
+                msg: |
+                  🔐 CA Trust Status:
+                  - Windows CAROOT: {{ windows_caroot }}
+                  - WSL2 CAROOT: {{ caroot_verify.stdout }}
+                  - CA Installation: {{ '✅' if ca_install_result.rc == 0 else '❌' }}
+
+          when: mkcert_installed.rc == 0 or mkcert_installed.rc != 0
+
+      when: cert_checks.results[0].stat.exists  # Only run if Windows certificates exist
+
 
     # ================================
     # Traefik Configuration
@@ -257,12 +499,18 @@
     - name: "⚙️  Generate Traefik docker-compose configuration"
       copy:
         content: |
+          networks:
+            edge:
+              name: edge
+              driver: bridge
+
           services:
             traefik:
               image: traefik:{{ traefik_version }}
               command:
                 - --providers.docker=true
                 - --providers.docker.exposedbydefault=false
+                - --providers.docker.network=edge
                 - --providers.file.directory=/dynamic
                 - --providers.file.watch=true
                 - --entrypoints.web.address=:80
@@ -277,6 +525,8 @@
                 - {{ cert_dir }}:/certs:ro
                 # Mount the dynamic tls config
                 - ./dynamic:/dynamic:ro
+              networks:
+                - edge
               labels:
                 - "traefik.enable=true"
                 - "traefik.http.routers.dashboard.rule=Host(`traefik.localhost`)"
@@ -293,6 +543,8 @@
                 REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
               volumes:
                 - registry-data:/var/lib/registry
+              networks:
+                - edge
               labels:
                 - "traefik.enable=true"
                 - "traefik.http.routers.registry.rule=Host(`registry.localhost`)"
@@ -342,7 +594,7 @@
 
       when:
         - docker_daemon_check.rc == 0
-        - windows_cert_check.stat.exists
+        - cert_checks.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | list | length > 0
 
     # ================================
     # Astro CLI Installation
@@ -397,6 +649,47 @@
       when: astro_check.rc != 0
 
     # ================================
+    # Platform Image Building
+    # ================================
+    - name: "🐳 Build and push platform Airflow images"
+      block:
+        - name: Check if platform Airflow image exists in registry
+          uri:
+            url: "https://registry.localhost/v2/platform/airflow-base/tags/list"
+            validate_certs: no
+            status_code: [200, 404]
+          register: image_check
+          failed_when: false
+
+        - name: Build platform Airflow base image (if needed)
+          shell: |
+            cd {{ playbook_dir }}/../layer1-platform
+            docker build -f docker/airflow-base.Dockerfile \
+              -t registry.localhost/platform/airflow-base:3.0-10 \
+              -t registry.localhost/platform/airflow-base:latest .
+          when: image_check.status == 404 or image_check.json.tags is not defined or '3.0-10' not in (image_check.json.tags | default([]))
+
+        - name: Push platform image with all tags to registry
+          shell: |
+            docker push registry.localhost/platform/airflow-base:3.0-10
+            docker push registry.localhost/platform/airflow-base:latest
+          when: image_check.status == 404 or image_check.json.tags is not defined or '3.0-10' not in (image_check.json.tags | default([])) or 'latest' not in (image_check.json.tags | default([]))
+
+        - name: Verify platform images in registry
+          uri:
+            url: "https://registry.localhost/v2/platform/airflow-base/tags/list"
+            validate_certs: no
+          register: final_image_check
+
+        - debug:
+            msg: "✅ Platform Airflow images available: {{ final_image_check.json.tags | join(', ') }}"
+          when: final_image_check.json.tags is defined
+
+      when:
+        - docker_daemon_check.rc == 0
+        - services_start is succeeded
+
+    # ================================
     # WSL2 Setup Summary
     # ================================
     - name: "📊 WSL2 setup summary"
@@ -411,15 +704,16 @@
           - Astro CLI: {{ '✅' if astro_check.rc == 0 or astro_verify is succeeded else '❌' }}
 
           Platform Services:
-          - Certificates: {{ '✅' if windows_cert_check.stat.exists else '❌' }}
+          - Certificates: {{ '✅' if cert_checks.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | list | length > 0 else '❌' }}
           - Traefik config: ✅ Generated
           - Services: {{ '✅ Running' if services_start is succeeded else '❌ Check Docker' }}
+          - Platform Images: {{ '✅ Built' if final_image_check is defined and final_image_check.json.tags is defined else '⚠️ Pending' }}
 
           Next Steps:
           {% if docker_daemon_check.rc != 0 %}
           1. Enable Docker Desktop WSL2 integration
           2. Re-run this playbook
-          {% elif not windows_cert_check.stat.exists %}
+          {% elif cert_checks.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | list | length == 0 %}
           1. Complete Windows certificate setup
           2. Re-run this playbook
           {% else %}

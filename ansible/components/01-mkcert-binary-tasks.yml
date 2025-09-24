@@ -1,0 +1,189 @@
+---
+# ATOMIC COMPONENT 1: mkcert Binary Installation (Tasks)
+# Scope: Ensures mkcert binary is available in WSL2
+# Dependencies: None
+# Idempotent: Yes
+
+- name: "🏷️  Component 1 - mkcert Binary"
+  debug:
+    msg: |
+      ATOMIC COMPONENT: mkcert Binary Installation
+      Scope: Ensure mkcert binary is available in WSL2
+      Method: Direct download from GitHub releases
+      Target: {{ mkcert_binary_path }}
+
+- name: "🔍 Check current mkcert availability"
+  block:
+    - name: "Check mkcert in WSL2 PATH"
+      command: which mkcert
+      register: mkcert_wsl2_check
+      failed_when: false
+      changed_when: false
+
+    - name: "Get mkcert version if available"
+      command: mkcert --version
+      register: mkcert_current_version
+      failed_when: false
+      changed_when: false
+      when: mkcert_wsl2_check.rc == 0
+
+    - name: "Check Windows mkcert (informational)"
+      shell: powershell.exe -Command "Get-Command mkcert -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source"
+      register: mkcert_windows_check
+      failed_when: false
+      changed_when: false
+      when: ansible_facts['kernel'] | regex_search('microsoft')
+
+- name: "✅ mkcert already available in WSL2"
+  debug:
+    msg: |
+      mkcert is already installed and working:
+      Location: {{ mkcert_wsl2_check.stdout }}
+      Version: {{ mkcert_current_version.stdout | default('unknown') }}
+      Status: COMPONENT 1 COMPLETE (no action needed)
+  when: mkcert_wsl2_check.rc == 0
+
+- name: "ℹ️  Windows mkcert detected (informational)"
+  debug:
+    msg: |
+      Note: mkcert found in Windows at {{ mkcert_windows_check.stdout | trim }}
+      This component will install mkcert in WSL2 for automation compatibility.
+  when:
+    - mkcert_wsl2_check.rc != 0
+    - mkcert_windows_check is defined
+    - mkcert_windows_check.rc == 0
+
+- name: "🔧 Install mkcert binary in WSL2"
+  block:
+    - name: "📥 Download mkcert binary"
+      get_url:
+        url: "{{ mkcert_url }}"
+        dest: "{{ temp_download_path }}"
+        mode: '0755'
+        timeout: 30
+        force: yes
+      register: download_result
+
+    - name: "📋 Verify download integrity"
+      stat:
+        path: "{{ temp_download_path }}"
+      register: download_stat
+
+    - name: "❌ Download verification failed"
+      fail:
+        msg: |
+          Downloaded file is too small ({{ download_stat.stat.size }} bytes)
+          This usually indicates a network issue or invalid download.
+          Manual verification: ls -la {{ temp_download_path }}
+      when: download_stat.stat.size < 1000000  # mkcert should be > 1MB
+
+    - name: "🔧 Install mkcert to system path"
+      copy:
+        src: "{{ temp_download_path }}"
+        dest: "{{ mkcert_binary_path }}"
+        mode: '0755'
+        owner: root
+        group: root
+        remote_src: yes
+      become: yes
+      register: install_result
+
+    - name: "🧹 Clean up download"
+      file:
+        path: "{{ temp_download_path }}"
+        state: absent
+
+  rescue:
+    - name: "❌ mkcert installation failed"
+      debug:
+        msg: |
+          COMPONENT 1 INSTALLATION FAILED
+
+          Error Details:
+          - Download URL: {{ mkcert_url }}
+          - Target Path: {{ mkcert_binary_path }}
+          - Error: {{ ansible_failed_result.msg | default('Unknown error') }}
+
+          Manual Installation:
+          1. wget {{ mkcert_url }} -O /tmp/mkcert
+          2. chmod +x /tmp/mkcert
+          3. sudo mv /tmp/mkcert {{ mkcert_binary_path }}
+
+          Troubleshooting:
+          - Check internet connectivity: curl -I {{ mkcert_url }}
+          - Check sudo permissions: sudo -v
+          - Check disk space: df -h /usr/local/bin
+
+    - name: "Clean up failed download"
+      file:
+        path: "{{ temp_download_path }}"
+        state: absent
+
+    - name: "Fail component"
+      fail:
+        msg: "Component 1 (mkcert binary) installation failed - see details above"
+
+  when: mkcert_wsl2_check.rc != 0
+
+- name: "✅ Verify mkcert installation"
+  block:
+    - name: "Test mkcert binary"
+      command: mkcert --version
+      register: final_verification
+      changed_when: false
+
+    - name: "Test mkcert help"
+      command: mkcert --help
+      register: help_verification
+      failed_when: false
+      changed_when: false
+
+    - name: "🎉 Component 1 SUCCESS"
+      debug:
+        msg: |
+          COMPONENT 1 COMPLETE ✅
+
+          mkcert Binary Installation: SUCCESS
+          Location: {{ mkcert_binary_path }}
+          Version: {{ final_verification.stdout }}
+          Status: Ready for certificate operations
+
+          Next: Component 2 (Windows CA Trust)
+
+  rescue:
+    - name: "❌ Post-installation verification failed"
+      debug:
+        msg: |
+          COMPONENT 1 VERIFICATION FAILED
+
+          The mkcert binary was installed but is not working correctly.
+
+          Debugging:
+          - Check binary: ls -la {{ mkcert_binary_path }}
+          - Test manually: {{ mkcert_binary_path }} --version
+          - Check permissions: {{ mkcert_binary_path }} --help
+
+    - name: "Remove broken installation"
+      file:
+        path: "{{ mkcert_binary_path }}"
+        state: absent
+      become: yes
+
+    - name: "Fail verification"
+      fail:
+        msg: "Component 1 verification failed - binary removed"
+
+  when: mkcert_wsl2_check.rc != 0 or mkcert_current_version is not defined
+
+- name: "📊 Component 1 Summary"
+  debug:
+    msg: |
+      COMPONENT 1 STATUS: COMPLETE ✅
+
+      What was accomplished:
+      - mkcert binary is available at {{ mkcert_binary_path }}
+      - Version {{ final_verification.stdout | default(mkcert_current_version.stdout) }} verified working
+      - Ready for Component 2 (Windows CA Trust)
+
+      Component Scope: mkcert binary installation only
+      Next Component: Windows CA trust installation

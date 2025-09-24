@@ -1,0 +1,22 @@
+---
+# ATOMIC VALIDATOR: mkcert Binary is Functional
+# Single responsibility: Check if binary actually works (runs --version)
+# Prerequisites: mkcert_binary_exists and mkcert_binary_executable must be true
+
+- name: "Test mkcert binary functionality"
+  command: mkcert --version
+  register: mkcert_version_test
+  failed_when: false
+  changed_when: false
+  when:
+    - mkcert_binary_exists | default(false)
+    - mkcert_binary_executable | default(false)
+
+- name: "Set functional result"
+  set_fact:
+    mkcert_binary_functional: "{{
+      mkcert_binary_exists | default(false) and
+      mkcert_binary_executable | default(false) and
+      (mkcert_version_test.rc | default(1)) == 0
+    }}"
+    mkcert_binary_version: "{{ mkcert_version_test.stdout | default('unknown') }}"

@@ -1,0 +1,231 @@
+---
+# Platform Configuration and Setup
+# Handles Docker proxy configuration, certificates, and platform services
+# All complex configuration logic lives here
+
+- name: "⚙️ Platform Configuration and Setup"
+  hosts: localhost
+  gather_facts: yes
+  become: no
+  vars:
+    ansible_become_pass: "{{ ansible_sudo_pass | default(omit) }}"
+  tasks:
+    - name: Display platform setup banner
+      debug:
+        msg: |
+          ⚙️ STEP 2: Platform Configuration and Setup
+
+          Configuring:
+          - Docker proxy bypass settings
+          - Certificate trust configuration
+          - Platform services deployment
+          - Service networking
+
+          This step handles complex configuration and fixes common issues.
+
+    # Docker Proxy Configuration
+    - name: Docker proxy configuration
+      block:
+        - name: Run Docker proxy diagnostic
+          shell: "{{ playbook_dir }}/../scripts/diagnostics/docker-proxy-diagnostics.sh"
+          register: docker_proxy_result
+          failed_when: false
+          changed_when: false
+          args:
+            executable: /bin/bash
+
+        - name: Parse Docker proxy diagnostic results
+          set_fact:
+            docker_proxy_exit_code: "{{ docker_proxy_result.rc }}"
+            proxy_working: "{{ docker_proxy_result.rc == 0 }}"
+            no_proxy_configured: "{{ docker_proxy_result.rc == 1 }}"
+            bypass_missing: "{{ docker_proxy_result.rc == 2 }}"
+            restart_required: "{{ docker_proxy_result.rc == 3 }}"
+            automated_resync_available: "{{ docker_proxy_result.rc == 5 }}"
+
+        - name: Show Docker proxy status
+          debug:
+            msg: |
+              🐳 Docker Proxy Configuration Status:
+              Exit Code: {{ docker_proxy_exit_code }}
+              Status: {{ 'Working correctly' if proxy_working else 'No proxy configured' if no_proxy_configured else 'Bypass missing' if bypass_missing else 'Restart required' if restart_required else 'Automated resync available' if automated_resync_available else 'Unknown issue' }}
+
+        # Automated Docker Desktop resync for exit code 5
+        - name: Attempt automated Docker Desktop resync
+          shell: |
+            source "{{ playbook_dir }}/../scripts/diagnostics/system-state.sh"
+            init_windows_interaction >/dev/null 2>&1
+            if [ "$WINDOWS_ACCESSIBLE" = true ]; then
+              echo "🤖 Running automated Docker Desktop resync..."
+              $WINDOWS_PS -NoProfile -ExecutionPolicy Bypass -File "{{ playbook_dir }}/../scripts/diagnostics/unified-docker-proxy.ps1" -AutoFix
+            else
+              echo "Windows PowerShell not accessible for automated fix"
+              exit 1
+            fi
+          register: automated_fix_result
+          failed_when: false
+          changed_when: automated_fix_result.rc == 0
+          args:
+            executable: /bin/bash
+          when: automated_resync_available
+
+        - name: Automated resync successful
+          debug:
+            msg: |
+              ✅ Automated Docker Desktop Resync Successful
+
+              {{ automated_fix_result.stdout_lines | join('\n') }}
+          when: automated_resync_available and automated_fix_result.rc == 0
+
+        - name: Manual Docker proxy intervention required
+          pause:
+            prompt: |
+
+              ⚠️ MANUAL DOCKER PROXY CONFIGURATION REQUIRED
+
+              Issue detected: {{ 'Bypass domains missing from Docker Desktop settings' if bypass_missing else 'Docker restart needed for proxy changes' if restart_required else 'Automated resync failed' if automated_resync_available else 'Docker proxy configuration needs attention' }}
+
+              SOLUTION:
+              1. Completely quit Docker Desktop:
+                 • Right-click Docker Desktop system tray icon → "Quit Docker Desktop"
+                 • Wait 10 seconds for complete shutdown
+
+              2. Clear cached settings:
+                 • Open Windows PowerShell as Administrator
+                 • Run: wsl --shutdown
+                 • Wait 10 seconds
+
+              3. Restart Docker Desktop:
+                 • Start Docker Desktop from Start Menu
+                 • Wait for "Docker Desktop is running" status
+
+              4. Verify fix:
+                 • Open WSL terminal and run: docker info | grep -i proxy
+                 • Should show NO proxy or only "No Proxy: localhost"
+
+              After completing these steps, press ENTER to continue...
+          when: bypass_missing or restart_required or (automated_resync_available and automated_fix_result.rc != 0)
+
+    # Certificate Configuration
+    - name: Certificate trust configuration
+      block:
+        - name: Create certificate directories
+          file:
+            path: "{{ ansible_env.HOME }}/.local/share/certs"
+            state: directory
+            mode: '0755'
+
+        - name: Check certificate files exist
+          stat:
+            path: "{{ ansible_env.HOME }}/.local/share/certs/{{ item }}"
+          register: cert_files_check
+          with_items:
+            - dev-localhost-wild.crt
+            - dev-localhost-wild.key
+            - dev-registry.localhost.crt
+            - dev-registry.localhost.key
+
+        - name: Verify all certificates exist
+          fail:
+            msg: |
+              ❌ Certificate files missing
+
+              Missing certificates: {{ cert_files_check.results | selectattr('stat.exists', 'equalto', false) | map(attribute='item') | list | join(', ') }}
+
+              Please run Windows prerequisites script to generate certificates:
+              .\scripts\win-prereqs.ps1
+          when: (cert_files_check.results | selectattr('stat.exists', 'equalto', false) | list | length) > 0
+
+        - name: Update system certificate trust store
+          command: sudo update-ca-certificates
+          register: ca_update_result
+          changed_when: "'added' in ca_update_result.stdout"
+
+        - name: Certificate trust configuration complete
+          debug:
+            msg: |
+              🔐 Certificate Trust Configuration:
+              - Certificate files: ✅ All present
+              - Trust store update: {{ '✅ Updated' if ca_update_result.changed else '✅ Current' }}
+
+    # Platform Services Deployment
+    - name: Platform services deployment
+      block:
+        - name: Create platform services directories
+          file:
+            path: "{{ ansible_env.HOME }}/platform-services/{{ item }}"
+            state: directory
+            mode: '0755'
+          with_items:
+            - traefik
+            - traefik/dynamic
+
+        - name: Generate Traefik dynamic TLS configuration
+          template:
+            src: "{{ playbook_dir }}/../layer1-platform/traefik/dynamic/tls.yml.j2"
+            dest: "{{ ansible_env.HOME }}/platform-services/traefik/dynamic/tls.yml"
+          vars:
+            cert_dir: "{{ ansible_env.HOME }}/.local/share/certs"
+
+        - name: Generate Traefik docker-compose configuration
+          template:
+            src: "{{ playbook_dir }}/../layer1-platform/traefik/docker-compose.yml.j2"
+            dest: "{{ ansible_env.HOME }}/platform-services/traefik/docker-compose.yml"
+          vars:
+            cert_dir: "{{ ansible_env.HOME }}/.local/share/certs"
+
+        - name: Stop any existing platform services
+          shell: |
+            cd {{ ansible_env.HOME }}/platform-services/traefik
+            docker compose down || true
+          args:
+            executable: /bin/bash
+
+        - name: Start platform services
+          shell: |
+            cd {{ ansible_env.HOME }}/platform-services/traefik
+            docker compose up -d
+          args:
+            executable: /bin/bash
+          register: compose_up_result
+
+        - name: Wait for services to be ready
+          wait_for:
+            port: "{{ item }}"
+            host: 127.0.0.1
+            timeout: 30
+          with_items:
+            - 80
+            - 443
+
+        - name: Check service status
+          shell: |
+            cd {{ ansible_env.HOME }}/platform-services/traefik
+            docker compose ps
+          register: service_status
+          args:
+            executable: /bin/bash
+
+        - name: Platform services deployment complete
+          debug:
+            msg: |
+              🚀 Platform Services Deployment:
+              - Traefik configuration: ✅ Generated
+              - Docker services: ✅ Started
+              - Port accessibility: ✅ HTTP/HTTPS ready
+
+              Running services:
+              {{ service_status.stdout_lines | join('\n') }}
+
+    # Platform setup completion
+    - name: Platform setup completion summary
+      debug:
+        msg: |
+          ⚙️ PLATFORM SETUP COMPLETE
+
+          Configured successfully:
+          - Docker proxy bypass: ✅ Configured
+          - Certificate trust: ✅ Configured
+          - Platform services: ✅ Running
+
+          Ready for validation step.

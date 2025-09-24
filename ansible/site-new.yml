@@ -1,0 +1,63 @@
+---
+# Main Platform Installer - Orchestrates smaller, focused steps
+# Each step is idempotent and can be run independently for debugging
+
+- name: "🚀 Astronomer Airflow Platform Installation"
+  hosts: localhost
+  gather_facts: yes
+  become: no
+  tasks:
+    - name: Installation overview
+      debug:
+        msg: |
+          🚀 ASTRONOMER AIRFLOW PLATFORM INSTALLER
+
+          This installer runs 3 focused, idempotent steps:
+
+          STEP 1: Prerequisites Detection
+          - Environment validation (WSL2, Windows, Docker)
+          - Fast failure if critical components missing
+
+          STEP 2: Platform Configuration
+          - Docker proxy configuration and fixes
+          - Certificate trust setup
+          - Platform services deployment
+
+          STEP 3: Validation and Health Checks
+          - Real end-to-end testing
+          - Only declares success when everything works
+
+          Each step can be run independently for debugging:
+          ansible-playbook 01-prerequisites.yml
+          ansible-playbook 02-platform-setup.yml
+          ansible-playbook 03-validation.yml
+
+# Execute each step in sequence
+- import_playbook: 01-prerequisites.yml
+- import_playbook: 02-platform-setup.yml
+- import_playbook: 03-validation.yml
+
+- name: "🎊 Installation Complete"
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Installation success summary
+      debug:
+        msg: |
+          🎊 INSTALLATION COMPLETE!
+
+          Your Astronomer Airflow Platform is ready for development.
+
+          ✅ All Steps Completed:
+          1. Prerequisites: Validated
+          2. Platform Setup: Configured
+          3. Validation: Passed
+
+          🌐 Platform Access:
+          • Traefik Dashboard: https://traefik.localhost
+          • Container Registry: https://registry.localhost
+
+          🔧 Individual Step Commands (for debugging):
+          ansible-playbook 01-prerequisites.yml    # Environment checks
+          ansible-playbook 02-platform-setup.yml   # Configuration
+          ansible-playbook 03-validation.yml       # Health checks

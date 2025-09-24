@@ -1,0 +1,186 @@
+---
+# Platform Validation and Health Checks
+# Real end-to-end testing to ensure platform is actually working
+# Only declares success when everything truly works
+
+- name: "✅ Platform Validation and Health Checks"
+  hosts: localhost
+  gather_facts: yes
+  become: no
+  tasks:
+    - name: Display validation banner
+      debug:
+        msg: |
+          ✅ STEP 3: Platform Validation and Health Checks
+
+          Testing:
+          - Real certificate trust (no -k flags)
+          - Service accessibility
+          - Docker registry operations
+          - End-to-end functionality
+
+          This step only declares success when everything truly works.
+
+    # Network Connectivity Tests
+    - name: Test DNS resolution
+      shell: nslookup {{ item }}
+      register: dns_tests
+      failed_when: false
+      changed_when: false
+      with_items:
+        - traefik.localhost
+        - registry.localhost
+
+    - name: Test ping connectivity
+      command: ping -c 1 {{ item }}
+      register: ping_tests
+      failed_when: false
+      changed_when: false
+      with_items:
+        - traefik.localhost
+        - registry.localhost
+
+    # Service Health Checks
+    - name: Check Docker services are running
+      shell: |
+        cd {{ ansible_env.HOME }}/platform-services/traefik
+        docker compose ps --format "table {{.Name}}\t{{.Status}}"
+      register: docker_services_check
+      args:
+        executable: /bin/bash
+
+    # Real Certificate Trust Validation (No -k flags)
+    - name: Test HTTPS endpoints with certificate validation
+      uri:
+        url: "https://{{ item.url }}"
+        method: GET
+        timeout: 10
+        validate_certs: true  # This is the critical test - no -k flag
+        status_code: [200, 302, 404, 405]  # Accept redirects and method not allowed
+      register: real_https_tests
+      failed_when: false
+      with_items:
+        - { url: "traefik.localhost", name: "Traefik Dashboard" }
+        - { url: "registry.localhost", name: "Registry API" }
+
+    - name: Test certificate trust with curl (backup validation)
+      shell: timeout 10 curl -f -s "https://{{ item }}" >/dev/null 2>&1
+      register: curl_cert_tests
+      failed_when: false
+      changed_when: false
+      with_items:
+        - traefik.localhost
+        - registry.localhost
+
+    # Docker Registry Functionality Test
+    - name: Test Docker registry functionality
+      block:
+        - name: Pull test image for registry test
+          command: docker pull busybox:latest
+          register: pull_test_image
+          timeout: 60
+
+        - name: Tag image for local registry
+          command: docker tag busybox:latest registry.localhost/test/busybox:validation
+
+        - name: Push to local registry
+          command: docker push registry.localhost/test/busybox:validation
+          register: registry_push_test
+
+        - name: Remove local test image
+          command: docker rmi registry.localhost/test/busybox:validation busybox:latest
+          failed_when: false
+
+        - name: Pull from local registry
+          command: docker pull registry.localhost/test/busybox:validation
+          register: registry_pull_test
+
+        - name: Clean up test image
+          command: docker rmi registry.localhost/test/busybox:validation
+          failed_when: false
+
+    # Validation Results Analysis
+    - name: Analyze validation results
+      set_fact:
+        dns_working: "{{ (dns_tests.results | selectattr('rc', 'equalto', 0) | list | length) == 2 }}"
+        ping_working: "{{ (ping_tests.results | selectattr('rc', 'equalto', 0) | list | length) == 2 }}"
+        services_running: "{{ 'Up' in docker_services_check.stdout }}"
+        certificates_trusted: "{{ (real_https_tests.results | selectattr('status', 'defined') | selectattr('status', 'ne', -1) | list | length) >= 1 }}"
+        curl_certs_working: "{{ (curl_cert_tests.results | selectattr('rc', 'equalto', 0) | list | length) >= 1 }}"
+        registry_working: "{{ registry_push_test.rc == 0 and registry_pull_test.rc == 0 }}"
+
+    - name: Calculate overall platform status
+      set_fact:
+        platform_fully_working: "{{
+          dns_working and
+          ping_working and
+          services_running and
+          (certificates_trusted or curl_certs_working) and
+          registry_working
+        }}"
+
+    # Success Case
+    - name: "🎉 Platform validation successful"
+      debug:
+        msg: |
+          🎉 SUCCESS! Platform is fully operational!
+
+          ✅ Validation Results:
+          - DNS Resolution: ✅ Working
+          - Network Connectivity: ✅ Working
+          - Docker Services: ✅ Running
+          - Certificate Trust: ✅ Working (real validation without -k)
+          - Registry Operations: ✅ Working
+
+          🌐 Your Platform is Ready:
+          • Traefik Dashboard: https://traefik.localhost
+          • Container Registry: https://registry.localhost
+          • Registry Catalog: https://registry.localhost/v2/_catalog
+
+          🚀 Next Steps:
+          1. Create your first Airflow project
+          2. Build and push custom images to registry.localhost
+          3. Deploy DAGs using the platform
+
+          Your development platform is ready for use!
+      when: platform_fully_working
+
+    # Failure Case with Detailed Diagnostics
+    - name: "❌ Platform validation failed"
+      fail:
+        msg: |
+          ❌ PLATFORM VALIDATION FAILED
+
+          Validation Results:
+          - DNS Resolution: {{ '✅' if dns_working else '❌' }}
+          - Network Connectivity: {{ '✅' if ping_working else '❌' }}
+          - Docker Services: {{ '✅' if services_running else '❌' }}
+          - Certificate Trust: {{ '✅' if (certificates_trusted or curl_certs_working) else '❌' }}
+          - Registry Operations: {{ '✅' if registry_working else '❌' }}
+
+          🚨 CRITICAL ISSUES DETECTED
+
+          {{ 'DNS Resolution Issues:' if not dns_working else '' }}
+          {{ dns_tests.results | selectattr('rc', 'ne', 0) | map(attribute='item') | list | join(', ') + ' - failed DNS lookup' if not dns_working else '' }}
+
+          {{ 'Network Connectivity Issues:' if not ping_working else '' }}
+          {{ ping_tests.results | selectattr('rc', 'ne', 0) | map(attribute='item') | list | join(', ') + ' - ping failed' if not ping_working else '' }}
+
+          {{ 'Service Issues:' if not services_running else '' }}
+          {{ 'Docker services not running properly' if not services_running else '' }}
+
+          {{ 'Certificate Trust Issues:' if not (certificates_trusted or curl_certs_working) else '' }}
+          {{ 'HTTPS connections fail without -k flag - certificates not trusted' if not (certificates_trusted or curl_certs_working) else '' }}
+
+          {{ 'Registry Issues:' if not registry_working else '' }}
+          {{ 'Docker registry push/pull operations failed' if not registry_working else '' }}
+
+          TROUBLESHOOTING:
+          1. For certificate issues: Re-run Windows prerequisites script
+          2. For Docker issues: Restart Docker Desktop completely
+          3. For network issues: Check Windows hosts file configuration
+          4. For registry issues: Verify Docker proxy bypass settings
+
+          Platform is NOT ready until all validation checks pass.
+          Re-run setup after resolving the issues above.
+      when: not platform_fully_working

@@ -1,0 +1,17 @@
+---
+# ATOMIC VALIDATOR: mkcert Binary is Executable
+# Single responsibility: Check if binary has executable permissions
+# Prerequisite: mkcert_binary_exists must be true
+
+- name: "Check if mkcert binary is executable"
+  stat:
+    path: "/usr/local/bin/mkcert"
+  register: mkcert_executable_stat
+  when: mkcert_binary_exists | default(false)
+
+- name: "Set executable result"
+  set_fact:
+    mkcert_binary_executable: "{{
+      mkcert_binary_exists | default(false) and
+      mkcert_executable_stat.stat.executable | default(false)
+    }}"

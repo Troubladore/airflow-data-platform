@@ -1,0 +1,60 @@
+---
+# SIMPLE INCREMENTAL SETUP - NO LOCK FILES
+# Uses Ansible's built-in idempotency and state detection
+
+- name: "🚀 Simple Incremental Platform Setup"
+  hosts: localhost
+  gather_facts: yes
+
+  tasks:
+    - name: "🏷️  Simple Setup Philosophy"
+      debug:
+        msg: |
+          SIMPLE INCREMENTAL SETUP
+          =======================
+
+          Philosophy: Trust Ansible's idempotency, not lock files
+
+          How it works:
+          • Each component checks actual system state
+          • Only runs if state doesn't match desired state
+          • Ansible's changed/ok status shows what happened
+          • No external state files or locks
+
+    - name: "📋 Component 1: mkcert Binary Installation"
+      include_tasks: "../components/01-mkcert-binary-tasks.yml"
+      vars:
+        mkcert_version: "v1.4.4"
+        mkcert_url: "https://github.com/FiloSottile/mkcert/releases/download/{{ mkcert_version }}/mkcert-{{ mkcert_version }}-linux-amd64"
+        mkcert_binary_path: "/usr/local/bin/mkcert"
+        temp_download_path: "/tmp/mkcert-download"
+
+    - name: "📋 Component 2: Windows CA Trust Installation"
+      include_tasks: "../components/02-windows-ca-trust-tasks.yml"
+
+    - name: "📋 Component 3: Certificate File Management"
+      include_tasks: "../components/03-certificate-file-management-tasks.yml"
+
+    - name: "📋 Component 4: Traefik Platform Deployment"
+      include_tasks: "../components/04-traefik-platform-deployment-tasks.yml"
+
+    - name: "📋 Component 5: Docker Registry Deployment"
+      include_tasks: "../components/05-docker-registry-deployment-tasks.yml"
+
+    - name: "📋 Component 6: Airflow Platform Deployment"
+      include_tasks: "../components/06-airflow-platform-deployment-tasks.yml"
+      when: component_only is not defined or component_only == "06-airflow-platform-deployment-tasks.yml"
+
+    - name: "🎉 Simple Setup Complete"
+      debug:
+        msg: |
+          SIMPLE SETUP COMPLETE ✅
+
+          All components processed using Ansible's built-in idempotency.
+
+          What happened:
+          • Each component checked actual system state
+          • Only made changes if needed
+          • Ansible's task status (ok/changed) shows the truth
+
+          Philosophy: The system state IS the truth, not lock files.

@@ -1,0 +1,46 @@
+---
+# UNIT TEST: Modular Validator Composition
+# Tests that atomic validators compose correctly into complete validation
+
+- name: "Unit Test: Modular Validator Composition"
+  hosts: localhost
+  gather_facts: yes
+
+  tasks:
+    - name: "🧪 Test Modular Validator Composition"
+      debug:
+        msg: |
+          MODULAR VALIDATOR COMPOSITION TEST
+          =================================
+
+          Testing that atomic validators compose into complete validation logic.
+
+    - name: "Test: Run modular validator"
+      include_tasks: "../../../ansible/components/01-mkcert-binary-validator-modular.yml"
+
+    - name: "Verify: Modular validator sets expected facts"
+      assert:
+        that:
+          - component_validation_passed is defined
+          - component_validation_details is defined
+          - mkcert_binary_exists is defined
+          - mkcert_binary_executable is defined
+          - mkcert_binary_functional is defined
+        fail_msg: "FAILED: Modular validator didn't set all expected facts"
+        success_msg: "✅ PASSED: Modular validator set all expected facts"
+
+    - name: "Display composition result"
+      debug:
+        msg: |
+          MODULAR VALIDATOR COMPOSITION RESULT
+          ===================================
+
+          Overall validation: {{ component_validation_passed }}
+          Details: {{ component_validation_details }}
+
+          Atomic results:
+          - Binary exists: {{ mkcert_binary_exists }}
+          - Binary executable: {{ mkcert_binary_executable }}
+          - Binary functional: {{ mkcert_binary_functional }}
+
+          Composition test: PASSED ✅

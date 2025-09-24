@@ -45,7 +45,90 @@ exceptions:
     expires: "2026-03-19"  # 6 months out
     review_frequency: "biannual"
 
-  # Exception 4: Scanner meta-patterns (business decision)
+  # Exception 4: PowerShell certificate setup scripts
+  - pattern: "irm.*setup-certificates-windows.ps1.*iex"
+    category: "dynamic_downloads"
+    justification: |
+      WHAT: PowerShell one-liner to download and run certificate setup script
+      WHY FLAGGED: Scanner detects pipe-to-shell pattern (irm | iex)
+      WHY ACCEPTED: This is our own script from our own GitHub repository for certificate setup
+      RISK LEVEL: Low - script source is trusted (our repository), used only during initial setup
+      CONTEXT: Simplifies Windows certificate generation for developers during platform setup
+      MITIGATION: Script is read-only on GitHub main branch, protected by branch rules
+    accepted_by: "Platform Team"
+    accepted_date: "2025-09-22"
+    expires: "2026-03-22"  # 6 months out
+    review_frequency: "biannual"
+
+  # Exception 5: Scoop package manager installation
+  - pattern: "irm get.scoop.sh.*iex"
+    category: "dynamic_downloads"
+    justification: |
+      WHAT: Official Scoop package manager installation command for Windows
+      WHY FLAGGED: Scanner detects pipe-to-shell pattern (irm | iex)
+      WHY ACCEPTED: This is the official installation method from Scoop's documentation
+      RISK LEVEL: Medium - third-party script but from official source
+      CONTEXT: Scoop is needed to install mkcert on Windows for certificate generation
+      MITIGATION: Only used during initial developer setup, not in production
+    accepted_by: "Platform Team"
+    accepted_date: "2025-09-22"
+    expires: "2026-03-22"  # 6 months out
+    review_frequency: "biannual"
+
+  # Exception 6: Certificate trust validation test command
+  - location: "ansible/validate-all.yml:48"
+    category: "dynamic_downloads"
+    justification: |
+      WHAT: curl command testing HTTPS certificate trust to traefik.localhost
+      WHY FLAGGED: Scanner detects curl in command task
+      WHY ACCEPTED: Tests certificate trust without downloading/executing code
+      RISK LEVEL: None - connectivity test to local service only
+      CONTEXT: Core validation that platform certificates work properly
+    accepted_by: "Platform Team"
+    accepted_date: "2025-09-22"
+    expires: "2026-03-22"  # 6 months out
+    review_frequency: "biannual"
+
+  # Exception 7: Curl test command for certificate validation
+  - content: "          command: curl -s --max-time 10 https://traefik.localhost/api/http/services"
+    category: "dynamic_downloads"
+    justification: |
+      WHAT: Certificate trust validation test using curl
+      WHY FLAGGED: Scanner detects curl command
+      WHY ACCEPTED: Tests HTTPS connectivity to local service, no code execution
+      RISK LEVEL: None - local service connectivity test only
+    accepted_by: "Platform Team"
+    accepted_date: "2025-09-22"
+    expires: "2026-03-22"
+    review_frequency: "biannual"
+
+  # Exception 8: Curl test references in debug output
+  - pattern: "ansible/validate-all.yml.*curl"
+    category: "dynamic_downloads"
+    justification: |
+      WHAT: Register variable for curl test result
+      WHY FLAGGED: Line contains "curl" keyword
+      WHY ACCEPTED: Just capturing test output, not executing anything
+      RISK LEVEL: None - variable registration only
+    accepted_by: "Platform Team"
+    accepted_date: "2025-09-22"
+    expires: "2026-03-22"
+    review_frequency: "biannual"
+
+  # Exception 9: Sudo password documentation strings
+  - pattern: "Sudo requires password"
+    category: "hardcoded_secrets"
+    justification: |
+      WHAT: Documentation text explaining sudo password requirements
+      WHY FLAGGED: Contains word "password"
+      WHY ACCEPTED: This is documentation text, not an actual password
+      RISK LEVEL: None - informational message only
+    accepted_by: "Platform Team"
+    accepted_date: "2025-09-22"
+    expires: "2026-03-22"
+    review_frequency: "biannual"
+
+  # Exception 10: Scanner meta-patterns (business decision)
   - pattern: "scan-supply-chain.sh"
     category: "dynamic_downloads"
     justification: |

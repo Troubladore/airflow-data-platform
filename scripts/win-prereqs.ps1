@@ -1,13 +1,23 @@
 # Windows Prerequisites Setup Script
-# Automates Windows-side setup as much as possible without admin complexity
+# Automates Windows-side setup as much as possible
 #
-# Usage: Run this in Windows PowerShell (regular user is fine for most tasks)
-# .\scripts\win-prereqs.ps1
+# RECOMMENDED: Run as Administrator for full automation
+# Right-click PowerShell → "Run as Administrator" then: .\scripts\win-prereqs.ps1
+#
+# If you can't run as Administrator:
+# - The script will still work for most tasks (Scoop, mkcert installation)
+# - You'll get clear instructions for manual steps that require admin privileges
+# - No harm will be done - the script detects permissions and adapts accordingly
 
 param(
     [switch]$SkipHostsFile,
-    [switch]$Force
+    [switch]$Force,
+    [switch]$CleanupCA
 )
+
+# Set console encoding to handle Unicode properly
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Colors for output (ASCII-safe for cross-platform execution)
 function Write-Info { param($Message) Write-Host "[INFO] $Message" -ForegroundColor Blue }
@@ -67,6 +77,14 @@ if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
     }
 } else {
     Write-Success "Scoop is already installed"
+    Write-Info "Updating Scoop buckets to get latest package versions..."
+    try {
+        scoop update
+        Write-Success "Scoop buckets updated successfully"
+    } catch {
+        Write-Warning "Could not update Scoop buckets: $($_.Exception.Message)"
+        Write-Info "Continuing with existing bucket state..."
+    }
 }
 
 # Install mkcert via Scoop
@@ -237,13 +255,65 @@ try {
     exit 1
 }
 
+# Docker Desktop proxy configuration
+Write-Info "Checking Docker Desktop proxy configuration..."
+$dockerSettingsPath = "$env:APPDATA\Docker\settings.json"
+
+if (Test-Path $dockerSettingsPath) {
+    try {
+        $dockerSettings = Get-Content $dockerSettingsPath -Raw | ConvertFrom-Json
+
+        # Check if proxy mode is set and bypass list needs updating
+        if ($dockerSettings.proxyHttpMode -eq "system" -or $dockerSettings.overrideProxyHttp -ne "") {
+            $currentBypass = $dockerSettings.overrideProxyExclude
+            $requiredDomains = "localhost,*.localhost,127.0.0.1,registry.localhost,traefik.localhost,airflow.localhost"
+
+            if ($currentBypass -notmatch "\*\.localhost") {
+                Write-Info "Docker Desktop uses proxy but *.localhost is not bypassed"
+                Write-Info "Attempting to update Docker Desktop proxy bypass list..."
+
+                # Backup current settings
+                Copy-Item $dockerSettingsPath "$dockerSettingsPath.backup" -Force
+
+                # Update the bypass list
+                if ($currentBypass) {
+                    # Append to existing bypass list
+                    $dockerSettings.overrideProxyExclude = "$currentBypass,$requiredDomains"
+                } else {
+                    # Set new bypass list
+                    $dockerSettings.overrideProxyExclude = $requiredDomains
+                }
+
+                # Save updated settings
+                $dockerSettings | ConvertTo-Json -Depth 10 | Set-Content $dockerSettingsPath -Force
+                Write-Success "Updated Docker Desktop proxy bypass list"
+                Write-Warning "Docker Desktop needs to be restarted for changes to take effect"
+                Write-Info "You can restart it manually or it will apply on next Docker Desktop start"
+            } else {
+                Write-Success "Docker Desktop proxy bypass already configured correctly"
+            }
+        } else {
+            Write-Success "Docker Desktop not using proxy - no configuration needed"
+        }
+    } catch {
+        Write-Warning "Could not update Docker Desktop settings automatically: $($_.Exception.Message)"
+        Write-Info "Manual configuration may be needed:"
+        Write-Info "  1. Open Docker Desktop"
+        Write-Info "  2. Go to Settings -> Resources -> Proxies"
+        Write-Info "  3. Add to bypass list: localhost,*.localhost,127.0.0.1,registry.localhost,traefik.localhost,airflow.localhost"
+    }
+} else {
+    Write-Info "Docker Desktop settings not found - may not be installed or different location"
+}
+
 # Hosts file management
 if (-not $SkipHostsFile) {
     Write-Info "Checking hosts file entries..."
     $hostsFile = "$env:SystemRoot\System32\drivers\etc\hosts"
     $hostsEntries = @(
         "127.0.0.1 registry.localhost",
-        "127.0.0.1 traefik.localhost"
+        "127.0.0.1 traefik.localhost",
+        "127.0.0.1 airflow.localhost"
     )
 
     $hostsContent = Get-Content $hostsFile -ErrorAction SilentlyContinue
@@ -256,28 +326,36 @@ if (-not $SkipHostsFile) {
     }
 
     if ($missingEntries.Count -gt 0) {
+        Write-Info "Missing entries detected: $($missingEntries.Count) entries need to be added"
+        Write-Info "Admin status: $isAdmin"
+
         if ($isAdmin) {
-            Write-Info "Adding entries to hosts file (admin mode)..."
+            Write-Info "Attempting to add entries to hosts file automatically (admin mode)..."
             try {
                 # Create backup
                 Copy-Item $hostsFile "$hostsFile.backup" -Force
+                Write-Info "Created backup: $hostsFile.backup"
 
                 # Add missing entries
-                $hostsContent += $missingEntries
-                $hostsContent | Set-Content $hostsFile -Force
+                Add-Content $hostsFile -Value $missingEntries -Force
 
-                Write-Success "Hosts file updated with entries:"
+                Write-Success "Successfully updated hosts file with entries:"
                 $missingEntries | ForEach-Object { Write-Host "  + $_" -ForegroundColor Green }
             } catch {
-                Write-Error "Failed to update hosts file: $($_.Exception.Message)"
-                Write-Warning "You may need to add these entries manually"
+                Write-Error "Failed to update hosts file automatically: $($_.Exception.Message)"
+                Write-Warning "Falling back to manual instructions..."
+                Write-Host ""
+                Write-Host "Run PowerShell as Administrator and execute:" -ForegroundColor Yellow
+                Write-Host "Add-Content `"$hostsFile`" @(" -ForegroundColor Gray
+                $missingEntries | ForEach-Object { Write-Host "  `"$_`"," -ForegroundColor Gray }
+                Write-Host ")" -ForegroundColor Gray
             }
         } else {
             Write-Warning "Hosts file entries need to be added manually (requires admin):"
             Write-Host ""
             Write-Host "Run PowerShell as Administrator and execute:" -ForegroundColor Yellow
             Write-Host "Add-Content `"$hostsFile`" @(" -ForegroundColor Gray
-            $missingEntries | ForEach-Object { Write-Host "  $_," -ForegroundColor Gray }
+            $missingEntries | ForEach-Object { Write-Host "  `"$_`"," -ForegroundColor Gray }
             Write-Host ")" -ForegroundColor Gray
             Write-Host ""
             Write-Host "Or manually edit: $hostsFile" -ForegroundColor Gray
@@ -286,6 +364,26 @@ if (-not $SkipHostsFile) {
         }
     } else {
         Write-Success "Hosts file entries are already present"
+    }
+}
+
+# Certificate Authority Cleanup (if requested)
+if ($CleanupCA) {
+    Write-Host ""
+    Write-Host "🧹 Certificate Authority Cleanup" -ForegroundColor Yellow
+    Write-Host "================================" -ForegroundColor Yellow
+
+    $cleanupScript = Join-Path $PSScriptRoot "diagnostics\cleanup-mkcert-ca.ps1"
+    if (Test-Path $cleanupScript) {
+        Write-Info "Running CA cleanup utility..."
+        if ($Force) {
+            & $cleanupScript -Force
+        } else {
+            & $cleanupScript
+        }
+    } else {
+        Write-Warning "CA cleanup utility not found at: $cleanupScript"
+        Write-Info "Skipping CA cleanup"
     }
 }
 

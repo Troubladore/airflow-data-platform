@@ -1,0 +1,132 @@
+---
+# COMPONENT PROCESSOR - Handles individual component execution with state tracking
+# This file is included by the main orchestrator for each component
+
+- name: "📋 Component {{ component_index + 1 }}: {{ component.desc }}"
+  debug:
+    msg: |
+      PROCESSING COMPONENT {{ component_index + 1 }}
+      Name: {{ component.name }}
+      Description: {{ component.desc }}
+      Playbook: {{ component.playbook }}
+
+- name: "🔍 Check if {{ component.desc }} has lock file"
+  stat:
+    path: "{{ state_dir }}/{{ component.name }}.done"
+  register: component_lock_file
+
+- name: "🔍 Validate {{ component.desc }} (even if locked)"
+  include_tasks: "{{ component.validator_file }}"
+  when: component_lock_file.stat.exists
+
+- name: "🔒 {{ component.desc }} - VALIDATED & LOCKED (skipping)"
+  debug:
+    msg: |
+      COMPONENT VALIDATED & LOCKED - SKIPPING ✅
+
+      Component: {{ component.desc }}
+      Lock file: {{ state_dir }}/{{ component.name }}.done
+      Validation: {{ component_validation_passed }}
+      Details: {{ component_validation_details }}
+      Action: Skipped (still working correctly)
+
+      Philosophy: Validated working components are never touched.
+  when: component_lock_file.stat.exists and component_validation_passed | default(false)
+
+- name: "⚠️ {{ component.desc }} - LOCK EXISTS BUT VALIDATION FAILED"
+  debug:
+    msg: |
+      COMPONENT LOCK INVALID - NEEDS REPROCESSING ⚠️
+
+      Component: {{ component.desc }}
+      Lock file: {{ state_dir }}/{{ component.name }}.done (exists but invalid)
+      Validation: FAILED
+      Details: {{ component_validation_details }}
+
+      Issue: Component was working before but something changed it.
+      Action: Re-running component to fix the issue.
+
+      Philosophy: Trust validation, not just lock files.
+  when: component_lock_file.stat.exists and not (component_validation_passed | default(false))
+
+- name: "🧹 Remove invalid lock file"
+  file:
+    path: "{{ state_dir }}/{{ component.name }}.done"
+    state: absent
+  when: component_lock_file.stat.exists and not (component_validation_passed | default(false))
+
+- name: "🔧 Processing {{ component.desc }}"
+  block:
+    - name: "🚀 Run {{ component.desc }} playbook"
+      debug:
+        msg: |
+          RUNNING COMPONENT PLAYBOOK
+
+          Component: {{ component.desc }}
+          Playbook: {{ component.playbook }}
+          Status: Processing...
+
+    - name: "Execute component tasks"
+      include_tasks: "{{ component.tasks_file }}"
+      vars:
+        mkcert_version: "v1.4.4"
+        mkcert_url: "https://github.com/FiloSottile/mkcert/releases/download/{{ mkcert_version }}/mkcert-{{ mkcert_version }}-linux-amd64"
+        mkcert_binary_path: "/usr/local/bin/mkcert"
+        temp_download_path: "/tmp/mkcert-download"
+
+    - name: "🔒 Lock {{ component.desc }} as working"
+      file:
+        path: "{{ state_dir }}/{{ component.name }}.done"
+        state: touch
+        mode: '0644'
+
+    - name: "✅ {{ component.desc }} - SUCCESS & LOCKED"
+      debug:
+        msg: |
+          COMPONENT COMPLETED AND LOCKED ✅
+
+          Component: {{ component.desc }}
+          Status: Successfully completed
+          Lock file: {{ state_dir }}/{{ component.name }}.done
+          Philosophy: This component will be skipped on future runs
+
+          Result: Component {{ component_index + 1 }} of {{ components | length }} complete
+
+  rescue:
+    - name: "❌ {{ component.desc }} - FAILED"
+      debug:
+        msg: |
+          COMPONENT FAILED ❌
+
+          Component: {{ component.desc }} ({{ component.name }})
+          Status: FAILED - not locked
+          Action: Fix required before continuing
+
+          DEBUGGING THIS COMPONENT:
+          =========================
+          1. Run in isolation:
+             ansible-playbook -i inventory/local-dev.ini {{ component.playbook }}
+
+          2. Use check mode (dry run):
+             ansible-playbook -i inventory/local-dev.ini {{ component.playbook }} --check
+
+          3. Increase verbosity:
+             ansible-playbook -i inventory/local-dev.ini {{ component.playbook }} -vvv
+
+          4. After fixing, continue incremental setup:
+             ansible-playbook -i inventory/local-dev.ini orchestrators/setup-incremental.yml
+
+          FAILURE PHILOSOPHY:
+          • Failed components are NOT locked
+          • Fix the issue and re-run
+          • All previous successful components remain locked
+          • Incremental progress is preserved
+
+    - name: "Propagate component failure"
+      fail:
+        msg: |
+          Component {{ component_index + 1 }} ({{ component.desc }}) failed.
+          See debugging instructions above.
+          Previous successful components remain locked.
+
+  when: not component_lock_file.stat.exists or not (component_validation_passed | default(false))

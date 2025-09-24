@@ -1,0 +1,445 @@
+---
+# ATOMIC COMPONENT 6: Airflow Platform Deployment
+# Scope: Deploy Apache Airflow with HTTPS using mkcert certificates
+# Dependencies: Components 1-5 (Traefik and Registry must be running)
+# Idempotent: Yes
+
+- name: "🏷️  Component 6 - Airflow Platform Deployment"
+  debug:
+    msg: |
+      ATOMIC COMPONENT: Airflow Platform Deployment
+      Scope: Deploy Apache Airflow with HTTPS support
+      Method: Docker Compose with Traefik integration
+      Dependencies: Components 1-5 (Traefik must be running)
+
+- name: "🔍 Check Component 4 prerequisite (Traefik)"
+  shell: |
+    {% raw %}
+    if docker ps --filter "name=traefik" --format '{{.Names}}' | grep -q '^traefik$'; then
+      echo "TRAEFIK_RUNNING=true"
+      echo "Traefik is running and ready"
+    else
+      echo "TRAEFIK_RUNNING=false"
+      echo "Traefik is not running"
+    fi
+    {% endraw %}
+  args:
+    executable: /bin/bash
+  register: traefik_check
+  changed_when: false
+
+- name: "❌ PREREQUISITE FAILED: Traefik not running"
+  fail:
+    msg: |
+      COMPONENT 6 PREREQUISITE FAILED ❌
+
+      Component 6 requires Traefik to be running from Component 4.
+
+      Expected: Traefik container running
+      Actual: {{ traefik_check.stdout }}
+
+      Solution: Run Component 4 first
+      ansible-playbook -i inventory/local-dev.ini orchestrators/setup-simple.yml
+  when: "'TRAEFIK_RUNNING=false' in traefik_check.stdout"
+
+- name: "📁 Create Airflow platform services directory"
+  file:
+    path: "{{ ansible_env.HOME }}/platform-services/airflow"
+    state: directory
+    mode: '0755'
+
+- name: "📁 Create Airflow subdirectories"
+  file:
+    path: "{{ ansible_env.HOME }}/platform-services/airflow/{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - dags
+    - logs
+    - plugins
+    - config
+
+- name: "🔑 Generate Airflow Fernet key if not exists"
+  shell: |
+    FERNET_KEY_FILE="{{ ansible_env.HOME }}/platform-services/airflow/.fernet_key"
+    if [ ! -f "$FERNET_KEY_FILE" ]; then
+      python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" > "$FERNET_KEY_FILE"
+      chmod 600 "$FERNET_KEY_FILE"
+      echo "FERNET_KEY_GENERATED=true"
+      echo "Generated new Fernet key for Airflow"
+    else
+      echo "FERNET_KEY_EXISTS=true"
+      echo "Using existing Fernet key"
+    fi
+  args:
+    executable: /bin/bash
+  register: fernet_key_status
+
+- name: "📝 Create Airflow docker-compose.yml"
+  copy:
+    content: |
+      x-airflow-common:
+        &airflow-common
+        image: apache/airflow:2.8.1
+        environment:
+          &airflow-common-env
+          AIRFLOW__CORE__EXECUTOR: LocalExecutor
+          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+          AIRFLOW__CORE__FERNET_KEY_FILE: /opt/airflow/.fernet_key
+          AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+          AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+          AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+
+          # Webserver configuration
+          AIRFLOW__WEBSERVER__BASE_URL: https://airflow.localhost
+          AIRFLOW__WEBSERVER__ENABLE_PROXY_FIX: 'true'
+          AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'true'
+
+          # Security
+          AIRFLOW__WEBSERVER__SECRET_KEY_FILE: /opt/airflow/.fernet_key
+          _AIRFLOW_DB_MIGRATE: 'true'
+          _AIRFLOW_WWW_USER_CREATE: 'true'
+          _AIRFLOW_WWW_USER_USERNAME: admin
+          _AIRFLOW_WWW_USER_PASSWORD: admin
+        volumes:
+          - ./dags:/opt/airflow/dags
+          - ./logs:/opt/airflow/logs
+          - ./plugins:/opt/airflow/plugins
+          - ./.fernet_key:/opt/airflow/.fernet_key:ro
+        user: "${AIRFLOW_UID:-50000}:0"
+        depends_on:
+          postgres:
+            condition: service_healthy
+
+      services:
+        postgres:
+          image: postgres:13
+          container_name: airflow-postgres
+          environment:
+            POSTGRES_USER: airflow
+            POSTGRES_PASSWORD: airflow
+            POSTGRES_DB: airflow
+          volumes:
+            - postgres_data:/var/lib/postgresql/data
+          networks:
+            - airflow-backend
+            - edge
+          healthcheck:
+            test: ["CMD", "pg_isready", "-U", "airflow"]
+            interval: 10s
+            retries: 5
+            start_period: 5s
+          restart: unless-stopped
+
+        airflow-webserver:
+          <<: *airflow-common
+          container_name: airflow-webserver
+          command: webserver
+          ports:
+            - 8081:8080
+          networks:
+            - airflow-backend
+            - edge
+          healthcheck:
+            test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 5
+            start_period: 30s
+          restart: unless-stopped
+          labels:
+            # Traefik configuration
+            - "traefik.enable=true"
+            - "traefik.docker.network=edge"
+
+            # HTTPS router for airflow.localhost
+            - "traefik.http.routers.airflow.rule=Host(`airflow.localhost`)"
+            - "traefik.http.routers.airflow.entrypoints=websecure"
+            - "traefik.http.routers.airflow.tls=true"
+            - "traefik.http.routers.airflow.service=airflow-web"
+            - "traefik.http.services.airflow-web.loadbalancer.server.port=8080"
+
+            # Wildcard router for *.airflow.localhost
+            - "traefik.http.routers.airflow-wildcard.rule=HostRegexp(`{subdomain:[a-z0-9-]+}.airflow.localhost`)"
+            - "traefik.http.routers.airflow-wildcard.entrypoints=websecure"
+            - "traefik.http.routers.airflow-wildcard.tls=true"
+            - "traefik.http.routers.airflow-wildcard.service=airflow-web"
+
+        airflow-scheduler:
+          <<: *airflow-common
+          container_name: airflow-scheduler
+          command: scheduler
+          networks:
+            - airflow-backend
+          healthcheck:
+            test: ["CMD", "airflow", "jobs", "check", "--job-type", "SchedulerJob", "--hostname", "$${HOSTNAME}"]
+            interval: 30s
+            timeout: 10s
+            retries: 5
+            start_period: 30s
+          restart: unless-stopped
+
+        airflow-init:
+          <<: *airflow-common
+          container_name: airflow-init
+          entrypoint: /bin/bash
+          networks:
+            - airflow-backend
+          command:
+            - -c
+            - |
+              if [[ -z "${AIRFLOW_UID}" ]]; then
+                echo
+                echo -e "\033[1;31mERROR: AIRFLOW_UID not set\033[0m"
+                echo "Please export AIRFLOW_UID in your shell before running:"
+                echo "  export AIRFLOW_UID=$(id -u)"
+                echo
+                exit 1
+              fi
+              exec /entrypoint airflow db init
+
+      volumes:
+        postgres_data:
+          name: airflow_postgres_data
+
+      networks:
+        airflow-backend:
+          name: airflow-backend
+        edge:
+          external: true
+    dest: "{{ ansible_env.HOME }}/platform-services/airflow/docker-compose.yml"
+    mode: '0644'
+
+- name: "📝 Create .env file for Airflow"
+  copy:
+    content: |
+      # Airflow UID for file permissions
+      AIRFLOW_UID={{ ansible_env.UID | default(lookup('pipe', 'id -u')) }}
+    dest: "{{ ansible_env.HOME }}/platform-services/airflow/.env"
+    mode: '0644'
+
+- name: "🔍 Check if Airflow is already initialized"
+  shell: |
+    {% raw %}
+    if docker ps -a --filter "name=airflow-init" --format '{{.Status}}' | grep -q 'Exited (0)'; then
+      echo "AIRFLOW_INITIALIZED=true"
+      echo "Airflow database already initialized"
+    else
+      echo "AIRFLOW_INITIALIZED=false"
+      echo "Airflow needs initialization"
+    fi
+    {% endraw %}
+  args:
+    executable: /bin/bash
+  register: airflow_init_status
+  changed_when: false
+
+- name: "🚀 Initialize Airflow database"
+  shell: |
+    cd {{ ansible_env.HOME }}/platform-services/airflow
+    export AIRFLOW_UID=$(id -u)
+    docker compose up airflow-init
+
+    # Wait for initialization to complete
+    MAX_ATTEMPTS=30
+    ATTEMPT=0
+    while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+      {% raw %}
+      STATUS=$(docker ps -a --filter "name=airflow-init" --format '{{.Status}}')
+      {% endraw %}
+      if echo "$STATUS" | grep -q 'Exited (0)'; then
+        echo "INIT_SUCCESS=true"
+        echo "Airflow initialization completed successfully"
+        exit 0
+      elif echo "$STATUS" | grep -q 'Exited ([1-9]'; then
+        echo "INIT_FAILED=true"
+        echo "Airflow initialization failed"
+        docker logs airflow-init
+        exit 1
+      fi
+
+      ATTEMPT=$((ATTEMPT + 1))
+      echo "Waiting for initialization... ($ATTEMPT/$MAX_ATTEMPTS)"
+      sleep 2
+    done
+
+    echo "INIT_TIMEOUT=true"
+    echo "Initialization timed out"
+    exit 1
+  args:
+    executable: /bin/bash
+  when: "'AIRFLOW_INITIALIZED=false' in airflow_init_status.stdout"
+  register: airflow_init
+
+- name: "🔍 Check if Airflow services are running"
+  shell: |
+    {% raw %}
+    WEBSERVER_RUNNING=$(docker ps --filter "name=airflow-webserver" --format '{{.Names}}' | grep -q '^airflow-webserver$' && echo "true" || echo "false")
+    SCHEDULER_RUNNING=$(docker ps --filter "name=airflow-scheduler" --format '{{.Names}}' | grep -q '^airflow-scheduler$' && echo "true" || echo "false")
+    {% endraw %}
+
+    if [ "$WEBSERVER_RUNNING" = "true" ] && [ "$SCHEDULER_RUNNING" = "true" ]; then
+      echo "AIRFLOW_RUNNING=true"
+      echo "All Airflow services are running"
+    else
+      echo "AIRFLOW_RUNNING=false"
+      echo "Airflow services need to be started"
+      echo "Webserver: $WEBSERVER_RUNNING"
+      echo "Scheduler: $SCHEDULER_RUNNING"
+    fi
+  args:
+    executable: /bin/bash
+  register: airflow_status
+  changed_when: false
+
+- name: "🚀 Start Airflow services"
+  shell: |
+    cd {{ ansible_env.HOME }}/platform-services/airflow
+    export AIRFLOW_UID=$(id -u)
+    docker compose up -d airflow-webserver airflow-scheduler postgres
+  args:
+    executable: /bin/bash
+  when: "'AIRFLOW_RUNNING=false' in airflow_status.stdout"
+  register: airflow_start
+
+- name: "🔄 Restart Airflow services if configuration changed"
+  shell: |
+    cd {{ ansible_env.HOME }}/platform-services/airflow
+    export AIRFLOW_UID=$(id -u)
+    docker compose restart airflow-webserver airflow-scheduler
+  args:
+    executable: /bin/bash
+  when: "'AIRFLOW_RUNNING=true' in airflow_status.stdout"
+  register: airflow_restart
+  changed_when: true
+
+- name: "⏳ Wait for Airflow to be healthy"
+  shell: |
+    MAX_ATTEMPTS=60
+    ATTEMPT=0
+
+    echo "Waiting for Airflow to be ready..."
+    while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+      # Check if webserver is healthy
+      {% raw %}
+      if docker ps --filter "name=airflow-webserver" --format '{{.Status}}' | grep -q 'healthy'; then
+      {% endraw %}
+        # Test the web interface via Traefik
+        if curl -sk https://airflow.localhost/health 2>&1 | grep -q '"status":"healthy"'; then
+          echo "AIRFLOW_READY=true"
+          echo "Airflow is up and responding via Traefik"
+          exit 0
+        fi
+      fi
+
+      ATTEMPT=$((ATTEMPT + 1))
+      echo "Attempt $ATTEMPT/$MAX_ATTEMPTS - Airflow not ready yet..."
+      sleep 3
+    done
+
+    echo "AIRFLOW_READY=false"
+    echo "Airflow failed to become healthy after $MAX_ATTEMPTS attempts"
+    exit 1
+  args:
+    executable: /bin/bash
+  register: airflow_health
+  changed_when: false
+
+- name: "🧪 Test Airflow endpoints"
+  shell: |
+    echo "Testing Airflow endpoints..."
+
+    # Test via Traefik (airflow.localhost)
+    TRAEFIK_CODE=$(curl -sk -o /dev/null -w "%{http_code}" https://airflow.localhost/login/ || echo "000")
+    if [ "$TRAEFIK_CODE" = "200" ]; then
+      echo "TRAEFIK_TEST=success"
+      echo "Airflow accessible via Traefik at airflow.localhost"
+    else
+      echo "TRAEFIK_TEST=failed"
+      echo "Airflow not accessible via Traefik (HTTP $TRAEFIK_CODE)"
+    fi
+
+    # Test direct port access
+    DIRECT_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8081/login/ || echo "000")
+    if [ "$DIRECT_CODE" = "200" ]; then
+      echo "DIRECT_TEST=success"
+      echo "Airflow accessible directly at localhost:8081"
+    else
+      echo "DIRECT_TEST=failed"
+      echo "Airflow not accessible on port 8081 (HTTP $DIRECT_CODE)"
+    fi
+
+    # Test health endpoint
+    HEALTH=$(curl -sk https://airflow.localhost/health 2>/dev/null)
+    if echo "$HEALTH" | grep -q '"status":"healthy"'; then
+      echo "HEALTH_TEST=success"
+      echo "Airflow health endpoint working"
+    else
+      echo "HEALTH_TEST=failed"
+    fi
+  args:
+    executable: /bin/bash
+  register: airflow_test
+  changed_when: false
+  failed_when: false
+
+- name: "✅ Airflow deployment successful"
+  debug:
+    msg: |
+      COMPONENT 6 COMPLETE ✅
+
+      Apache Airflow Deployment: SUCCESS
+      Location: {{ ansible_env.HOME }}/platform-services/airflow
+      Status: Running with HTTPS support
+
+      Test Results:
+      {{ airflow_test.stdout | indent(2) }}
+
+      Access Points:
+      • Airflow UI: https://airflow.localhost
+      • Direct HTTP: http://localhost:8081
+
+      Login Credentials:
+      • Username: admin
+      • Password: admin
+
+      What this enables:
+      • Workflow orchestration and scheduling
+      • DAG development and testing
+      • HTTPS secured with mkcert certificates
+      • Integration with Traefik platform
+
+      DAGs Location: {{ ansible_env.HOME }}/platform-services/airflow/dags
+      Logs Location: {{ ansible_env.HOME }}/platform-services/airflow/logs
+  when: "'AIRFLOW_READY=true' in airflow_health.stdout"
+
+- name: "❌ Airflow deployment failed"
+  fail:
+    msg: |
+      COMPONENT 6 FAILED ❌
+
+      Airflow failed to start properly.
+
+      {{ airflow_health.stdout }}
+
+      Troubleshooting:
+      1. Check Docker logs: docker logs airflow-webserver
+      2. Check scheduler: docker logs airflow-scheduler
+      3. Check database: docker logs airflow-postgres
+      4. Ensure Traefik is running (Component 4)
+  when: "'AIRFLOW_READY=false' in airflow_health.stdout"
+
+- name: "📊 Component 6 Summary"
+  debug:
+    msg: |
+      COMPONENT 6 STATUS: {{ 'COMPLETE ✅' if 'AIRFLOW_READY=true' in airflow_health.stdout else 'FAILED ❌' }}
+
+      Apache Airflow: {{ 'Deployed and running' if 'AIRFLOW_READY=true' in airflow_health.stdout else 'Deployment failed' }}
+      PostgreSQL Database: {{ 'Running' if 'AIRFLOW_READY=true' in airflow_health.stdout else 'Check status' }}
+      Scheduler: {{ 'Running' if 'AIRFLOW_READY=true' in airflow_health.stdout else 'Check status' }}
+
+      Component Scope: Apache Airflow with HTTPS
+      Dependencies: Traefik platform (Component 4)
+
+      Certificate Status: Using mkcert certificates via Traefik
+      Network: Connected to edge network for Traefik integration

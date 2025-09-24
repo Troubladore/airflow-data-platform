@@ -23,6 +23,71 @@
     # ================================
     # Certificate Validation
     # ================================
+    - name: "🔐 mkcert Installation and CA Trust Validation"
+      block:
+        - name: Check mkcert installation
+          command: which mkcert
+          register: mkcert_check
+          failed_when: false
+          changed_when: false
+
+        - name: Get mkcert CAROOT
+          command: mkcert -CAROOT
+          register: caroot_check
+          failed_when: false
+          changed_when: false
+          when: mkcert_check.rc == 0
+
+        - name: Check libnss3-tools installation (required for browser trust)
+          command: dpkg -l libnss3-tools
+          register: libnss3_check
+          failed_when: false
+          changed_when: false
+
+        - name: Test certificate trust with curl
+          command: curl -s --max-time 10 https://traefik.localhost/api/http/services
+          register: curl_trust_test
+          failed_when: false
+          changed_when: false
+
+        - name: Test certificate verification with openssl
+          shell: |
+            echo "Q" | openssl s_client -connect traefik.localhost:443 -servername traefik.localhost -verify_return_error -brief 2>/dev/null || echo "VERIFY_FAILED"
+          register: openssl_verify_test
+          failed_when: false
+          changed_when: false
+
+        - name: Certificate trust validation summary
+          debug:
+            msg: |
+              🔐 Certificate Trust Validation:
+
+              Installation Status:
+              - mkcert installed: {{ '✅' if mkcert_check.rc == 0 else '❌' }}
+              - libnss3-tools: {{ '✅' if libnss3_check.rc == 0 else '❌ MISSING - required for browser trust' }}
+              {% if mkcert_check.rc == 0 %}
+              - CAROOT location: {{ caroot_check.stdout }}
+              {% endif %}
+
+              Trust Tests:
+              - curl without -k: {{ '✅ Trusted' if curl_trust_test.rc == 0 else '❌ Certificate not trusted' }}
+              - OpenSSL verification: {{ '✅ Valid chain' if 'VERIFY_FAILED' not in openssl_verify_test.stdout else '❌ Verification failed' }}
+
+              {% if curl_trust_test.rc != 0 or 'VERIFY_FAILED' in openssl_verify_test.stdout or libnss3_check.rc != 0 %}
+              🚨 ACTION REQUIRED:
+              Certificate trust is not properly configured. This will cause:
+              - Browser security warnings
+              - curl/API calls to fail without -k flag
+              - Examples repository connection issues
+
+              {% if libnss3_check.rc != 0 %}
+              Missing dependency: Install libnss3-tools for browser certificate support
+              {% endif %}
+
+              Run the platform setup to fix:
+              ansible-playbook -i ansible/inventory/local-dev.ini ansible/setup-wsl2.yml --ask-become-pass
+              {% endif %}
+
     - name: "🔐 Certificate File Validation"
       block:
         - name: Check certificate files exist
@@ -48,12 +113,14 @@
             openssl x509 -in "{{ cert_dir }}/dev-localhost-wild.crt" -noout -dates
           register: cert_expiry
           changed_when: false
+          failed_when: false
 
         - name: Validate certificate SAN entries
           shell: |
             openssl x509 -in "{{ cert_dir }}/dev-localhost-wild.crt" -text -noout | grep -A5 "Subject Alternative Name"
           register: cert_san
           changed_when: false
+          failed_when: false
 
         - name: Certificate validation summary
           debug:
@@ -65,14 +132,33 @@
 
               Key Permissions:
               {% for result in cert_perms.results %}
+              {% if result.stat.exists %}
               - {{ result.item }}: {{ '✅ 0600' if result.stat.mode == '0600' else '⚠️  ' + result.stat.mode }}
+              {% else %}
+              - {{ result.item }}: ❌ Missing
+              {% endif %}
               {% endfor %}
 
               Certificate Details:
+              {% if cert_expiry.rc == 0 %}
               {{ cert_expiry.stdout }}
+              {% else %}
+              ❌ Certificate not accessible for expiration check
+              {% endif %}
 
               SAN Entries:
+              {% if cert_san.rc == 0 %}
               {{ cert_san.stdout }}
+              {% else %}
+              ❌ Certificate not accessible for SAN validation
+              {% endif %}
+
+              {% if cert_files.results | selectattr('stat.exists') | list | length == 0 %}
+
+              ⚠️  No certificates found in {{ cert_dir }}
+              This suggests Windows prerequisites haven't been completed yet.
+              Run: .\scripts\win-prereqs.ps1 from Windows PowerShell as Administrator
+              {% endif %}
 
     # ================================
     # Network Connectivity
@@ -110,6 +196,51 @@
               {% endfor %}
 
     # ================================
+    # Platform Configuration Validation
+    # ================================
+    - name: "⚙️  Platform Service Configuration Validation"
+      block:
+        - name: Check Ansible-generated platform services exist
+          stat:
+            path: "{{ ansible_env.HOME }}/platform-services/traefik/docker-compose.yml"
+          register: ansible_compose
+
+        - name: Check if wrong static compose is running
+          shell: docker ps --filter "name=traefik" --format "{{ '{{.Command}}' }}" | grep -q "prerequisites/traefik-registry"
+          register: wrong_compose_check
+          failed_when: false
+          changed_when: false
+
+        - name: Validate correct certificate mounting
+          shell: docker inspect traefik 2>/dev/null | jq -r '.[0].Mounts[] | select(.Destination=="/certs") | .Source' || echo "no-mount"
+          register: cert_mount_check
+          changed_when: false
+          failed_when: false
+
+        - name: Platform configuration summary
+          debug:
+            msg: |
+              ⚙️  Platform Configuration Status:
+
+              ✅ Required Components:
+              - Ansible platform services: {{ '✅' if ansible_compose.stat.exists else '❌ Missing' }}
+              - Certificate mount path: {{ cert_mount_check.stdout if cert_mount_check.stdout != 'no-mount' else '❌ No certificates mounted' }}
+
+              🚨 Critical Issues:
+              {% if wrong_compose_check.rc == 0 %}
+              ⚠️  WARNING: Static prerequisite docker-compose detected!
+
+              🔧 REQUIRED FIX:
+              1. Stop: cd {{ ansible_env.HOME }}/repos/airflow-data-platform && docker compose -f prerequisites/traefik-registry/docker-compose.yml down
+              2. Start: cd {{ ansible_env.HOME }}/platform-services/traefik && docker compose up -d
+
+              The static files in prerequisites/ are templates only.
+              Always use the Ansible-generated services in ~/platform-services/
+              {% else %}
+              ✅ Using correct Ansible-generated platform services
+              {% endif %}
+
+    # ================================
     # Service Health Checks
     # ================================
     - name: "🚀 Service Health Validation"
@@ -131,7 +262,19 @@
             - traefik.localhost
             - registry.localhost
 
-        - name: Test HTTPS endpoints
+        - name: Test HTTPS endpoints with certificate validation
+          uri:
+            url: "https://{{ item.url }}"
+            method: GET
+            timeout: 10
+            validate_certs: yes
+          register: https_tests_trusted
+          failed_when: false
+          loop:
+            - { url: "traefik.localhost", desc: "Traefik Dashboard" }
+            - { url: "registry.localhost/v2/_catalog", desc: "Registry API" }
+
+        - name: Test HTTPS endpoints (insecure fallback)
           uri:
             url: "https://{{ item.url }}"
             method: GET
@@ -152,7 +295,12 @@
               Docker Containers:
               {{ container_status.stdout }}
 
-              HTTPS Endpoints:
+              HTTPS Certificate Trust:
+              {% for result in https_tests_trusted.results %}
+              - {{ result.item.desc }}: {{ '✅ Trusted' if result.status == 200 else '⚠️ Self-signed only' }}
+              {% endfor %}
+
+              HTTPS Endpoints (Insecure):
               {% for result in https_tests.results %}
               - {{ result.item.name }}: {{ '✅' if result.status == 200 else '❌ Status: ' + (result.status|string) }}
               {% endfor %}
@@ -162,13 +310,38 @@
     # ================================
     - name: "📦 Docker Registry Functionality"
       block:
-        - name: Pull test image
+        - name: Pull test image (external registry connectivity test)
           command: docker pull busybox:latest
           register: pull_busybox
+          failed_when: false
+          timeout: 30
 
-        - name: Tag test image for local registry
-          command: docker tag busybox:latest registry.localhost/test/busybox:validation
+        - name: Check if busybox is available locally
+          command: docker images -q busybox:latest
+          register: busybox_local_check
+          failed_when: false
+
+        - name: Use alpine as fallback if busybox unavailable
+          command: docker pull alpine:latest
+          register: pull_fallback
+          failed_when: false
+          timeout: 30
+          when: pull_busybox.rc != 0 and busybox_local_check.stdout == ""
+
+        - name: Tag available image for local registry
+          shell: |
+            if [ -n "$(docker images -q busybox:latest 2>/dev/null)" ]; then
+              docker tag busybox:latest registry.localhost/test/busybox:validation
+              echo "Tagged busybox:latest"
+            elif [ -n "$(docker images -q alpine:latest 2>/dev/null)" ]; then
+              docker tag alpine:latest registry.localhost/test/busybox:validation
+              echo "Tagged alpine:latest"
+            else
+              echo "No suitable test image available for registry test"
+              exit 1
+            fi
           register: tag_image
+          failed_when: tag_image.rc != 0
 
         - name: Push to local registry
           command: docker push registry.localhost/test/busybox:validation
@@ -191,12 +364,16 @@
           debug:
             msg: |
               📦 Docker Registry Operations:
-              - Pull external image: {{ '✅' if pull_busybox.rc == 0 else '❌' }}
-              - Tag for local registry: {{ '✅' if tag_image.rc == 0 else '❌' }}
-              - Push to registry: {{ '✅' if push_test.rc == 0 else '❌' }}
-              - Pull from registry: {{ '✅' if pull_test.rc == 0 else '❌' }}
+              - External connectivity: {{ '✅ Docker Hub accessible' if pull_busybox.rc == 0 else ('⚠️ Limited (fallback used)' if pull_fallback is defined and pull_fallback.rc == 0 else '❌ No external access') }}
+              - Image preparation: {{ '✅' if tag_image.rc == 0 else '❌' }}
+              - Push to local registry: {{ '✅' if push_test.rc == 0 else '❌' }}
+              - Pull from local registry: {{ '✅' if pull_test.rc == 0 else '❌' }}
 
-              Registry Status: {{ '✅ Fully Functional' if (push_test.rc == 0 and pull_test.rc == 0) else '❌ Issues Detected' }}
+              🎯 Registry Status: {{ '✅ Fully Functional' if (push_test.rc == 0 and pull_test.rc == 0) else '❌ Registry Issues' }}
+              {% if pull_busybox.rc != 0 %}
+
+              ℹ️ Note: External registry access limited (likely network/proxy config).
+              This doesn't affect platform functionality - local registry is working.{% endif %}
 
     # ================================
     # TLS/SSL Validation
@@ -313,7 +490,34 @@
     # ================================
     # Success Summary
     # ================================
-    - name: "🎉 Platform Validation Complete"
+    - name: Test certificate trust without -k flag (real validation)
+      uri:
+        url: "https://{{ item }}"
+        method: GET
+        timeout: 10
+        validate_certs: true
+      register: real_cert_tests
+      failed_when: false
+      with_items:
+        - traefik.localhost
+        - registry.localhost
+
+    - name: Set validation status facts
+      set_fact:
+        certificates_exist: "{{ (cert_files.results | selectattr('stat.exists') | list | length) == 4 }}"
+        network_working: "{{ (ping_test.results | selectattr('rc', 'equalto', 0) | list | length) == 2 }}"
+        https_accessible: "{{ (https_tests.results | selectattr('status', 'equalto', 200) | list | length) == 2 }}"
+        registry_working: "{{ push_test.rc == 0 and pull_test.rc == 0 }}"
+        certificates_trusted: "{{ (real_cert_tests.results | selectattr('status', 'equalto', 200) | list | length) >= 1 }}"
+        all_checks_passed: "{{
+          certificates_exist and
+          network_working and
+          https_accessible and
+          registry_working and
+          certificates_trusted
+        }}"
+
+    - name: "🎉 Platform Validation Complete - SUCCESS"
       debug:
         msg: |
           🎉 SUCCESS! Astronomer Airflow Platform is ready!
@@ -340,3 +544,28 @@
           - Validate certificates: openssl x509 -in ~/.local/share/certs/dev-localhost-wild.crt -text -noout
 
           🎊 Your development platform is ready to use!
+      when: all_checks_passed
+
+    - name: "❌ Platform Validation Failed"
+      fail:
+        msg: |
+          ❌ PLATFORM SETUP FAILED!
+
+          📊 Validation Results:
+          - Certificates Exist: {{ '✅' if certificates_exist else '❌' }}
+          - Certificates Trusted: {{ '✅' if certificates_trusted else '❌' }}
+          - Network Resolution: {{ '✅' if network_working else '❌' }}
+          - HTTPS Services: {{ '✅' if https_accessible else '❌' }}
+          - Registry Operations: {{ '✅' if registry_working else '❌' }}
+
+          🚨 CRITICAL ISSUES DETECTED
+
+          The platform setup has validation failures. Please:
+          1. Review the diagnostic output above
+          2. Resolve any Docker proxy bypass issues
+          3. Ensure certificate trust is properly configured
+          4. Restart Docker Desktop if needed
+          5. Re-run the installer after resolving issues
+
+          Platform is NOT ready for use until all validation checks pass.
+      when: not all_checks_passed

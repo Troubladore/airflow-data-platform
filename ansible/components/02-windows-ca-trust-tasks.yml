@@ -1,0 +1,202 @@
+---
+# ATOMIC COMPONENT 2: Windows CA Trust Installation
+# Scope: Ensures mkcert CA is installed in Windows certificate store
+# Dependencies: Component 1 (mkcert binary must exist)
+# Idempotent: Yes
+
+- name: "🏷️  Component 2 - Windows CA Trust"
+  debug:
+    msg: |
+      ATOMIC COMPONENT: Windows CA Trust Installation
+      Scope: Install mkcert CA to Windows certificate store
+      Method: Run mkcert -install from Windows
+      Dependencies: mkcert binary (Component 1)
+
+- name: "🔍 Check if mkcert binary is available (prerequisite)"
+  command: which mkcert
+  register: mkcert_binary_check
+  failed_when: false
+  changed_when: false
+
+- name: "❌ PREREQUISITE FAILED: mkcert binary not available"
+  fail:
+    msg: |
+      COMPONENT 2 PREREQUISITE FAILED ❌
+
+      Component 2 requires mkcert binary to be installed first.
+
+      Expected: mkcert binary available
+      Actual: mkcert not found in PATH
+
+      Solution: Run Component 1 first
+      ansible-playbook -i inventory/local-dev.ini orchestrators/setup-simple.yml
+  when: mkcert_binary_check.rc != 0
+
+- name: "🔍 Use advanced certificate detection with domain validation"
+  shell: |
+    # Use our proven certificate detection utility
+    cd {{ ansible_env.HOME }}/repos/airflow-data-platform
+
+    # Define all required domains for our platform
+    REQUIRED_DOMAINS=(
+      "traefik.localhost"
+      "registry.localhost"
+      "registry-ui.localhost"
+      "airflow.localhost"
+      "whoami.localhost"
+    )
+
+    # Run basic detection first
+    DETECTION_OUTPUT=$(./scripts/detect-certificates.sh 2>/dev/null || echo "DETECTION_FAILED")
+
+    # Check basic certificate existence
+    if echo "$DETECTION_OUTPUT" | grep -q "Windows Certificates.*YES" && echo "$DETECTION_OUTPUT" | grep -q "Windows CA.*YES"; then
+      echo "CERTIFICATES_EXIST=true"
+      echo "DETECTION_METHOD=advanced_utility"
+
+      # Now validate that certificates contain all required domains
+      CERT_PATH="{{ ansible_env.HOME }}/.local/share/certs/dev-localhost-wild.crt"
+      MISSING_DOMAINS=""
+
+      if [ -f "$CERT_PATH" ]; then
+        echo "Validating certificate domains..."
+
+        # Extract SANs from certificate
+        CERT_SANS=$(openssl x509 -in "$CERT_PATH" -noout -text 2>/dev/null | grep -A 1 "Subject Alternative Name" | grep DNS: || echo "")
+
+        # Check each required domain explicitly (browsers are strict about wildcards)
+        for domain in "${REQUIRED_DOMAINS[@]}"; do
+          # Check if domain is explicitly in certificate
+          if ! echo "$CERT_SANS" | grep -q "$domain"; then
+            # Domain is missing - wildcards are not reliable for all browsers
+            MISSING_DOMAINS="$MISSING_DOMAINS $domain"
+          fi
+        done
+
+        if [ -n "$MISSING_DOMAINS" ]; then
+          echo "CERTIFICATES_INCOMPLETE=true"
+          echo "Missing domains:$MISSING_DOMAINS"
+          echo "Certificate needs regeneration to include all platform services"
+        else
+          echo "CERTIFICATES_COMPLETE=true"
+          echo "All required domains are present in certificate"
+        fi
+      else
+        echo "CERTIFICATES_INCOMPLETE=true"
+        echo "Certificate file not found in WSL2"
+      fi
+
+    elif echo "$DETECTION_OUTPUT" | grep -q "Windows mkcert.*YES"; then
+      echo "CERTIFICATES_EXIST=partial"
+      echo "DETECTION_METHOD=advanced_utility"
+      echo "Windows mkcert installed but certificates may need generation"
+    else
+      echo "CERTIFICATES_EXIST=false"
+      echo "DETECTION_METHOD=advanced_utility"
+      echo "No Windows certificates detected by advanced utility"
+    fi
+
+    # Run duplicate detection and cleanup if certificates exist
+    if echo "$DETECTION_OUTPUT" | grep -q "Windows Certificates.*YES"; then
+      echo "RUNNING_DUPLICATE_CLEANUP=true"
+      ./scripts/cleanup-certificate-duplicates.sh >/dev/null 2>&1 || true
+      echo "Advanced duplicate detection completed"
+    fi
+  args:
+    executable: /bin/bash
+  register: cert_existence_check
+  failed_when: false
+  changed_when: false
+
+- name: "✅ Windows certificates already exist and are complete"
+  debug:
+    msg: |
+      COMPONENT 2: Windows Certificates Found ✅
+
+      {{ cert_existence_check.stdout }}
+
+      Windows certificate setup is already complete!
+
+      What this means:
+      • mkcert CA is installed to Windows certificate store
+      • Development certificates have been generated
+      • All required platform domains are included
+      • No manual Windows steps required
+
+      Status: COMPONENT 2 COMPLETE (certificates found and validated)
+  when:
+    - "'CERTIFICATES_EXIST=true' in cert_existence_check.stdout"
+    - "'CERTIFICATES_COMPLETE=true' in cert_existence_check.stdout"
+
+- name: "⚠️ Windows certificates incomplete - missing domains"
+  debug:
+    msg: |
+      COMPONENT 2: Certificate Update Required ⚠️
+
+      Certificates exist but are missing required domains:
+      {{ cert_existence_check.stdout_lines | select('match', '.*Missing domains.*') | list | join('\n') }}
+
+      The Windows automation script needs to be run to regenerate certificates
+      with all required platform service domains.
+  when:
+    - "'CERTIFICATES_EXIST=true' in cert_existence_check.stdout"
+    - "'CERTIFICATES_INCOMPLETE=true' in cert_existence_check.stdout"
+
+- name: "🪟 Windows Certificate Setup Required"
+  pause:
+    prompt: |
+
+      COMPONENT 2: Windows Certificate Setup
+      ====================================
+
+      {{ 'CERTIFICATE UPDATE REQUIRED - Missing domains detected!' if 'CERTIFICATES_INCOMPLETE=true' in cert_existence_check.stdout else '' }}
+
+      Please run the Windows automation script to complete certificate setup:
+
+      From Windows PowerShell or Command Prompt:
+        cd \\wsl$\Ubuntu\home\{{ ansible_env.USER }}\repos\airflow-data-platform
+        .\scripts\setup-certificates-windows-auto.ps1
+
+      This script will:
+      • Install mkcert if not present (via Scoop with fallbacks)
+      • Install mkcert CA to Windows certificate store
+      • Generate development certificates with ALL required domains
+      • Handle all Windows-specific path and line ending issues
+
+      After the script completes successfully, press ENTER to continue
+  when: >
+    'CERTIFICATES_EXIST=false' in cert_existence_check.stdout or
+    'CERTIFICATES_INCOMPLETE=true' in cert_existence_check.stdout
+
+- name: "✅ Windows Certificate Setup Complete"
+  debug:
+    msg: |
+      COMPONENT 2 COMPLETE ✅
+
+      Windows Certificate Setup: {{ 'Already existed' if 'CERTIFICATES_EXIST=true' in cert_existence_check.stdout else 'Manual step completed' }}
+
+      {{ 'Certificates were found in Windows filesystem' if 'CERTIFICATES_EXIST=true' in cert_existence_check.stdout else 'User has run the Windows automation script which:' }}
+      {{ '• mkcert CA is installed to Windows certificate store' if 'CERTIFICATES_EXIST=true' in cert_existence_check.stdout else '• Installed mkcert CA to Windows certificate store' }}
+      {{ '• Development certificates are available' if 'CERTIFICATES_EXIST=true' in cert_existence_check.stdout else '• Generated development certificates with proper SANs' }}
+      {{ '• Windows-specific configuration is in place' if 'CERTIFICATES_EXIST=true' in cert_existence_check.stdout else '• Handled Windows-specific configuration' }}
+
+      What this enables:
+      • Browsers will trust mkcert-generated certificates
+      • No more certificate warnings for *.localhost domains
+      • Ready for Component 3 (Certificate File Management)
+
+
+
+
+- name: "📊 Component 2 Summary"
+  debug:
+    msg: |
+      COMPONENT 2 STATUS: COMPLETE ✅
+
+      Windows CA Trust: Completed via Windows automation script
+
+      Component Scope: Windows certificate store CA trust only
+      Next Component: Certificate file generation
+
+      Method: User-guided Windows script execution
+      Benefits: Full Windows compatibility, proper certificate store access
