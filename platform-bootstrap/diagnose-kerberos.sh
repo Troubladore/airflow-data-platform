@@ -15,6 +15,24 @@ echo "🔍 Kerberos Diagnostic Tool for Docker Integration"
 echo "=================================================="
 echo ""
 
+# Try to detect Windows domain and username if in WSL2
+WINDOWS_DOMAIN=""
+WINDOWS_USERNAME=""
+if [ -f /proc/sys/fs/binfmt_misc/WSLInterop ]; then
+    # We're in WSL2, try to get Windows domain and username
+    if command -v powershell.exe >/dev/null 2>&1; then
+        WINDOWS_DOMAIN=$(powershell.exe -Command "([System.DirectoryServices.ActiveDirectory.Domain]::GetComputerDomain()).Name" 2>/dev/null | tr -d '\r' | tr '[:lower:]' '[:upper:]')
+        if [ -n "$WINDOWS_DOMAIN" ] && [[ "$WINDOWS_DOMAIN" != *"Exception"* ]]; then
+            echo -e "${GREEN}✓ Detected Windows domain: $WINDOWS_DOMAIN${NC}"
+        fi
+
+        WINDOWS_USERNAME=$(powershell.exe -Command "\$env:USERNAME" 2>/dev/null | tr -d '\r')
+        if [ -n "$WINDOWS_USERNAME" ]; then
+            echo -e "${GREEN}✓ Detected Windows username: $WINDOWS_USERNAME${NC}"
+        fi
+    fi
+fi
+
 # Function to check a condition and report
 check_condition() {
     local description="$1"
@@ -43,6 +61,14 @@ if command -v klist >/dev/null 2>&1; then
         echo ""
         echo "Ticket details:"
         klist | head -5
+
+        # Extract company domain from principal
+        PRINCIPAL=$(klist 2>/dev/null | grep "Default principal:" | sed 's/Default principal: //')
+        DETECTED_DOMAIN=""
+        if [ -n "$PRINCIPAL" ]; then
+            # Extract domain from principal (e.g., user@COMPANY.COM -> COMPANY.COM)
+            DETECTED_DOMAIN=$(echo "$PRINCIPAL" | sed 's/.*@//')
+        fi
 
         # Extract ticket cache location
         TICKET_CACHE=$(klist 2>/dev/null | grep "Ticket cache:" | sed 's/Ticket cache: //')
@@ -79,20 +105,41 @@ if command -v klist >/dev/null 2>&1; then
                 ls -la "$CACHE_DIR" 2>/dev/null | head -5
 
                 # Find the actual ticket file in the directory
-                for ticket_file in "$CACHE_DIR"/*; do
-                    if [ -f "$ticket_file" ] && [[ "$(basename "$ticket_file")" != "primary" ]]; then
-                        # Determine .env values
-                        DETECTED_CACHE_TYPE="DIR"
-                        DETECTED_CACHE_PATH="$CACHE_DIR"
-                        # Get relative path from cache dir
-                        DETECTED_CACHE_TICKET=$(basename "$ticket_file")
-                        # If there's a subdirectory structure, include it
-                        if [[ "$ticket_file" == *"/dev/"* ]]; then
-                            DETECTED_CACHE_TICKET="dev/$(basename "$ticket_file")"
-                        fi
-                        break
+                # Check both root level and subdirectories
+                TICKET_FOUND=""
+
+                # First check subdirectories (like dev/)
+                for subdir in "$CACHE_DIR"/*; do
+                    if [ -d "$subdir" ]; then
+                        for ticket_file in "$subdir"/*; do
+                            if [ -f "$ticket_file" ] && [[ "$(basename "$ticket_file")" != "primary" ]]; then
+                                # Found ticket in subdirectory
+                                DETECTED_CACHE_TYPE="DIR"
+                                DETECTED_CACHE_PATH="$CACHE_DIR"
+                                # Get relative path from cache dir
+                                SUBDIR_NAME=$(basename "$subdir")
+                                TICKET_NAME=$(basename "$ticket_file")
+                                DETECTED_CACHE_TICKET="$SUBDIR_NAME/$TICKET_NAME"
+                                TICKET_FOUND="yes"
+                                echo -e "  ${GREEN}✓ Found ticket: $DETECTED_CACHE_TICKET${NC}"
+                                break 2
+                            fi
+                        done
                     fi
                 done
+
+                # If not found in subdirs, check root level
+                if [ -z "$TICKET_FOUND" ]; then
+                    for ticket_file in "$CACHE_DIR"/*; do
+                        if [ -f "$ticket_file" ] && [[ "$(basename "$ticket_file")" != "primary" ]]; then
+                            DETECTED_CACHE_TYPE="DIR"
+                            DETECTED_CACHE_PATH="$CACHE_DIR"
+                            DETECTED_CACHE_TICKET=$(basename "$ticket_file")
+                            echo -e "  ${GREEN}✓ Found ticket: $DETECTED_CACHE_TICKET${NC}"
+                            break
+                        fi
+                    done
+                fi
             else
                 echo -e "  ${RED}✗ Directory does not exist${NC}"
             fi
@@ -115,7 +162,14 @@ if command -v klist >/dev/null 2>&1; then
         fi
     else
         echo -e "${RED}✗ No Kerberos tickets found${NC}"
-        echo "  Run: kinit YOUR_USERNAME@DOMAIN.COM"
+        # Use detected values for the kinit command
+        if [ -n "$WINDOWS_USERNAME" ] && [ -n "$WINDOWS_DOMAIN" ]; then
+            echo "  Run: kinit ${WINDOWS_USERNAME}@${WINDOWS_DOMAIN}"
+        elif [ -n "$WINDOWS_DOMAIN" ]; then
+            echo "  Run: kinit YOUR_USERNAME@${WINDOWS_DOMAIN}"
+        else
+            echo "  Run: kinit YOUR_USERNAME@DOMAIN.COM"
+        fi
     fi
 else
     echo -e "${RED}✗ klist command not found${NC}"
@@ -232,6 +286,16 @@ if [ -n "$DETECTED_CACHE_TYPE" ] && [ -n "$DETECTED_CACHE_PATH" ] && [ -n "$DETE
     echo ""
     echo "----------------------------------------"
     echo "# Add to platform-bootstrap/.env"
+
+    # Include company domain if detected
+    if [ -n "$DETECTED_DOMAIN" ]; then
+        echo "COMPANY_DOMAIN=$DETECTED_DOMAIN"
+    elif [ -n "$WINDOWS_DOMAIN" ]; then
+        echo "COMPANY_DOMAIN=$WINDOWS_DOMAIN"
+    else
+        echo "COMPANY_DOMAIN=COMPANY.COM  # Replace with your actual domain"
+    fi
+
     echo "KERBEROS_CACHE_TYPE=$DETECTED_CACHE_TYPE"
 
     # Handle home directory path for better portability
@@ -269,6 +333,9 @@ if [ -n "$DETECTED_CACHE_TYPE" ] && [ -n "$DETECTED_CACHE_PATH" ] && [ -n "$DETE
     echo "#!/bin/bash"
     echo "cd platform-bootstrap"
     echo "[ ! -f .env ] && cp .env.example .env"
+    if [ -n "$DETECTED_DOMAIN" ]; then
+        echo "sed -i 's/^COMPANY_DOMAIN=.*/COMPANY_DOMAIN=$DETECTED_DOMAIN/' .env"
+    fi
     echo "sed -i 's/^KERBEROS_CACHE_TYPE=.*/KERBEROS_CACHE_TYPE=$DETECTED_CACHE_TYPE/' .env"
     echo "sed -i 's|^KERBEROS_CACHE_PATH=.*|KERBEROS_CACHE_PATH=$PATH_VALUE|' .env"
     echo "sed -i 's|^KERBEROS_CACHE_TICKET=.*|KERBEROS_CACHE_TICKET=$DETECTED_CACHE_TICKET|' .env"
@@ -286,24 +353,123 @@ elif [ -n "$TICKET_CACHE" ]; then
         echo "   export KRB5CCNAME=FILE:/tmp/krb5cc_\$(id -u)"
         echo ""
         echo "2. Get a new ticket:"
-        echo "   kinit YOUR_USERNAME@DOMAIN.COM"
+        if [ -n "$WINDOWS_USERNAME" ] && [ -n "$WINDOWS_DOMAIN" ]; then
+            echo "   kinit ${WINDOWS_USERNAME}@${WINDOWS_DOMAIN}"
+        elif [ -n "$WINDOWS_DOMAIN" ]; then
+            echo "   kinit YOUR_USERNAME@${WINDOWS_DOMAIN}"
+        else
+            echo "   kinit YOUR_USERNAME@DOMAIN.COM"
+        fi
         echo ""
         echo "3. Run this diagnostic again to get .env values"
     else
-        echo -e "${YELLOW}⚠️  Could not determine exact .env values${NC}"
+        echo -e "${YELLOW}⚠️  Ticket location detected but no active ticket files found${NC}"
         echo ""
-        echo "Your ticket cache format may need manual configuration."
-        echo "Please check the ticket location above and set these values manually:"
-        echo ""
-        echo "KERBEROS_CACHE_TYPE=FILE  # or DIR"
-        echo "KERBEROS_CACHE_PATH=/path/to/ticket/directory"
-        echo "KERBEROS_CACHE_TICKET=ticket_filename"
+
+        # Try to provide better guidance based on what we know
+        if [[ "$TICKET_CACHE" == DIR::* ]]; then
+            CACHE_DIR=${TICKET_CACHE#DIR::}
+            echo "Detected DIR format at: $CACHE_DIR"
+            echo ""
+            echo -e "${GREEN}Suggested .env configuration:${NC}"
+            echo "----------------------------------------"
+            echo "# Add to platform-bootstrap/.env"
+            if [ -n "$DETECTED_DOMAIN" ]; then
+                echo "COMPANY_DOMAIN=$DETECTED_DOMAIN"
+            elif [ -n "$WINDOWS_DOMAIN" ]; then
+                echo "COMPANY_DOMAIN=$WINDOWS_DOMAIN"
+            else
+                echo "COMPANY_DOMAIN=COMPANY.COM  # Replace with your actual domain"
+            fi
+            echo "KERBEROS_CACHE_TYPE=DIR"
+
+            # Handle home directory path
+            if [[ "$CACHE_DIR" == "$HOME"* ]]; then
+                RELATIVE_PATH=${CACHE_DIR#$HOME}
+                echo "KERBEROS_CACHE_PATH=\${HOME}$RELATIVE_PATH"
+            else
+                echo "KERBEROS_CACHE_PATH=$CACHE_DIR"
+            fi
+
+            # Guess common ticket patterns
+            if [[ "$CACHE_DIR" == *"/.krb5-cache"* ]]; then
+                echo "KERBEROS_CACHE_TICKET=dev/tkt  # Common pattern - adjust if different"
+            else
+                echo "KERBEROS_CACHE_TICKET=tkt  # Update based on actual ticket name"
+            fi
+            echo "----------------------------------------"
+            echo ""
+            echo "After updating .env, get a fresh ticket:"
+            # Use detected values for kinit suggestion
+            if [ -n "$WINDOWS_USERNAME" ] && [ -n "${DETECTED_DOMAIN:-$WINDOWS_DOMAIN}" ]; then
+                echo "  kinit ${WINDOWS_USERNAME}@${DETECTED_DOMAIN:-$WINDOWS_DOMAIN}"
+            elif [ -n "${DETECTED_DOMAIN:-$WINDOWS_DOMAIN}" ]; then
+                echo "  kinit YOUR_USERNAME@${DETECTED_DOMAIN:-$WINDOWS_DOMAIN}"
+            else
+                echo "  kinit YOUR_USERNAME@DOMAIN.COM"
+            fi
+        elif [[ "$TICKET_CACHE" == FILE:* ]]; then
+            CACHE_FILE=${TICKET_CACHE#FILE:}
+            echo "Detected FILE format at: $CACHE_FILE"
+            echo ""
+            echo -e "${GREEN}Suggested .env configuration:${NC}"
+            echo "----------------------------------------"
+            echo "# Add to platform-bootstrap/.env"
+            if [ -n "$DETECTED_DOMAIN" ]; then
+                echo "COMPANY_DOMAIN=$DETECTED_DOMAIN"
+            elif [ -n "$WINDOWS_DOMAIN" ]; then
+                echo "COMPANY_DOMAIN=$WINDOWS_DOMAIN"
+            else
+                echo "COMPANY_DOMAIN=COMPANY.COM  # Replace with your actual domain"
+            fi
+            echo "KERBEROS_CACHE_TYPE=FILE"
+
+            CACHE_DIR=$(dirname "$CACHE_FILE")
+            CACHE_NAME=$(basename "$CACHE_FILE")
+
+            if [[ "$CACHE_DIR" == "$HOME"* ]]; then
+                RELATIVE_PATH=${CACHE_DIR#$HOME}
+                echo "KERBEROS_CACHE_PATH=\${HOME}$RELATIVE_PATH"
+            else
+                echo "KERBEROS_CACHE_PATH=$CACHE_DIR"
+            fi
+            echo "KERBEROS_CACHE_TICKET=$CACHE_NAME"
+            echo "----------------------------------------"
+            echo ""
+            echo "After updating .env, get a fresh ticket:"
+            # Use detected values for kinit suggestion
+            if [ -n "$WINDOWS_USERNAME" ] && [ -n "${DETECTED_DOMAIN:-$WINDOWS_DOMAIN}" ]; then
+                echo "  kinit ${WINDOWS_USERNAME}@${DETECTED_DOMAIN:-$WINDOWS_DOMAIN}"
+            elif [ -n "${DETECTED_DOMAIN:-$WINDOWS_DOMAIN}" ]; then
+                echo "  kinit YOUR_USERNAME@${DETECTED_DOMAIN:-$WINDOWS_DOMAIN}"
+            else
+                echo "  kinit YOUR_USERNAME@DOMAIN.COM"
+            fi
+        else
+            # Truly unknown format
+            echo "Unable to parse ticket cache format: $TICKET_CACHE"
+            echo ""
+            echo "Please manually configure your .env with:"
+            echo "----------------------------------------"
+            echo "COMPANY_DOMAIN=YOUR_DOMAIN.COM"
+            echo "KERBEROS_CACHE_TYPE=FILE  # or DIR"
+            echo "KERBEROS_CACHE_PATH=/path/to/ticket/directory"
+            echo "KERBEROS_CACHE_TICKET=ticket_filename"
+            echo "----------------------------------------"
+        fi
     fi
 else
     echo -e "${RED}❌ No Kerberos tickets found${NC}"
     echo ""
     echo "First, get a Kerberos ticket:"
-    echo "1. Run: kinit YOUR_USERNAME@DOMAIN.COM"
+    echo -n "1. Run: "
+    if [ -n "$WINDOWS_USERNAME" ] && [ -n "$WINDOWS_DOMAIN" ]; then
+        echo "kinit ${WINDOWS_USERNAME}@${WINDOWS_DOMAIN}"
+    elif [ -n "$WINDOWS_DOMAIN" ]; then
+        echo "kinit YOUR_USERNAME@${WINDOWS_DOMAIN}"
+    else
+        echo "kinit YOUR_USERNAME@DOMAIN.COM"
+    fi
     echo "2. Enter your password"
     echo "3. Run this diagnostic again to get .env values"
 fi
@@ -331,7 +497,13 @@ elif [ -n "$TICKET_CACHE" ]; then
         echo ""
         echo "This usually means your tickets have expired or haven't been created yet."
         echo "Try getting a fresh ticket:"
-        echo "   kinit YOUR_USERNAME@DOMAIN.COM"
+        if [ -n "$WINDOWS_USERNAME" ] && [ -n "$WINDOWS_DOMAIN" ]; then
+            echo "   kinit ${WINDOWS_USERNAME}@${WINDOWS_DOMAIN}"
+        elif [ -n "$WINDOWS_DOMAIN" ]; then
+            echo "   kinit YOUR_USERNAME@${WINDOWS_DOMAIN}"
+        else
+            echo "   kinit YOUR_USERNAME@DOMAIN.COM"
+        fi
         echo ""
         echo "Then run this diagnostic again."
     fi
@@ -359,7 +531,13 @@ else
     echo ""
     echo "2. Get a fresh Kerberos ticket (use standard location):"
     echo "   export KRB5CCNAME=FILE:/tmp/krb5cc_\$(id -u)"
-    echo "   kinit YOUR_USERNAME@DOMAIN.COM"
+    if [ -n "$WINDOWS_USERNAME" ] && [ -n "$WINDOWS_DOMAIN" ]; then
+        echo "   kinit ${WINDOWS_USERNAME}@${WINDOWS_DOMAIN}"
+    elif [ -n "$WINDOWS_DOMAIN" ]; then
+        echo "   kinit YOUR_USERNAME@${WINDOWS_DOMAIN}"
+    else
+        echo "   kinit YOUR_USERNAME@DOMAIN.COM"
+    fi
     echo ""
     echo "3. Run this diagnostic again to get .env values:"
     echo "   ./diagnose-kerberos.sh"
