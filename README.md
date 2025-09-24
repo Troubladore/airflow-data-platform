@@ -2,7 +2,10 @@
 
 A modern data platform framework that provides table mixins, schema management, and deployment utilities for data engineering teams. Built on [Astronomer](https://www.astronomer.io/) and [SQLModel](https://sqlmodel.tiangolo.com/) with containerized infrastructure for local development and testing.
 
-This repository contains the **platform framework**. For business implementations and examples, see [airflow-data-platform-examples](https://github.com/Troubladore/airflow-data-platform-examples).
+## 📦 Two Repositories, Clear Separation
+
+- **This repo**: Platform framework and enhancements
+- **[Examples repo](https://github.com/Troubladore/airflow-data-platform-examples)**: How to use it (start there!)
 
 ## 🎯 The Problem We're Solving
 
@@ -40,13 +43,37 @@ This framework provides a thin layer of enterprise patterns on top of Astronomer
 └─────────────────────────────────────┘
 ```
 
+## 🚀 Quick Start
+
+1. **Set up platform services** (this repo):
+   ```bash
+   git clone https://github.com/Troubladore/airflow-data-platform.git
+   cd airflow-data-platform/platform-bootstrap
+   make start
+   ```
+
+2. **Try hello-world example** (examples repo):
+   ```bash
+   git clone https://github.com/Troubladore/airflow-data-platform-examples.git
+   cd airflow-data-platform-examples/hello-world
+   # Follow README there
+   ```
+
 ## 📚 Documentation
 
-- **[Getting Started](docs/getting-started-simple.md)** - First project in 10 minutes
-- **[Kerberos Setup for WSL2](docs/kerberos-setup-wsl2.md)** - SQL Server authentication guide
+### Setup & Configuration
+- **[Platform Setup](docs/getting-started-simple.md)** - Install platform services
+- **[Kerberos Setup for WSL2](docs/kerberos-setup-wsl2.md)** - SQL Server authentication
+
+### Patterns & Architecture
 - **[SQLModel Patterns](docs/patterns/sqlmodel-patterns.md)** - Data engineering with SQLModel
-- **[Runtime Environment Patterns](docs/patterns/runtime-patterns.md)** - Dependency isolation strategies
-- **[Directory Structure](docs/directory-structure.md)** - Complete repository organization
+- **[Runtime Environment Patterns](docs/patterns/runtime-patterns.md)** - Dependency isolation
+- **[Directory Structure](docs/directory-structure.md)** - Repository organization
+
+### Examples & Tutorials
+- **[Hello World](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/hello-world)** - Simplest example
+- **[Hello Kerberos](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/hello-kerberos)** - SQL Server auth
+- **[All Examples](https://github.com/Troubladore/airflow-data-platform-examples)** - Complete examples repo
 
 ## 📊 Status
 
