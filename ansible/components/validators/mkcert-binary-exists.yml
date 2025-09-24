@@ -1,0 +1,13 @@
+---
+# ATOMIC VALIDATOR: mkcert Binary File Exists
+# Single responsibility: Check if binary file exists at expected location
+
+- name: "Check if mkcert binary file exists"
+  stat:
+    path: "/usr/local/bin/mkcert"
+  register: mkcert_binary_stat
+
+- name: "Set binary exists result"
+  set_fact:
+    mkcert_binary_exists: "{{ mkcert_binary_stat.stat.exists }}"
+    mkcert_binary_path: "/usr/local/bin/mkcert"

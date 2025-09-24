@@ -12,17 +12,114 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # ==============================================================================
+# WINDOWS INTERACTION UTILITY
+# ==============================================================================
+
+# Detects working PowerShell command for Windows interaction from WSL2
+detect_windows_powershell() {
+    local powershell_candidates=(
+        "powershell.exe"
+        "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+        "pwsh.exe"
+        "/mnt/c/Program Files/PowerShell/7/pwsh.exe"
+    )
+
+    for ps_cmd in "${powershell_candidates[@]}"; do
+        if $ps_cmd -NoProfile -Command "Write-Output 'test'" &>/dev/null; then
+            echo "$ps_cmd"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+# Global variables for Windows interaction
+WINDOWS_PS=""
+WINDOWS_ACCESSIBLE=false
+
+# Initialize Windows interaction capability
+init_windows_interaction() {
+    if WINDOWS_PS=$(detect_windows_powershell); then
+        WINDOWS_ACCESSIBLE=true
+        echo "  🪟 Windows accessible via: $(basename "$WINDOWS_PS")"
+    else
+        WINDOWS_ACCESSIBLE=false
+        echo "  ⚠️  Windows not accessible from this WSL2 session"
+    fi
+}
+
+# ==============================================================================
+# CERTIFICATE VERIFICATION UTILITY
+# ==============================================================================
+
+# Verifies what certificate a specific HTTPS endpoint is actually serving
+# Returns: 0 if certificate matches hostname, 1 if mismatch, 2 if unreachable
+verify_endpoint_certificate() {
+    local hostname="$1"
+    local port="${2:-443}"
+
+    # Test connectivity first
+    if ! curl -s --connect-timeout 5 --max-time 10 -k "https://$hostname:$port/" &>/dev/null; then
+        echo "CERT_STATUS=unreachable"
+        return 2
+    fi
+
+    # Get certificate details
+    local cert_output
+    if cert_output=$(openssl s_client -connect "$hostname:$port" -servername "$hostname" </dev/null 2>/dev/null | openssl x509 -text -noout 2>/dev/null); then
+        # Extract SAN entries
+        local san_entries
+        san_entries=$(echo "$cert_output" | grep -A 1 "Subject Alternative Name" | grep -o "DNS:[^,]*" | sed 's/DNS://' | tr '\n' ',' | sed 's/,$//')
+
+        echo "CERT_SAN=$san_entries"
+
+        # Check if hostname matches any SAN entry
+        local hostname_matches=false
+        IFS=',' read -ra SAN_ARRAY <<< "$san_entries"
+        for san_entry in "${SAN_ARRAY[@]}"; do
+            san_entry=$(echo "$san_entry" | xargs) # trim whitespace
+            # Handle wildcard matching
+            if [[ "$san_entry" == \*.* ]]; then
+                local wildcard_domain="${san_entry#\*.}"
+                if [[ "$hostname" == *"$wildcard_domain" ]] && [[ "$hostname" != "$wildcard_domain" ]]; then
+                    hostname_matches=true
+                    break
+                fi
+            elif [[ "$san_entry" == "$hostname" ]]; then
+                hostname_matches=true
+                break
+            fi
+        done
+
+        if $hostname_matches; then
+            echo "CERT_STATUS=valid"
+            return 0
+        else
+            echo "CERT_STATUS=hostname_mismatch"
+            return 1
+        fi
+    else
+        echo "CERT_STATUS=cert_read_error"
+        return 2
+    fi
+}
+
+# ==============================================================================
 # WINDOWS STATE DETECTION FROM WSL2
 # ==============================================================================
 
 detect_windows_certificates() {
     echo "🔐 Certificate State Detection"
 
-    # Check if mkcert is installed on Windows
+    # Check if mkcert is installed (WSL2 or Windows)
     local mkcert_installed=false
-    if command -v mkcert.exe &>/dev/null || powershell.exe -NoProfile -Command "Get-Command mkcert -ErrorAction SilentlyContinue" &>/dev/null; then
+    if command -v mkcert &>/dev/null; then
         mkcert_installed=true
-        echo "  ✅ mkcert: Installed"
+        echo "  ✅ mkcert: Installed (WSL2)"
+    elif [ "$WINDOWS_ACCESSIBLE" = true ] && $WINDOWS_PS -NoProfile -Command "Get-Command mkcert -ErrorAction SilentlyContinue" &>/dev/null; then
+        mkcert_installed=true
+        echo "  ✅ mkcert: Installed (Windows)"
     else
         echo "  ❌ mkcert: Not installed"
     fi
@@ -63,23 +160,56 @@ detect_windows_certificates() {
         echo "  ❌ Certificates: Not found in any expected location"
     fi
 
-    # Check Windows certificate store (mkcert CA)
-    local ca_installed=false
-    if powershell.exe -NoProfile -Command "
-        try {
-            \$store = New-Object System.Security.Cryptography.X509Certificates.X509Store('Root', 'CurrentUser')
-            \$store.Open('ReadOnly')
-            \$certs = \$store.Certificates | Where-Object { \$_.Subject -like '*mkcert*' }
-            \$store.Close()
-            if (\$certs.Count -gt 0) { Write-Output 'true' } else { Write-Output 'false' }
-        } catch {
-            Write-Output 'false'
-        }
-    " 2>/dev/null | grep -q "true"; then
-        ca_installed=true
-        echo "  ✅ Windows CA trust: mkcert CA installed"
+    # Check Windows certificate store (mkcert CA) with pollution detection
+    local ca_status=""
+    if [ "$WINDOWS_ACCESSIBLE" = true ]; then
+        ca_status=$($WINDOWS_PS -NoProfile -Command "
+            try {
+                \$store = New-Object System.Security.Cryptography.X509Certificates.X509Store('Root', 'CurrentUser')
+                \$store.Open('ReadOnly')
+                \$certs = \$store.Certificates | Where-Object { \$_.Subject -like '*mkcert*' }
+                \$store.Close()
+
+                if (\$certs.Count -eq 0) {
+                    Write-Output 'CA_STATUS=missing'
+                } elseif (\$certs.Count -eq 1) {
+                    \$cert = \$certs[0]
+                    \$daysUntilExpiry = (\$cert.NotAfter - (Get-Date)).Days
+                    if (\$daysUntilExpiry -lt 30) {
+                        Write-Output \"CA_STATUS=expires_soon CA_COUNT=1 CA_DAYS_LEFT=\$daysUntilExpiry\"
+                    } else {
+                        Write-Output \"CA_STATUS=good CA_COUNT=1 CA_DAYS_LEFT=\$daysUntilExpiry\"
+                    }
+                } else {
+                    \$latestCert = \$certs | Sort-Object NotAfter -Descending | Select-Object -First 1
+                    \$oldestDate = (\$certs | Sort-Object NotBefore | Select-Object -First 1).NotBefore
+                    \$latestDate = \$latestCert.NotBefore
+                    \$daySpread = (\$latestDate - \$oldestDate).Days
+                    Write-Output \"CA_STATUS=polluted CA_COUNT=\$(\$certs.Count) CA_DATE_SPREAD=\$daySpread\"
+                }
+            } catch {
+                Write-Output 'CA_STATUS=error'
+            }
+        " 2>/dev/null)
+
+        if [[ "$ca_status" == *"CA_STATUS=missing"* ]]; then
+            echo "  ❌ Windows CA trust: mkcert CA not found"
+        elif [[ "$ca_status" == *"CA_STATUS=good"* ]]; then
+            local ca_days=$(echo "$ca_status" | grep -o "CA_DAYS_LEFT=[0-9]*" | cut -d= -f2)
+            echo "  ✅ Windows CA trust: mkcert CA installed (expires in $ca_days days)"
+        elif [[ "$ca_status" == *"CA_STATUS=expires_soon"* ]]; then
+            local ca_days=$(echo "$ca_status" | grep -o "CA_DAYS_LEFT=[0-9]*" | cut -d= -f2)
+            echo "  ⚠️  Windows CA trust: mkcert CA expires in $ca_days days"
+        elif [[ "$ca_status" == *"CA_STATUS=polluted"* ]]; then
+            local ca_count=$(echo "$ca_status" | grep -o "CA_COUNT=[0-9]*" | cut -d= -f2)
+            local date_spread=$(echo "$ca_status" | grep -o "CA_DATE_SPREAD=[0-9]*" | cut -d= -f2)
+            echo "  ❌ Windows CA trust: POLLUTED - $ca_count mkcert CAs found (spanning $date_spread days)"
+            echo "     💡 Multiple CA certificates cause browser trust warnings"
+        else
+            echo "  ❌ Windows CA trust: Error checking certificate store"
+        fi
     else
-        echo "  ❌ Windows CA trust: mkcert CA not found"
+        echo "  ⚠️  Windows CA trust: Cannot check (Windows not accessible)"
     fi
 
     return 0
@@ -244,6 +374,10 @@ detect_network_state() {
 main() {
     echo "🔍 System State Diagnostic Report"
     echo "=================================="
+    echo
+
+    # Initialize Windows interaction capability
+    init_windows_interaction
     echo
 
     local overall_status=0

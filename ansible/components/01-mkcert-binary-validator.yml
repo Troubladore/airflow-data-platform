@@ -1,0 +1,100 @@
+---
+# COMPONENT 1 VALIDATOR: mkcert Binary
+# This file ONLY validates if the component is working
+# It does NOT install or fix anything
+
+- name: "🔍 VALIDATE: mkcert Binary Component"
+  debug:
+    msg: |
+      COMPONENT 1 VALIDATION
+      =====================
+      Purpose: Check if mkcert binary is working correctly
+      Action: Validation only (no installation/fixes)
+
+- name: "Check mkcert binary exists and is executable"
+  stat:
+    path: "/usr/local/bin/mkcert"
+  register: mkcert_binary_stat
+
+- name: "❌ VALIDATION FAILED: mkcert binary not found"
+  debug:
+    msg: |
+      COMPONENT 1 VALIDATION FAILED ❌
+
+      Issue: mkcert binary not found at /usr/local/bin/mkcert
+      Possible causes:
+      - Binary was never installed
+      - Binary was deleted by another script
+      - Binary was moved to different location
+
+      Resolution: Component needs to be re-run
+  when: not mkcert_binary_stat.stat.exists
+
+- name: "❌ VALIDATION FAILED: mkcert binary not executable"
+  debug:
+    msg: |
+      COMPONENT 1 VALIDATION FAILED ❌
+
+      Issue: mkcert binary exists but is not executable
+      File: {{ mkcert_binary_stat.stat.path }}
+      Mode: {{ mkcert_binary_stat.stat.mode }}
+
+      Resolution: Component needs to be re-run
+  when: mkcert_binary_stat.stat.exists and not mkcert_binary_stat.stat.executable
+
+- name: "Test mkcert binary functionality"
+  command: mkcert --version
+  register: mkcert_version_test
+  failed_when: false
+  changed_when: false
+  when: mkcert_binary_stat.stat.exists and mkcert_binary_stat.stat.executable
+
+- name: "❌ VALIDATION FAILED: mkcert binary exists but doesn't work"
+  debug:
+    msg: |
+      COMPONENT 1 VALIDATION FAILED ❌
+
+      Issue: mkcert binary exists but version command failed
+      Binary: /usr/local/bin/mkcert
+      Exit code: {{ mkcert_version_test.rc }}
+      Error: {{ mkcert_version_test.stderr | default('Unknown error') }}
+
+      Possible causes:
+      - Binary is corrupted
+      - Missing dependencies
+      - Wrong architecture/version
+
+      Resolution: Component needs to be re-run
+  when:
+    - mkcert_binary_stat.stat.exists
+    - mkcert_binary_stat.stat.executable
+    - mkcert_version_test.rc != 0
+
+- name: "✅ VALIDATION SUCCESS: mkcert binary working"
+  debug:
+    msg: |
+      COMPONENT 1 VALIDATION SUCCESS ✅
+
+      Binary: /usr/local/bin/mkcert
+      Version: {{ mkcert_version_test.stdout }}
+      Status: Fully functional
+
+      Component is working correctly.
+  when:
+    - mkcert_binary_stat.stat.exists
+    - mkcert_binary_stat.stat.executable
+    - mkcert_version_test.rc == 0
+
+# Set validation result for orchestrator
+- name: "Set validation result"
+  set_fact:
+    component_validation_passed: "{{
+      mkcert_binary_stat.stat.exists and
+      mkcert_binary_stat.stat.executable and
+      (mkcert_version_test.rc | default(1)) == 0
+    }}"
+    component_validation_details: |
+      Binary exists: {{ mkcert_binary_stat.stat.exists | default(false) }}
+      Binary executable: {{ mkcert_binary_stat.stat.executable | default(false) }}
+      Version test passed: {{ (mkcert_version_test.rc | default(1)) == 0 }}
+      {% if (mkcert_version_test.rc | default(1)) == 0 %}Version: {{ mkcert_version_test.stdout }}{% endif %}

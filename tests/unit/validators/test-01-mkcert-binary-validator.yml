@@ -1,0 +1,193 @@
+---
+# UNIT TESTS: Component 1 mkcert Binary Validator
+# Tests all scenarios: binary exists/missing, executable/not, working/broken
+
+- name: "Unit Tests: mkcert Binary Validator"
+  hosts: localhost
+  gather_facts: yes
+
+  vars:
+    test_results: []
+    validator_path: "../../../ansible/components/01-mkcert-binary-validator.yml"
+    test_binary_path: "/tmp/test-mkcert-binary"
+    original_binary_path: "/usr/local/bin/mkcert"
+
+  tasks:
+    - name: "🧪 Unit Test Framework: mkcert Binary Validator"
+      debug:
+        msg: |
+          UNIT TEST SUITE: mkcert Binary Validator
+          =======================================
+
+          Test scenarios:
+          1. Binary exists and works (should pass)
+          2. Binary missing (should fail)
+          3. Binary exists but not executable (should fail)
+          4. Binary exists but doesn't work (should fail)
+
+          Validator under test: {{ validator_path }}
+
+    # Test Setup: Create controlled test environment
+    - name: "Setup: Backup original binary if exists"
+      stat:
+        path: "{{ original_binary_path }}"
+      register: original_binary_stat
+
+    - name: "Setup: Backup original binary"
+      copy:
+        src: "{{ original_binary_path }}"
+        dest: "{{ original_binary_path }}.test-backup"
+        remote_src: yes
+      become: yes
+      when: original_binary_stat.stat.exists
+
+    # TEST 1: Binary missing scenario
+    - name: "🧪 TEST 1: Binary missing scenario"
+      block:
+        - name: "Setup: Remove binary"
+          file:
+            path: "{{ original_binary_path }}"
+            state: absent
+          become: yes
+
+        - name: "Run validator (expect failure)"
+          include_tasks: "{{ validator_path }}"
+
+        - name: "Assert: Validation should fail when binary missing"
+          assert:
+            that:
+              - not (component_validation_passed | default(true))
+            fail_msg: "TEST 1 FAILED: Validator should fail when binary is missing"
+            success_msg: "✅ TEST 1 PASSED: Validator correctly failed when binary missing"
+
+        - name: "Record test result"
+          set_fact:
+            test_results: "{{ test_results + ['TEST 1: Binary missing - PASSED'] }}"
+
+      rescue:
+        - name: "Record test failure"
+          set_fact:
+            test_results: "{{ test_results + ['TEST 1: Binary missing - FAILED'] }}"
+
+    # TEST 2: Binary exists but not executable scenario
+    - name: "🧪 TEST 2: Binary not executable scenario"
+      block:
+        - name: "Setup: Create non-executable binary"
+          copy:
+            content: "#!/bin/bash\necho fake mkcert\n"
+            dest: "{{ original_binary_path }}"
+            mode: '0644'  # Not executable
+          become: yes
+
+        - name: "Run validator (expect failure)"
+          include_tasks: "{{ validator_path }}"
+
+        - name: "Assert: Validation should fail when binary not executable"
+          assert:
+            that:
+              - not (component_validation_passed | default(true))
+            fail_msg: "TEST 2 FAILED: Validator should fail when binary not executable"
+            success_msg: "✅ TEST 2 PASSED: Validator correctly failed when binary not executable"
+
+        - name: "Record test result"
+          set_fact:
+            test_results: "{{ test_results + ['TEST 2: Binary not executable - PASSED'] }}"
+
+      rescue:
+        - name: "Record test failure"
+          set_fact:
+            test_results: "{{ test_results + ['TEST 2: Binary not executable - FAILED'] }}"
+
+    # TEST 3: Binary exists but doesn't work scenario
+    - name: "🧪 TEST 3: Binary exists but doesn't work scenario"
+      block:
+        - name: "Setup: Create broken executable binary"
+          copy:
+            content: "#!/bin/bash\nexit 1\n"  # Always fails
+            dest: "{{ original_binary_path }}"
+            mode: '0755'  # Executable but broken
+          become: yes
+
+        - name: "Run validator (expect failure)"
+          include_tasks: "{{ validator_path }}"
+
+        - name: "Assert: Validation should fail when binary broken"
+          assert:
+            that:
+              - not (component_validation_passed | default(true))
+            fail_msg: "TEST 3 FAILED: Validator should fail when binary is broken"
+            success_msg: "✅ TEST 3 PASSED: Validator correctly failed when binary broken"
+
+        - name: "Record test result"
+          set_fact:
+            test_results: "{{ test_results + ['TEST 3: Binary broken - PASSED'] }}"
+
+      rescue:
+        - name: "Record test failure"
+          set_fact:
+            test_results: "{{ test_results + ['TEST 3: Binary broken - FAILED'] }}"
+
+    # TEST 4: Binary working scenario (restore real binary)
+    - name: "🧪 TEST 4: Binary working scenario"
+      block:
+        - name: "Setup: Restore working binary"
+          copy:
+            src: "{{ original_binary_path }}.test-backup"
+            dest: "{{ original_binary_path }}"
+            mode: '0755'
+            remote_src: yes
+          become: yes
+          when: original_binary_stat.stat.exists
+
+        - name: "Setup: Download working binary if no backup"
+          get_url:
+            url: "https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcert-v1.4.4-linux-amd64"
+            dest: "{{ original_binary_path }}"
+            mode: '0755'
+          become: yes
+          when: not original_binary_stat.stat.exists
+
+        - name: "Run validator (expect success)"
+          include_tasks: "{{ validator_path }}"
+
+        - name: "Assert: Validation should pass when binary working"
+          assert:
+            that:
+              - component_validation_passed | default(false)
+            fail_msg: "TEST 4 FAILED: Validator should pass when binary is working"
+            success_msg: "✅ TEST 4 PASSED: Validator correctly passed when binary working"
+
+        - name: "Record test result"
+          set_fact:
+            test_results: "{{ test_results + ['TEST 4: Binary working - PASSED'] }}"
+
+      rescue:
+        - name: "Record test failure"
+          set_fact:
+            test_results: "{{ test_results + ['TEST 4: Binary working - FAILED'] }}"
+
+    # Cleanup and Results
+    - name: "Cleanup: Remove backup file"
+      file:
+        path: "{{ original_binary_path }}.test-backup"
+        state: absent
+      become: yes
+
+    - name: "🧪 Unit Test Results Summary"
+      debug:
+        msg: |
+          UNIT TEST RESULTS SUMMARY
+          ========================
+
+          Tests run: {{ test_results | length }}
+
+          {% for result in test_results %}
+          {{ result }}
+          {% endfor %}
+
+          Overall: {{ 'ALL TESTS PASSED' if test_results | select('search', 'FAILED') | list | length == 0 else 'SOME TESTS FAILED' }}
+
+    - name: "Fail if any tests failed"
+      fail:
+        msg: "Unit tests failed - see results above"
+      when: test_results | select('search', 'FAILED') | list | length > 0

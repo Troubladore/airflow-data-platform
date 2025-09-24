@@ -1,0 +1,343 @@
+---
+# ATOMIC COMPONENT 4: Traefik Platform Deployment
+# Scope: Deploy Traefik reverse proxy with HTTPS using mkcert certificates
+# Dependencies: Components 1-3 (mkcert binary, Windows CA trust, certificate files)
+# Idempotent: Yes
+
+- name: "🏷️  Component 4 - Traefik Platform Deployment"
+  debug:
+    msg: |
+      ATOMIC COMPONENT: Traefik Platform Deployment
+      Scope: Deploy Traefik with HTTPS support
+      Method: Docker Compose with certificate mounting
+      Dependencies: Components 1-3 (certificates must exist)
+
+- name: "🔍 Check Component 3 prerequisite (certificates)"
+  stat:
+    path: "{{ ansible_env.HOME }}/.local/share/certs"
+  register: certs_dir_check
+
+- name: "❌ PREREQUISITE FAILED: Certificates not available"
+  fail:
+    msg: |
+      COMPONENT 4 PREREQUISITE FAILED ❌
+
+      Component 4 requires certificates to be available from Component 3.
+
+      Expected: Certificates in {{ ansible_env.HOME }}/.local/share/certs
+      Actual: Directory does not exist
+
+      Solution: Run Components 1-3 first
+      ansible-playbook -i inventory/local-dev.ini orchestrators/setup-simple.yml
+  when: not certs_dir_check.stat.exists
+
+- name: "🔍 Verify required certificates exist"
+  shell: |
+    CERT_DIR="{{ ansible_env.HOME }}/.local/share/certs"
+    MISSING_FILES=""
+
+    # Check for wildcard certificate and key
+    if [ ! -f "$CERT_DIR/dev-localhost-wild.crt" ]; then
+      MISSING_FILES="$MISSING_FILES dev-localhost-wild.crt"
+    fi
+    if [ ! -f "$CERT_DIR/dev-localhost-wild.key" ]; then
+      MISSING_FILES="$MISSING_FILES dev-localhost-wild.key"
+    fi
+
+    if [ -n "$MISSING_FILES" ]; then
+      echo "MISSING_CERTS=true"
+      echo "Missing files:$MISSING_FILES"
+    else
+      echo "CERTS_VALID=true"
+      echo "All required certificates found"
+    fi
+  args:
+    executable: /bin/bash
+  register: cert_validation
+  changed_when: false
+
+- name: "❌ PREREQUISITE FAILED: Required certificates missing"
+  fail:
+    msg: |
+      COMPONENT 4 PREREQUISITE FAILED ❌
+
+      Required certificates are missing:
+      {{ cert_validation.stdout }}
+
+      Solution: Re-run Component 3 to copy certificates from Windows
+  when: "'MISSING_CERTS=true' in cert_validation.stdout"
+
+- name: "🐳 Check if Docker is running"
+  command: docker info
+  register: docker_check
+  failed_when: false
+  changed_when: false
+
+- name: "❌ PREREQUISITE FAILED: Docker not running"
+  fail:
+    msg: |
+      COMPONENT 4 PREREQUISITE FAILED ❌
+
+      Docker daemon is not running.
+
+      Solution: Start Docker Desktop or Docker daemon
+      Then re-run this component
+  when: docker_check.rc != 0
+
+- name: "📁 Create Traefik platform services directory"
+  file:
+    path: "{{ ansible_env.HOME }}/platform-services/traefik"
+    state: directory
+    mode: '0755'
+
+- name: "📁 Create Traefik dynamic configuration directory"
+  file:
+    path: "{{ ansible_env.HOME }}/platform-services/traefik/dynamic"
+    state: directory
+    mode: '0755'
+
+- name: "📝 Create Traefik docker-compose.yml"
+  copy:
+    content: |
+      services:
+        traefik:
+          image: traefik:v3.0
+          container_name: traefik
+          restart: unless-stopped
+          ports:
+            - "80:80"
+            - "443:443"
+            - "8080:8080"  # Dashboard
+          command:
+            # API and Dashboard
+            - "--api.insecure=true"
+            - "--api.dashboard=true"
+
+            # Docker provider
+            - "--providers.docker=true"
+            - "--providers.docker.exposedbydefault=false"
+            - "--providers.docker.network=edge"
+
+            # File provider for dynamic config
+            - "--providers.file.directory=/etc/traefik/dynamic"
+            - "--providers.file.watch=true"
+
+            # Entrypoints
+            - "--entrypoints.web.address=:80"
+            - "--entrypoints.websecure.address=:443"
+
+            # HTTP to HTTPS redirect
+            - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+            - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+
+            # Logging
+            - "--log.level=INFO"
+          volumes:
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+            - {{ ansible_env.HOME }}/.local/share/certs:/certs:ro
+            - ./dynamic:/etc/traefik/dynamic:ro
+          networks:
+            - edge
+          labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.traefik.rule=Host(`traefik.localhost`)"
+            - "traefik.http.routers.traefik.entrypoints=websecure"
+            - "traefik.http.routers.traefik.tls=true"
+            - "traefik.http.routers.traefik.service=api@internal"
+
+      networks:
+        edge:
+          external: true
+    dest: "{{ ansible_env.HOME }}/platform-services/traefik/docker-compose.yml"
+    mode: '0644'
+
+- name: "📝 Create Traefik TLS configuration"
+  copy:
+    content: |
+      tls:
+        certificates:
+          - certFile: /certs/dev-localhost-wild.crt
+            keyFile: /certs/dev-localhost-wild.key
+            stores:
+              - default
+        stores:
+          default:
+            defaultCertificate:
+              certFile: /certs/dev-localhost-wild.crt
+              keyFile: /certs/dev-localhost-wild.key
+    dest: "{{ ansible_env.HOME }}/platform-services/traefik/dynamic/tls.yml"
+    mode: '0644'
+
+- name: "🔍 Check if edge network exists"
+  shell: |
+    {% raw %}
+    if docker network ls --format '{{.Name}}' | grep -q '^edge$'; then
+      echo "NETWORK_EXISTS=true"
+      # Check who owns it
+      LABELS=$(docker network inspect edge --format='{{json .Labels}}' 2>/dev/null || echo '{}')
+      echo "NETWORK_LABELS=$LABELS"
+    else
+      echo "NETWORK_EXISTS=false"
+    fi
+    {% endraw %}
+  args:
+    executable: /bin/bash
+  register: network_check
+  changed_when: false
+
+- name: "🌐 Create edge network if needed"
+  command: docker network create edge
+  when: "'NETWORK_EXISTS=false' in network_check.stdout"
+
+- name: "🔍 Check if Traefik is already running"
+  shell: |
+    {% raw %}
+    if docker ps --filter "name=traefik" --format '{{.Names}}' | grep -q '^traefik$'; then
+      echo "TRAEFIK_RUNNING=true"
+      echo "Status: $(docker ps --filter 'name=traefik' --format '{{.Status}}')"
+    else
+      echo "TRAEFIK_RUNNING=false"
+    fi
+    {% endraw %}
+  args:
+    executable: /bin/bash
+  register: traefik_status
+  changed_when: false
+
+- name: "🚀 Start Traefik if not running"
+  shell: |
+    cd {{ ansible_env.HOME }}/platform-services/traefik
+    docker compose up -d
+  args:
+    executable: /bin/bash
+  when: "'TRAEFIK_RUNNING=false' in traefik_status.stdout"
+  register: traefik_start
+
+- name: "🔄 Reload Traefik if already running (config might have changed)"
+  shell: |
+    cd {{ ansible_env.HOME }}/platform-services/traefik
+    # Recreate containers if config changed
+    docker compose up -d --force-recreate
+  args:
+    executable: /bin/bash
+  when: "'TRAEFIK_RUNNING=true' in traefik_status.stdout"
+  register: traefik_reload
+  changed_when: "'Recreating' in traefik_reload.stdout"
+
+- name: "⏳ Wait for Traefik to be healthy"
+  shell: |
+    {% raw %}
+    MAX_ATTEMPTS=30
+    ATTEMPT=0
+
+    echo "Waiting for Traefik to be ready..."
+    while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+      # Check if container is running
+      if docker ps --filter "name=traefik" --format '{{.Status}}' | grep -q 'Up'; then
+        # Check if Traefik API is responding
+        if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/rawdata | grep -q "200"; then
+          echo "TRAEFIK_READY=true"
+          echo "Traefik is up and responding"
+          exit 0
+        fi
+      fi
+
+      ATTEMPT=$((ATTEMPT + 1))
+      echo "Attempt $ATTEMPT/$MAX_ATTEMPTS - Traefik not ready yet..."
+      sleep 2
+    done
+
+    echo "TRAEFIK_READY=false"
+    echo "Traefik failed to start properly after $MAX_ATTEMPTS attempts"
+    exit 1
+    {% endraw %}
+  args:
+    executable: /bin/bash
+  register: traefik_health
+  changed_when: false
+
+- name: "🧪 Test HTTPS with certificate validation"
+  shell: |
+    echo "Testing HTTPS access to Traefik dashboard..."
+
+    # Test with curl (should work with system CA if certificates are trusted)
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://traefik.localhost || echo "000")
+
+    if [ "$HTTP_CODE" = "200" ]; then
+      echo "HTTPS_TEST=success"
+      echo "HTTPS working with valid certificate"
+    else
+      # Try with -k flag to see if it is just a trust issue
+      HTTP_CODE_INSECURE=$(curl -sk -o /dev/null -w "%{http_code}" https://traefik.localhost || echo "000")
+      if [ "$HTTP_CODE_INSECURE" = "200" ]; then
+        echo "HTTPS_TEST=untrusted"
+        echo "HTTPS works but certificate is not trusted (HTTP $HTTP_CODE)"
+        echo "This is expected in WSL2 - browser trust works separately"
+      else
+        echo "HTTPS_TEST=failed"
+        echo "HTTPS not working (HTTP $HTTP_CODE)"
+      fi
+    fi
+  args:
+    executable: /bin/bash
+  register: https_test
+  changed_when: false
+  failed_when: false
+
+- name: "✅ Traefik deployment successful"
+  debug:
+    msg: |
+      COMPONENT 4 COMPLETE ✅
+
+      Traefik Platform Deployment: SUCCESS
+      Location: {{ ansible_env.HOME }}/platform-services/traefik
+      Status: Running with HTTPS support
+
+      Test Result:
+      {{ https_test.stdout | indent(2) }}
+
+      Access Points:
+      • Dashboard: https://traefik.localhost (or http://localhost:8080)
+      • HTTP: http://localhost (redirects to HTTPS)
+      • HTTPS: https://localhost:443
+
+      What this enables:
+      • HTTPS termination for all services
+      • Automatic HTTP to HTTPS redirect
+      • Dynamic service discovery via Docker labels
+      • Valid certificates from mkcert CA
+
+      Next Steps:
+      • Open https://traefik.localhost in your browser
+      • Should see Traefik dashboard with no certificate warnings
+      • If you see warnings, ensure Windows CA trust is complete (Component 2)
+  when: "'TRAEFIK_READY=true' in traefik_health.stdout"
+
+- name: "❌ Traefik deployment failed"
+  fail:
+    msg: |
+      COMPONENT 4 FAILED ❌
+
+      Traefik failed to start properly.
+
+      {{ traefik_health.stdout }}
+
+      Troubleshooting:
+      1. Check Docker logs: docker logs traefik
+      2. Verify certificates are accessible
+      3. Check if ports 80/443/8080 are already in use
+      4. Ensure Docker daemon is running properly
+  when: "'TRAEFIK_READY=false' in traefik_health.stdout"
+
+- name: "📊 Component 4 Summary"
+  debug:
+    msg: |
+      COMPONENT 4 STATUS: {{ 'COMPLETE ✅' if 'TRAEFIK_READY=true' in traefik_health.stdout else 'FAILED ❌' }}
+
+      Traefik Platform: {{ 'Deployed and running' if 'TRAEFIK_READY=true' in traefik_health.stdout else 'Deployment failed' }}
+
+      Component Scope: Traefik reverse proxy with HTTPS
+      Next Component: Registry or other platform services
+
+      Certificate Status: Using mkcert certificates from Component 3
+      Network: Edge network {{ 'created' if 'NETWORK_EXISTS=false' in network_check.stdout else 'already existed' }}

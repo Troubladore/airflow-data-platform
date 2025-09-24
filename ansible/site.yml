@@ -75,12 +75,15 @@
           register: system_diagnostics
           failed_when: false
           changed_when: false
+          args:
+            executable: /bin/bash
 
         - name: Parse diagnostic results
           set_fact:
             needs_mkcert: "{{ 'mkcert: Not installed' in system_diagnostics.stdout }}"
             needs_certificates: "{{ 'Certificates: Not found' in system_diagnostics.stdout }}"
             needs_ca_trust: "{{ 'Windows CA trust: mkcert CA not found' in system_diagnostics.stdout }}"
+            has_ca_pollution: "{{ 'POLLUTED' in system_diagnostics.stdout }}"
             has_hosts: "{{ 'Windows hosts file: All entries present' in system_diagnostics.stdout }}"
             needs_proxy_bypass: "{{ 'Proxy bypass: *.localhost missing' in system_diagnostics.stdout }}"
 
@@ -89,6 +92,416 @@
             msg: |
               🔍 System State Analysis:
               {{ system_diagnostics.stdout_lines | join('\n') }}
+
+        - name: Automatic CA cleanup (when pollution detected)
+          block:
+            - name: "🧹 Fixing certificate authority pollution automatically"
+              debug:
+                msg: |
+                  🧹 Certificate Authority Cleanup
+
+                  Detected multiple mkcert CA certificates causing browser warnings.
+                  Running automatic cleanup to resolve certificate trust issues...
+
+            - name: Run CA cleanup utility
+              shell: |
+                source "{{ playbook_dir }}/../scripts/diagnostics/system-state.sh"
+                init_windows_interaction >/dev/null 2>&1
+                if [ "$WINDOWS_ACCESSIBLE" = true ]; then
+                  echo "Using PowerShell: $WINDOWS_PS"
+                  $WINDOWS_PS -NoProfile -ExecutionPolicy Bypass -File "{{ playbook_dir }}/../scripts/diagnostics/cleanup-mkcert-ca.ps1" -Force
+                else
+                  echo "Windows PowerShell not accessible - skipping automatic cleanup"
+                  exit 1
+                fi
+              args:
+                executable: /bin/bash
+              register: ca_cleanup_result
+              failed_when: false
+              changed_when: ca_cleanup_result.rc == 0
+
+            - name: Show CA cleanup results
+              debug:
+                msg: |
+                  🧹 CA Cleanup Results:
+                  {{ ca_cleanup_result.stdout_lines | join('\n') }}
+
+            - name: Re-run diagnostics after CA cleanup
+              script: "{{ playbook_dir }}/../scripts/diagnostics/system-state.sh"
+              register: post_cleanup_diagnostics
+              failed_when: false
+              changed_when: false
+              args:
+                executable: /bin/bash
+
+            - name: Update pollution status after cleanup
+              set_fact:
+                has_ca_pollution: "{{ 'POLLUTED' in post_cleanup_diagnostics.stdout }}"
+                ca_cleanup_performed: true
+
+            - name: Show post-cleanup status
+              debug:
+                msg: |
+                  ✅ Certificate authority cleanup completed!
+                  {{ '🎉 Browser certificate warnings should now be resolved' if not has_ca_pollution else '⚠️  Some pollution may remain - manual cleanup needed' }}
+
+          when: has_ca_pollution
+
+        - name: Docker proxy configuration diagnostic and automatic fix
+          block:
+            - name: "🔍 Running enhanced Docker proxy diagnostic"
+              debug:
+                msg: |
+                  🔍 Docker Proxy Configuration Analysis
+
+                  Running enhanced diagnostic to check:
+                  • Docker Desktop version and settings format
+                  • Proxy configuration state machine
+                  • Corporate proxy bypass for *.localhost domains
+
+            - name: Execute Docker proxy diagnostic
+              shell: |
+                source "{{ playbook_dir }}/../scripts/diagnostics/system-state.sh"
+                init_windows_interaction >/dev/null 2>&1
+                "{{ playbook_dir }}/../scripts/diagnostics/docker-proxy-diagnostics.sh"
+              register: docker_proxy_result
+              failed_when: false
+              changed_when: false
+              args:
+                executable: /bin/bash
+
+            - name: Parse Docker proxy diagnostic results
+              set_fact:
+                docker_proxy_exit_code: "{{ docker_proxy_result.rc }}"
+                docker_accessible: "{{ docker_proxy_result.rc != 4 }}"
+                proxy_bypass_working: "{{ docker_proxy_result.rc == 0 }}"
+                no_proxy_configured: "{{ docker_proxy_result.rc == 1 }}"
+                bypass_missing_settings: "{{ docker_proxy_result.rc == 2 }}"
+                restart_required: "{{ docker_proxy_result.rc == 3 }}"
+                automated_resync_available: "{{ docker_proxy_result.rc == 5 }}"
+                using_modern_docker: "{{ 'SETTINGS_FORMAT=modern' in docker_proxy_result.stdout }}"
+
+            - name: Show Docker proxy diagnostic results
+              debug:
+                msg: |
+                  🔍 Docker Proxy Diagnostic Results:
+                  Exit Code: {{ docker_proxy_exit_code }}
+                  State: {{ 'Working correctly' if proxy_bypass_working else 'No proxy configured' if no_proxy_configured else 'Bypass missing from settings' if bypass_missing_settings else 'Docker restart required' if restart_required else 'Automated resync available' if automated_resync_available else 'Docker not accessible' }}
+                  Docker Format: {{ 'Modern (settings-store.json)' if using_modern_docker else 'Legacy (settings.json)' }}
+
+                  {{ docker_proxy_result.stdout_lines | join('\n') }}
+
+            - name: Focused Docker proxy automation attempt
+              shell: |
+                source "{{ playbook_dir }}/../scripts/diagnostics/system-state.sh"
+                init_windows_interaction >/dev/null 2>&1
+                if [ "$WINDOWS_ACCESSIBLE" = true ]; then
+                  echo "🎯 Attempting automated Docker proxy fix..."
+                  $WINDOWS_PS -NoProfile -ExecutionPolicy Bypass -File "{{ playbook_dir }}/../scripts/diagnostics/unified-docker-proxy.ps1" -AutoFix
+                else
+                  echo "Windows PowerShell not accessible - skipping automation"
+                  exit 1
+                fi
+              register: focused_proxy_result
+              failed_when: false
+              changed_when: focused_proxy_result.rc == 0
+              args:
+                executable: /bin/bash
+              when: bypass_missing_settings and docker_accessible
+
+            - name: Docker proxy automation succeeded
+              debug:
+                msg: |
+                  ✅ Docker Proxy Automation Successful
+
+                  {{ focused_proxy_result.stdout_lines | join('\n') }}
+
+                  Platform setup can continue normally.
+              when: bypass_missing_settings and docker_accessible and focused_proxy_result.rc == 0
+
+            - name: Automated Docker Desktop resync (exit code 5)
+              shell: |
+                source "{{ playbook_dir }}/../scripts/diagnostics/system-state.sh"
+                init_windows_interaction >/dev/null 2>&1
+                if [ "$WINDOWS_ACCESSIBLE" = true ]; then
+                  echo "🤖 Running automated Docker Desktop resync..."
+                  $WINDOWS_PS -NoProfile -ExecutionPolicy Bypass -File "{{ playbook_dir }}/../scripts/diagnostics/unified-docker-proxy.ps1" -AutoFix
+                else
+                  echo "Windows PowerShell not accessible - manual resync needed"
+                  exit 1
+                fi
+              register: automated_resync_result
+              failed_when: false
+              changed_when: automated_resync_result.rc == 0
+              args:
+                executable: /bin/bash
+              when: automated_resync_available and docker_accessible
+
+            - name: Automated resync successful
+              debug:
+                msg: |
+                  ✅ Docker Desktop Automated Resync Successful
+
+                  {{ automated_resync_result.stdout_lines | join('\n') }}
+
+                  Docker proxy configuration has been automatically synchronized.
+                  Platform setup can continue normally.
+              when: automated_resync_available and docker_accessible and automated_resync_result.rc == 0
+
+            - name: Automated resync failed - scenario-specific manual fix needed
+              pause:
+                prompt: |
+
+                  ⚠️  Docker Desktop Proxy Cache Issue Detected
+
+                  SITUATION:
+                  • Windows: No proxy configured
+                  • Docker Desktop: System mode (following Windows)
+                  • Docker Engine: Still shows cached proxy settings ({{ docker_proxy_result.stdout | regex_replace('.*DOCKER_HTTP_PROXY=([^\\n]+).*', '\\1') if 'DOCKER_HTTP_PROXY=' in docker_proxy_result.stdout else 'unknown' }})
+
+                  This is a "DesktopDesync" scenario - Docker Desktop is stuck with old cached proxy settings
+                  even though Windows has no proxy and Desktop is in system mode.
+
+                  {{ automated_resync_result.stdout_lines | join('\n') if automated_resync_result.stdout_lines else 'Automated fix failed - manual intervention required' }}
+
+                  SCENARIO-SPECIFIC SOLUTION (DesktopDesync):
+
+                  STEP 1: Completely stop Docker Desktop
+                  • Right-click Docker Desktop system tray icon → "Quit Docker Desktop"
+                  • Wait 10 seconds for complete shutdown
+                  • Open Task Manager and verify no "Docker Desktop" processes remain
+
+                  STEP 2: Clear proxy cache manually
+                  • Open Windows PowerShell as Administrator
+                  • Run: wsl --shutdown
+                  • Wait 10 seconds
+
+                  STEP 3: Restart Docker Desktop
+                  • Start Docker Desktop from Start Menu
+                  • Wait for "Docker Desktop is running" status
+                  • Docker should now inherit "no proxy" from Windows
+
+                  VERIFICATION: Open WSL terminal and run: docker info | grep -i proxy
+                  Should show NO proxy settings, or only show "No Proxy: localhost"
+
+                  After completing these steps, press Enter to continue validation...
+              when: automated_resync_available and docker_accessible and automated_resync_result.rc != 0
+
+            - name: Complex Docker proxy scenario - comprehensive analysis
+              shell: |
+                echo "🔬 Running comprehensive Docker proxy analysis..."
+                "{{ playbook_dir }}/../scripts/diagnostics/docker-proxy-diagnostics.sh"
+              register: comprehensive_proxy_result
+              failed_when: false
+              changed_when: false
+              args:
+                executable: /bin/bash
+              when: bypass_missing_settings and docker_accessible and focused_proxy_result.rc == 2
+
+            - name: Docker restart required for proxy bypass
+              pause:
+                prompt: |
+
+                  🔄 DOCKER RESTART REQUIRED
+
+                  SITUATION:
+                  Docker proxy bypass settings have been configured, but Docker Desktop needs to be restarted for the changes to take effect.
+
+                  REQUIRED ACTION - Docker Desktop Restart:
+
+                  STEP 1: Restart Docker Desktop
+                  • Right-click Docker Desktop system tray icon → "Restart"
+                  • Wait for Docker to show "Running" status (usually 30-60 seconds)
+
+                  STEP 2: If restart doesn't work, try Docker Settings UI:
+                  • Right-click Docker Desktop system tray icon → "Settings"
+                  • Click "Proxies" in left sidebar
+                  • In "No Proxy for these hosts and domains" field, ensure it contains:
+                    localhost,*.localhost,127.0.0.1,registry.localhost,traefik.localhost,airflow.localhost
+                  • Click "Apply & Restart" button
+
+                  STEP 3: If still not working, restart WSL2:
+                  • Open Windows PowerShell as Administrator
+                  • Run: wsl --shutdown
+                  • Wait 10 seconds, then reopen this WSL2 terminal
+                  • Docker Desktop should automatically restart
+
+                  After Docker Desktop restart is complete, press Enter to continue...
+              when: bypass_missing_settings or restart_required
+
+            - name: Validate Docker restart completed
+              block:
+                - name: "🔍 Validating Docker restart effects"
+                  debug:
+                    msg: |
+                      🔍 Validating Docker Proxy Configuration After Restart
+
+                      Checking if Docker restart resolved the proxy bypass issues...
+
+                - name: Re-run Docker proxy diagnostic
+                  shell: |
+                    "{{ playbook_dir }}/../scripts/diagnostics/docker-proxy-diagnostics.sh"
+                  register: post_restart_result
+                  failed_when: false
+                  changed_when: false
+                  args:
+                    executable: /bin/bash
+
+                - name: Parse post-restart results
+                  set_fact:
+                    restart_validation_code: "{{ post_restart_result.rc }}"
+                    restart_fixed_issue: "{{ post_restart_result.rc == 0 or post_restart_result.rc == 1 }}"
+                    restart_failed: "{{ post_restart_result.rc == 2 or post_restart_result.rc == 3 }}"
+
+                - name: Docker restart successfully resolved proxy issues
+                  debug:
+                    msg: |
+                      ✅ Docker Restart Successful!
+
+                      Docker proxy configuration is now working correctly:
+                      • Docker Desktop restart applied the proxy bypass settings
+                      • *.localhost domains should work without proxy interference
+                      • Platform setup can continue normally
+
+                      {{ post_restart_result.stdout_lines | join('\n') }}
+                  when: restart_fixed_issue
+
+                - name: Docker restart did not resolve proxy issues
+                  fail:
+                    msg: |
+                      ❌ Docker Restart Did Not Resolve Proxy Issues
+
+                      After Docker restart, proxy bypass is still not working correctly.
+                      Exit Code: {{ restart_validation_code }}
+
+                      {{ post_restart_result.stdout_lines | join('\n') }}
+
+                      This may indicate:
+                      • Corporate policy overrides preventing bypass configuration
+                      • Docker Desktop settings not properly saved
+                      • Need for WSL2 restart for proxy propagation
+
+                      Manual investigation required before platform setup can continue.
+                  when: restart_failed
+
+                - name: Docker restart still needed after UI changes
+                  pause:
+                    prompt: |
+
+                      ⚠️  Docker Restart Still Required
+
+                      Good news: Bypass domains are now configured in Docker Desktop settings!
+                      Issue: Docker engine hasn't applied the changes yet.
+
+                      SOLUTION:
+                      1. Right-click Docker Desktop system tray icon
+                      2. Select "Restart"
+                      3. Wait for Docker to show "Running" status (30-60 seconds)
+
+                      If that doesn't work, try WSL2 restart for proxy propagation:
+                      4. Open Windows PowerShell as Administrator
+                      5. Run: wsl --shutdown
+                      6. Wait 10 seconds, then reopen this WSL2 terminal
+                      7. Docker Desktop should automatically restart
+
+                      After restart completes, press Enter to continue validation...
+                  when: still_needs_restart
+
+                - name: Re-validate after restart
+                  shell: |
+                    "{{ playbook_dir }}/../scripts/diagnostics/docker-proxy-diagnostics.sh"
+                  register: final_validation_result
+                  failed_when: false
+                  changed_when: false
+                  args:
+                    executable: /bin/bash
+                  when: still_needs_restart
+
+                - name: Final validation status
+                  debug:
+                    msg: |
+                      🔍 Final Validation:
+                      Status: {{ 'Proxy bypass now working! ✅' if final_validation_result.rc == 0 else 'Still not working - may need corporate policy investigation ❌' }}
+
+                      {{ final_validation_result.stdout_lines | join('\n') if still_needs_restart else '' }}
+                  when: still_needs_restart
+
+                - name: Configuration still not working - corporate policy investigation needed
+                  block:
+                    - name: Trigger corporate policy investigation
+                      shell: |
+                        source "{{ playbook_dir }}/../scripts/diagnostics/docker-proxy-diagnostics.sh"
+                        show_corporate_policy_guidance
+                      args:
+                        executable: /bin/bash
+
+                    - name: Corporate policy investigation guidance
+                      pause:
+                        prompt: |
+
+                          🏢 Corporate Policy Investigation Required
+
+                          SITUATION:
+                          You correctly configured Docker Desktop proxy bypass through the UI and restarted Docker,
+                          but the configuration still isn't taking effect. This strongly suggests corporate
+                          policies are overriding your local Docker settings.
+
+                          The diagnostic above provided PowerShell commands to investigate corporate policies.
+
+                          NEXT STEPS:
+                          1. Run the PowerShell commands shown above
+                          2. Document any corporate policies found
+                          3. Contact your IT team with findings
+                          4. Request policy exceptions for *.localhost domains
+
+                          You can continue platform setup now, but *.localhost access may be limited
+                          until corporate policy exceptions are granted.
+
+                          Press Enter to continue with platform setup (with limited functionality)...
+
+                  when: still_needs_bypass or (still_needs_restart and final_validation_result.rc != 0)
+
+              when: bypass_missing_settings or restart_required
+
+
+            - name: Manual intervention guidance (fallback)
+              pause:
+                prompt: |
+
+                  ⚠️  Docker Proxy Configuration Guidance
+
+                  SITUATION:
+                  {{ '• Docker Desktop not accessible - ensure Docker is running and try again' if not docker_accessible else '' }}
+                  {{ '• Docker restart is needed but automated coordination was skipped' if restart_required else '' }}
+
+                  RECOMMENDED ACTION:
+                  The robust solution is to configure proxy bypass through Docker Desktop UI:
+
+                  1. Open Docker Desktop Settings (gear icon or system tray → Settings)
+                  2. Navigate to "Proxies" section
+                  3. In "No Proxy for these hosts and domains" field, add:
+                     localhost,*.localhost,127.0.0.1,registry.localhost,traefik.localhost,airflow.localhost
+                  4. Click "Apply & Restart"
+                  5. Wait for Docker Desktop to show "Running" status
+
+                  This method is reliable because it follows Docker's recommended approach
+                  and ensures settings are properly persisted and applied.
+
+                  If the UI method doesn't work, it may indicate corporate policy overrides
+                  that require IT support for policy exceptions.
+
+                  Press Enter to continue platform setup...
+              when: (restart_required or not docker_accessible) and not bypass_missing_settings
+
+            - name: Docker proxy configuration complete
+              debug:
+                msg: |
+                  ✅ Docker Proxy Configuration Complete
+
+                  {{ 'No corporate proxy detected - *.localhost domains should work directly' if no_proxy_configured else 'Proxy bypass for *.localhost domains is working correctly' if proxy_bypass_working else 'Automated resync completed - *.localhost domains should now work' if (automated_resync_available and automated_resync_result.rc == 0) else 'Configuration applied - please verify *.localhost access works' }}
+              when: proxy_bypass_working or no_proxy_configured or (automated_resync_available and automated_resync_result.rc == 0)
+
+          when: not windows_available
 
         - name: Windows prerequisites required
           pause:
@@ -102,12 +515,17 @@
               {{ '• Windows CA trust store' if needs_ca_trust else '' }}
               {{ '• Docker proxy bypass configuration' if needs_proxy_bypass else '' }}
 
-              Open Windows PowerShell **AS ADMINISTRATOR** and run:
+              🔧 **RECOMMENDED AUTOMATED APPROACH**:
+              From Windows PowerShell (regular user, no admin needed):
+                cd \\wsl$\Ubuntu\home\{{ ansible_env.USER }}\repos\airflow-data-platform
+                .\scripts\setup-certificates-windows-auto.ps1
 
+              🔧 **ALTERNATIVE** (full prerequisites as admin):
+              From Windows PowerShell **AS ADMINISTRATOR**:
                 cd \\wsl$\Ubuntu\home\{{ ansible_env.USER }}\repos\airflow-data-platform
                 .\scripts\win-prereqs.ps1
 
-              The script will detect current state and only fix what's missing.
+              The automated script installs mkcert and generates certificates automatically.
               After running the script, press Enter here to continue...
           when: needs_mkcert or needs_certificates or needs_ca_trust or needs_proxy_bypass
 
@@ -118,7 +536,7 @@
 
               All Windows components detected successfully.
               Proceeding with platform setup.
-          when: not (needs_mkcert or needs_certificates or needs_ca_trust or needs_proxy_bypass)
+          when: not (needs_mkcert or needs_certificates or needs_ca_trust or needs_proxy_bypass) and not has_ca_pollution
 
 - name: "🪟 Windows Prerequisites and Setup"
   import_playbook: validate-windows.yml

@@ -490,7 +490,34 @@
     # ================================
     # Success Summary
     # ================================
-    - name: "🎉 Platform Validation Complete"
+    - name: Test certificate trust without -k flag (real validation)
+      uri:
+        url: "https://{{ item }}"
+        method: GET
+        timeout: 10
+        validate_certs: true
+      register: real_cert_tests
+      failed_when: false
+      with_items:
+        - traefik.localhost
+        - registry.localhost
+
+    - name: Set validation status facts
+      set_fact:
+        certificates_exist: "{{ (cert_files.results | selectattr('stat.exists') | list | length) == 4 }}"
+        network_working: "{{ (ping_test.results | selectattr('rc', 'equalto', 0) | list | length) == 2 }}"
+        https_accessible: "{{ (https_tests.results | selectattr('status', 'equalto', 200) | list | length) == 2 }}"
+        registry_working: "{{ push_test.rc == 0 and pull_test.rc == 0 }}"
+        certificates_trusted: "{{ (real_cert_tests.results | selectattr('status', 'equalto', 200) | list | length) >= 1 }}"
+        all_checks_passed: "{{
+          certificates_exist and
+          network_working and
+          https_accessible and
+          registry_working and
+          certificates_trusted
+        }}"
+
+    - name: "🎉 Platform Validation Complete - SUCCESS"
       debug:
         msg: |
           🎉 SUCCESS! Astronomer Airflow Platform is ready!
@@ -517,3 +544,28 @@
           - Validate certificates: openssl x509 -in ~/.local/share/certs/dev-localhost-wild.crt -text -noout
 
           🎊 Your development platform is ready to use!
+      when: all_checks_passed
+
+    - name: "❌ Platform Validation Failed"
+      fail:
+        msg: |
+          ❌ PLATFORM SETUP FAILED!
+
+          📊 Validation Results:
+          - Certificates Exist: {{ '✅' if certificates_exist else '❌' }}
+          - Certificates Trusted: {{ '✅' if certificates_trusted else '❌' }}
+          - Network Resolution: {{ '✅' if network_working else '❌' }}
+          - HTTPS Services: {{ '✅' if https_accessible else '❌' }}
+          - Registry Operations: {{ '✅' if registry_working else '❌' }}
+
+          🚨 CRITICAL ISSUES DETECTED
+
+          The platform setup has validation failures. Please:
+          1. Review the diagnostic output above
+          2. Resolve any Docker proxy bypass issues
+          3. Ensure certificate trust is properly configured
+          4. Restart Docker Desktop if needed
+          5. Re-run the installer after resolving issues
+
+          Platform is NOT ready for use until all validation checks pass.
+      when: not all_checks_passed

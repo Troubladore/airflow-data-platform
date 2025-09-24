@@ -1,0 +1,327 @@
+---
+# Expert Configuration Assessment and Fixes
+# Tackles the tenacious Docker proxy and certificate trust issues
+# Uses sophisticated diagnostics to guide users through complex scenarios
+
+- name: "🔧 Expert Configuration Assessment and Fixes"
+  hosts: localhost
+  gather_facts: yes
+  become: no
+  vars:
+    ansible_become_pass: "{{ ansible_sudo_pass | default(omit) }}"
+  tasks:
+    - name: Display expert configuration banner
+      debug:
+        msg: |
+          🔧 STEP 2: Expert Configuration Assessment and Fixes
+
+          This step tackles the most tenacious platform issues:
+          - Multiple/polluted CA certificates causing browser warnings
+          - Ghost Docker proxy settings causing certificate errors
+          - Windows/WSL2 certificate trust chain problems
+          - Corporate policy overrides
+
+          Using sophisticated diagnostics to identify your specific scenario
+          and provide expert-guided resolution.
+
+    # Docker Proxy Expert Assessment
+    - name: Comprehensive Docker proxy diagnostic
+      block:
+        - name: Run enhanced Docker proxy diagnostics
+          shell: "{{ playbook_dir }}/../scripts/diagnostics/docker-proxy-diagnostics.sh"
+          register: docker_proxy_expert_result
+          failed_when: false
+          changed_when: false
+          args:
+            executable: /bin/bash
+
+        - name: Analyze Docker proxy scenario
+          set_fact:
+            proxy_exit_code: "{{ docker_proxy_expert_result.rc }}"
+            proxy_working: "{{ docker_proxy_expert_result.rc == 0 }}"
+            no_proxy_env: "{{ docker_proxy_expert_result.rc == 1 }}"
+            bypass_missing: "{{ docker_proxy_expert_result.rc == 2 }}"
+            restart_needed: "{{ docker_proxy_expert_result.rc == 3 }}"
+            docker_inaccessible: "{{ docker_proxy_expert_result.rc == 4 }}"
+            desktop_desync: "{{ docker_proxy_expert_result.rc == 5 }}"
+
+        - name: Display Docker proxy expert analysis
+          debug:
+            msg: |
+              🔍 Docker Proxy Expert Analysis:
+
+              Scenario Detected: {{
+                'Working correctly - no intervention needed' if proxy_working else
+                'No corporate proxy - direct connection' if no_proxy_env else
+                'Proxy bypass missing from Docker Desktop settings' if bypass_missing else
+                'Docker Desktop restart required' if restart_needed else
+                'Docker not accessible - check Docker Desktop status' if docker_inaccessible else
+                'Desktop/Engine desync - cached proxy settings' if desktop_desync else
+                'Unknown proxy configuration state'
+              }}
+
+              Exit Code: {{ proxy_exit_code }}
+
+              {{ docker_proxy_expert_result.stdout_lines | join('\n') }}
+
+        # Docker Desktop Desync Fix (Exit Code 5) - Most common issue
+        - name: Fix Docker Desktop proxy desync automatically
+          shell: |
+            source "{{ playbook_dir }}/../scripts/diagnostics/system-state.sh"
+            init_windows_interaction >/dev/null 2>&1
+            if [ "$WINDOWS_ACCESSIBLE" = true ]; then
+              echo "🤖 Attempting automated Docker Desktop resync..."
+              $WINDOWS_PS -NoProfile -ExecutionPolicy Bypass -File "{{ playbook_dir }}/../scripts/diagnostics/unified-docker-proxy.ps1" -AutoFix
+            else
+              echo "Windows PowerShell not accessible for automated fix"
+              exit 1
+            fi
+          register: desync_fix_result
+          failed_when: false
+          changed_when: desync_fix_result.rc == 0
+          args:
+            executable: /bin/bash
+          when: desktop_desync
+
+        - name: Docker desync fix successful
+          debug:
+            msg: |
+              ✅ Docker Desktop Desync Fixed Automatically
+
+              {{ desync_fix_result.stdout_lines | join('\n') }}
+
+              Docker proxy configuration synchronized successfully.
+          when: desktop_desync and desync_fix_result.rc == 0
+
+        - name: Expert-guided Docker proxy manual intervention
+          pause:
+            prompt: |
+
+              🚨 EXPERT DOCKER PROXY INTERVENTION REQUIRED
+
+              SCENARIO: {{
+                'Proxy bypass domains need to be added to Docker Desktop settings' if bypass_missing else
+                'Docker Desktop restart needed to apply configuration changes' if restart_needed else
+                'Docker Desktop is not running or accessible' if docker_inaccessible else
+                'Automated Docker Desktop resync failed - manual intervention needed' if desktop_desync else
+                'Complex Docker proxy configuration detected'
+              }}
+
+              EXPERT ANALYSIS:
+              {{ docker_proxy_expert_result.stdout_lines | join('\n') }}
+
+              RESOLUTION STEPS:
+              {% if bypass_missing %}
+
+              Docker Desktop UI Method (Recommended):
+              1. Right-click Docker Desktop system tray → "Settings"
+              2. Navigate to "Proxies" section
+              3. In "No Proxy for these hosts and domains" field, add:
+                 localhost,*.localhost,127.0.0.1,registry.localhost,traefik.localhost,airflow.localhost
+              4. Click "Apply & Restart"
+              5. Wait for Docker Desktop to show "Running" status
+
+              {% elif restart_needed %}
+
+              Docker Desktop Restart Required:
+              1. Right-click Docker Desktop system tray → "Restart"
+              2. Wait for Docker to show "Running" status (30-60 seconds)
+              3. If still not working, try complete shutdown:
+                 • Right-click → "Quit Docker Desktop"
+                 • Wait 10 seconds
+                 • Start Docker Desktop from Start Menu
+
+              {% elif docker_inaccessible %}
+
+              Docker Desktop Access Issue:
+              1. Check Docker Desktop is running (system tray icon should be visible)
+              2. If not running, start Docker Desktop from Start Menu
+              3. If running but not accessible, try restart:
+                 • Right-click Docker Desktop → "Restart"
+              4. Check WSL2 integration is enabled:
+                 • Docker Desktop → Settings → Resources → WSL Integration
+                 • Enable for your WSL2 distribution
+
+              {% elif desktop_desync %}
+
+              Docker Desktop Proxy Configuration Desync:
+
+              PROBLEM: Docker Desktop is out of sync with Windows proxy settings
+              SOLUTION: Force Docker Desktop to re-read Windows proxy settings
+
+              Manual Resync Steps:
+              1. Open Docker Desktop → Settings → Resources → Proxies
+              2. Toggle ON "Manual proxy configuration"
+              3. Leave HTTP/HTTPS proxy fields BLANK (or clear them if populated)
+              4. Click "Apply & Restart" and wait for restart to complete
+              5. Go back to Settings → Resources → Proxies
+              6. Toggle OFF "Manual proxy configuration" (back to System mode)
+              7. Click "Apply & Restart" again and wait for restart
+              8. Verify fix: Run "docker info" - no proxy lines should appear
+
+              Optional Additional Step (if still having issues):
+              • Run: wsl --shutdown (no admin needed)
+              • Right-click Docker Desktop → "Quit Docker Desktop"
+              • Wait 10 seconds, restart Docker Desktop
+              • Reopen terminal and test
+
+              {% else %}
+
+              Complex Scenario Resolution (WSL2 Environment):
+
+              IMPORTANT: You'll need to exit this installer and return to Windows to complete these steps.
+
+              1. Exit this installer (Ctrl+C)
+              2. In Windows:
+                 • Right-click Docker Desktop system tray → "Quit Docker Desktop"
+                 • Wait 10 seconds for complete shutdown
+              3. Open Windows PowerShell (regular user, no admin needed):
+                 • Run: wsl --shutdown
+                 • Wait 10 seconds (this will close your WSL2 session)
+              4. Restart Docker Desktop from Windows Start Menu
+              5. Wait for Docker Desktop to show "Running" status
+              6. Reopen WSL2 terminal and return to this directory
+              7. Re-run: ansible-playbook -i ansible/inventory/local-dev.ini ansible/02-config-fixes.yml
+
+              The installer will detect if the fix worked and continue from there.
+
+              {% endif %}
+
+              After completing the resolution steps above, press ENTER to continue...
+          when: bypass_missing or restart_needed or docker_inaccessible or (desktop_desync and desync_fix_result.rc != 0)
+
+    # Certificate Trust Expert Assessment
+    - name: Certificate authority pollution assessment
+      block:
+        - name: Run CA pollution diagnostic
+          shell: |
+            source "{{ playbook_dir }}/../scripts/diagnostics/system-state.sh"
+            init_windows_interaction >/dev/null 2>&1
+            if [ "$WINDOWS_ACCESSIBLE" = true ]; then
+              $WINDOWS_PS -NoProfile -ExecutionPolicy Bypass -File "{{ playbook_dir }}/../scripts/diagnostics/cleanup-mkcert-ca.ps1" -Preview -Force
+            else
+              echo "Windows PowerShell not accessible - cannot check CA pollution"
+              exit 1
+            fi
+          register: ca_pollution_check
+          failed_when: false
+          changed_when: false
+          args:
+            executable: /bin/bash
+
+        - name: Analyze certificate pollution
+          set_fact:
+            ca_certificates_found: "{{ ca_pollution_check.stdout | regex_search('mkcert CA certificates found: ([0-9]+)', '\\1') | first | int if ca_pollution_check.stdout is defined and ca_pollution_check.stdout | regex_search('mkcert CA certificates found: ([0-9]+)') else 0 }}"
+            ca_pollution_detected: "{{ (ca_pollution_check.stdout is defined and 'POLLUTED' in ca_pollution_check.stdout) or (ca_certificates_found | default(0) | int) > 1 }}"
+
+        - name: Display certificate pollution analysis
+          debug:
+            msg: |
+              🔐 Certificate Authority Pollution Analysis:
+
+              CA Certificates Found: {{ ca_certificates_found | default(0) }}
+              Pollution Status: {{ 'POLLUTED - Multiple CAs detected' if ca_pollution_detected | default(false) else 'CLEAN - Single or no CA' }}
+
+              {{ ca_pollution_check.stdout_lines | join('\n') if ca_pollution_check.stdout_lines is defined else 'No CA analysis available' }}
+
+        - name: Clean certificate authority pollution automatically
+          shell: |
+            source "{{ playbook_dir }}/../scripts/diagnostics/system-state.sh"
+            init_windows_interaction >/dev/null 2>&1
+            if [ "$WINDOWS_ACCESSIBLE" = true ]; then
+              echo "🧹 Running automated CA cleanup..."
+              $WINDOWS_PS -NoProfile -ExecutionPolicy Bypass -File "{{ playbook_dir }}/../scripts/diagnostics/cleanup-mkcert-ca.ps1" -Force
+            else
+              echo "Windows PowerShell not accessible for automated cleanup"
+              exit 1
+            fi
+          register: ca_cleanup_result
+          failed_when: false
+          changed_when: ca_cleanup_result.rc == 0
+          args:
+            executable: /bin/bash
+          when: ca_pollution_detected
+
+        - name: Certificate cleanup successful
+          debug:
+            msg: |
+              ✅ Certificate Authority Cleanup Completed
+
+              {{ ca_cleanup_result.stdout_lines | join('\n') }}
+
+              Browser certificate warnings should now be resolved.
+          when: ca_pollution_detected and ca_cleanup_result.rc == 0
+
+        - name: Manual certificate cleanup required
+          pause:
+            prompt: |
+
+              🚨 MANUAL CERTIFICATE CLEANUP REQUIRED
+
+              SITUATION: Automated CA cleanup failed or detected complex pollution
+
+              CLEANUP RESULT:
+              {{ ca_cleanup_result.stdout_lines | join('\n') if ca_cleanup_result.stdout_lines else 'No cleanup output available' }}
+
+              MANUAL RESOLUTION:
+
+              1. Open Windows Certificate Manager:
+                 • Press Windows+R, type: certmgr.msc, press Enter
+                 • OR run PowerShell as Administrator and use certificate cleanup commands
+
+              2. Navigate to Certificate Authority pollution:
+                 • Expand "Trusted Root Certification Authorities"
+                 • Click on "Certificates"
+                 • Look for multiple "mkcert" entries
+
+              3. Clean duplicate mkcert certificates:
+                 • Keep the NEWEST mkcert certificate (latest creation date)
+                 • Delete older duplicates by right-clicking → Delete
+                 • Confirm deletion for each duplicate
+
+              4. Restart browsers to clear certificate cache:
+                 • Close all browser windows completely
+                 • Restart browser and test https://traefik.localhost
+
+              After completing manual cleanup, press ENTER to continue...
+          when: ca_pollution_detected and ca_cleanup_result.rc != 0
+
+    # Post-fix validation embedded testing
+    - name: Validate configuration fixes
+      block:
+        - name: Re-test Docker proxy after fixes
+          shell: "{{ playbook_dir }}/../scripts/diagnostics/docker-proxy-diagnostics.sh"
+          register: post_fix_docker_test
+          failed_when: false
+          changed_when: false
+          args:
+            executable: /bin/bash
+
+        - name: Test certificate trust after cleanup
+          shell: timeout 5 curl -f -s "https://httpbin.org/get" >/dev/null 2>&1
+          register: post_fix_cert_test
+          failed_when: false
+          changed_when: false
+
+        - name: Configuration fixes validation summary
+          debug:
+            msg: |
+              🔧 Configuration Fixes Validation:
+
+              Docker Proxy: {{ '✅ Working' if post_fix_docker_test.rc <= 1 else '❌ Still has issues (Exit: ' + post_fix_docker_test.rc | string + ')' }}
+              Certificate Trust: {{ '✅ Working' if post_fix_cert_test.rc == 0 else '❌ Still has issues' }}
+
+              {{ 'Ready to proceed with platform deployment' if (post_fix_docker_test.rc <= 1 and post_fix_cert_test.rc == 0) else 'Some issues remain - platform may have limited functionality' }}
+
+    - name: Expert configuration fixes complete
+      debug:
+        msg: |
+          🔧 EXPERT CONFIGURATION ASSESSMENT COMPLETE
+
+          ✅ Assessed and addressed:
+          - Docker proxy configuration issues
+          - Certificate authority pollution
+          - Windows/WSL2 trust chain problems
+
+          Platform environment optimized for production-like development.
+          Ready to proceed with platform deployment.

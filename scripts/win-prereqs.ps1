@@ -11,7 +11,8 @@
 
 param(
     [switch]$SkipHostsFile,
-    [switch]$Force
+    [switch]$Force,
+    [switch]$CleanupCA
 )
 
 # Set console encoding to handle Unicode properly
@@ -363,6 +364,26 @@ if (-not $SkipHostsFile) {
         }
     } else {
         Write-Success "Hosts file entries are already present"
+    }
+}
+
+# Certificate Authority Cleanup (if requested)
+if ($CleanupCA) {
+    Write-Host ""
+    Write-Host "🧹 Certificate Authority Cleanup" -ForegroundColor Yellow
+    Write-Host "================================" -ForegroundColor Yellow
+
+    $cleanupScript = Join-Path $PSScriptRoot "diagnostics\cleanup-mkcert-ca.ps1"
+    if (Test-Path $cleanupScript) {
+        Write-Info "Running CA cleanup utility..."
+        if ($Force) {
+            & $cleanupScript -Force
+        } else {
+            & $cleanupScript
+        }
+    } else {
+        Write-Warning "CA cleanup utility not found at: $cleanupScript"
+        Write-Info "Skipping CA cleanup"
     }
 }
 

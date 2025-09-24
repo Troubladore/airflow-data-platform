@@ -28,7 +28,7 @@ Write-Host ""
 Write-Host "Step 2: Installing mkcert CA..." -ForegroundColor Yellow
 
 # First, clean up any old CAs
-Write-Host "  Removing old CAs (if any)..." -ForegroundColor Gray
+Write-Host "  Removing old CAs..." -ForegroundColor Gray
 mkcert -uninstall 2>$null
 
 # Install fresh CA
@@ -91,10 +91,10 @@ Get-ChildItem $CAROOT -Filter "*.key" | ForEach-Object {
 
 # Step 7: Instructions for WSL2
 Write-Host ""
-Write-Host "🎉 Windows certificate setup complete!" -ForegroundColor Green
+Write-Host "[SUCCESS] Windows certificate setup complete!" -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
 Write-Host "1. Return to WSL2" -ForegroundColor Cyan
-Write-Host "2. Run: ansible-playbook -i ansible/inventory/local-dev.ini ansible/setup-wsl2.yml" -ForegroundColor Cyan
+Write-Host "2. Run: ansible-playbook ansible/site.yml" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "The Ansible playbook will copy these certificates to WSL2 and configure trust." -ForegroundColor Gray

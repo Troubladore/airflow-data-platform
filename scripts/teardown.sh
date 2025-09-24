@@ -278,9 +278,10 @@ cleanup_certificates() {
         echo "1) Keep WSL2 certificates (recommended for quick rebuild)"
         echo "2) Remove WSL2 certificates only"
         echo "3) Complete teardown (removes WSL2 certs + attempts Windows cleanup)"
-        echo "4) Regenerate certificates (fix wildcard/SAN issues)"
+        echo "4) AGGRESSIVE PURGE (complete certificate removal for clean testing)"
+        echo "5) Regenerate certificates (fix wildcard/SAN issues)"
         echo
-        read -p "Enter choice (1-4): " -n 1 -r cert_choice
+        read -p "Enter choice (1-5): " -n 1 -r cert_choice
         echo
         CLEANUP_CHOICE="$cert_choice"
 
@@ -294,6 +295,9 @@ cleanup_certificates() {
                 perform_complete_teardown
                 ;;
             4)
+                perform_aggressive_purge
+                ;;
+            5)
                 log_info "Launching certificate regeneration..."
                 "$SCRIPT_DIR/regenerate-certificates.sh"
                 exit 0
@@ -310,13 +314,16 @@ cleanup_certificates() {
         echo "1) Skip certificate cleanup"
         echo "2) Skip certificate cleanup"
         echo "3) Complete teardown (attempts Windows cleanup)"
+        echo "4) AGGRESSIVE PURGE (complete certificate removal for clean testing)"
         echo
-        read -p "Enter choice (1-3): " -n 1 -r cert_choice
+        read -p "Enter choice (1-4): " -n 1 -r cert_choice
         echo
         CLEANUP_CHOICE="$cert_choice"
 
         if [ "$cert_choice" == "3" ]; then
             perform_complete_teardown
+        elif [ "$cert_choice" == "4" ]; then
+            perform_aggressive_purge
         else
             log_info "No WSL2 certificates to clean up"
         fi
@@ -372,6 +379,53 @@ cleanup_wsl2_trust_store() {
     fi
 }
 
+# Aggressive purge for complete certificate removal (testing)
+perform_aggressive_purge() {
+    log_info "Performing AGGRESSIVE certificate purge for clean testing..."
+
+    # Step 1: Remove WSL2 certificates
+    if [ -d "$CERT_DIR" ]; then
+        rm -rf "$CERT_DIR"
+        log_success "Removed WSL2 certificates"
+    fi
+
+    # Step 2: Clean up WSL2 system trust store
+    cleanup_wsl2_trust_store
+
+    # Step 3: Remove mkcert binary to force fresh installation
+    if [ -f "/usr/local/bin/mkcert" ]; then
+        log_info "Removing mkcert binary to force fresh installation..."
+        sudo rm -f "/usr/local/bin/mkcert"
+        log_success "Removed mkcert binary"
+    fi
+
+    # Step 4: Provide Windows aggressive cleanup instructions
+    log_info "Windows aggressive cleanup required for complete purge..."
+
+    local aggressive_cleanup="$SCRIPT_DIR/teardown-windows.ps1"
+
+    echo
+    echo -e "${YELLOW}🔥 AGGRESSIVE WINDOWS CLEANUP REQUIRED${NC}"
+    echo
+    echo "For COMPLETE certificate purge (all users, all stores), run this from Windows:"
+    echo
+    echo -e "${RED}⚠️  Run PowerShell as Administrator:${NC}"
+    echo "PowerShell -ExecutionPolicy Bypass -File \"\\\\wsl\$\\Ubuntu\\home\\$(whoami)\\repos\\airflow-data-platform\\scripts\\teardown-windows.ps1\" -Force"
+    echo
+    echo "This AGGRESSIVE cleanup will:"
+    echo "• Remove ALL mkcert CAs for ALL users on this machine"
+    echo "• Clean LocalMachine and CurrentUser certificate stores"
+    echo "• Remove all certificate directories"
+    echo "• Clean up hosts file entries"
+    echo "• Optionally uninstall mkcert program"
+    echo
+    echo -e "${YELLOW}⚠️  This affects ALL WSL2 distros and Windows users on this machine${NC}"
+    echo
+    read -p "Press ENTER after you've run the Windows cleanup script..."
+    echo
+    log_success "Aggressive purge completed - you now have a completely clean slate for testing"
+}
+
 # Complete teardown with Windows cleanup attempts
 perform_complete_teardown() {
     log_info "Performing complete teardown with Windows cleanup..."
@@ -420,52 +474,75 @@ perform_complete_teardown() {
             log_info "No Windows mkcert certificates found"
         fi
 
-        # Check if mkcert CA is installed before attempting to remove it
-        log_info "Checking for mkcert CA certificates in system trust store..."
-        local ca_exists=false
+        # Windows certificate cleanup with clean architecture
+        log_info "Running Windows certificate cleanup..."
+        local conservative_cleanup="$SCRIPT_DIR/diagnostics/cleanup-mkcert-ca.ps1"
+        local aggressive_cleanup="$SCRIPT_DIR/teardown-windows.ps1"
 
-        # Check if CA is installed using mkcert -CAROOT (safer than -uninstall)
-        if /mnt/c/Windows/System32/cmd.exe /c "mkcert -CAROOT" >/dev/null 2>&1; then
-            ca_exists=true
-        elif /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command "mkcert -CAROOT" >/dev/null 2>&1; then
-            ca_exists=true
-        fi
+        # Use our Windows PowerShell detection utility
+        source "$SCRIPT_DIR/diagnostics/system-state.sh"
+        init_windows_interaction >/dev/null 2>&1
 
-        if [ "$ca_exists" = true ]; then
-            log_info "Removing mkcert CA certificates from system trust store..."
-            local ca_uninstalled=false
+        if [ "$WINDOWS_ACCESSIBLE" = true ]; then
+            if [ -f "$conservative_cleanup" ]; then
+                log_info "Using conservative certificate cleanup: $(basename "$WINDOWS_PS")"
+                local cleanup_output
+                cleanup_output=$($WINDOWS_PS -NoProfile -ExecutionPolicy Bypass -File "$conservative_cleanup" -Force 2>&1)
+                local cleanup_exit_code=$?
 
-            # Try direct mkcert command first (works if mkcert is in PATH)
-            local uninstall_result=$(/mnt/c/Windows/System32/cmd.exe /c "mkcert -uninstall" 2>&1 || true)
+                echo "$cleanup_output"
 
-            if [[ "$uninstall_result" == *"no certs found"* ]]; then
-                log_info "No mkcert CA certificates to remove (already clean)"
-                ca_uninstalled=true
-            elif [[ "$uninstall_result" == *"The local CA is now uninstalled"* ]] || [ -z "$uninstall_result" ]; then
-                log_success "Removed mkcert CA certificates from trust store"
-                ca_uninstalled=true
-            else
-                # Try PowerShell as fallback
-                uninstall_result=$(/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command "mkcert -uninstall" 2>&1 || true)
-
-                if [[ "$uninstall_result" == *"no certs found"* ]]; then
-                    log_info "No mkcert CA certificates to remove (already clean)"
-                    ca_uninstalled=true
-                elif [[ "$uninstall_result" == *"The local CA is now uninstalled"* ]] || [ -z "$uninstall_result" ]; then
-                    log_success "Removed mkcert CA certificates from trust store (via PowerShell)"
-                    ca_uninstalled=true
+                # Check if conservative cleanup was insufficient (found issues but couldn't resolve)
+                if [[ "$cleanup_output" == *"Access is denied"* ]] || [[ "$cleanup_exit_code" -ne 0 ]]; then
+                    log_warning "Conservative cleanup encountered issues - aggressive cleanup may be needed"
+                    echo ""
+                    echo -e "${YELLOW}📋 Complete Windows Certificate Cleanup Recommended${NC}"
+                    echo ""
+                    echo "For complete certificate cleanup (removes ALL platform certificates):"
+                    echo ""
+                    echo "From Windows (Run as Administrator):"
+                    echo "  PowerShell -ExecutionPolicy Bypass -File \"$(cygpath -w "$aggressive_cleanup")\" -Force"
+                    echo ""
+                    echo "This will:"
+                    echo "• Remove ALL mkcert CAs for this machine (Windows + WSL2 users)"
+                    echo "• Clean up certificate directories"
+                    echo "• Handle LocalMachine store cleanup"
+                    echo ""
+                    echo "After Windows cleanup, re-run this teardown script to complete the process."
+                    echo ""
+                else
+                    log_success "Conservative certificate cleanup completed successfully"
                 fi
-            fi
-
-            if [ "$ca_uninstalled" = false ]; then
-                log_warning "Could not remove mkcert CA certificates - manual cleanup needed"
-                echo "  Try these commands:"
-                echo "    mkcert -uninstall"
-                echo "    OR in PowerShell: mkcert -uninstall"
-                echo "  Output was: $uninstall_result"
+            else
+                log_warning "Conservative cleanup script not found"
+                echo "  Manual cleanup option: Use aggressive teardown from Windows"
+                echo "  PowerShell -ExecutionPolicy Bypass -File \"$(cygpath -w "$aggressive_cleanup")\" -Force"
             fi
         else
-            log_info "No mkcert CA certificates found in system trust store"
+            log_warning "PowerShell not accessible - manual Windows cleanup required"
+            echo ""
+            echo -e "${YELLOW}📋 Manual Windows Certificate Cleanup Required${NC}"
+            echo ""
+            echo "From Windows Command Prompt or PowerShell:"
+            echo "  PowerShell -ExecutionPolicy Bypass -File \"$(cygpath -w "$conservative_cleanup")\" -Force"
+            echo ""
+            echo "For complete cleanup (if conservative fails):"
+            echo "  PowerShell -ExecutionPolicy Bypass -File \"$(cygpath -w "$aggressive_cleanup")\" -Force"
+            echo ""
+        fi
+
+        # Legacy cleanup attempt using mkcert -uninstall (as fallback)
+        log_info "Running mkcert -uninstall for additional cleanup..."
+        if command -v mkcert &>/dev/null; then
+            local uninstall_output
+            uninstall_output=$(mkcert -uninstall 2>&1 || true)
+            if [[ "$uninstall_output" == *"no certs found"* ]]; then
+                log_info "No additional mkcert CA certificates found"
+            else
+                log_info "Additional mkcert cleanup completed"
+            fi
+        else
+            log_info "mkcert command not available - skipping additional cleanup"
         fi
 
         # Check if mkcert program is actually installed before prompting
@@ -683,17 +760,23 @@ show_rebuild_instructions() {
     echo
     echo -e "${BLUE}🔄 To Rebuild Platform:${NC}"
     echo
-    echo "Full rebuild (Ansible method - recommended):"
-    echo "  cd $REPO_ROOT"
-    echo "  ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml"
+    echo "Hybrid WSL2/Windows Approach (recommended):"
+    echo "  1. From Windows PowerShell:"
+    echo "     powershell.exe ./scripts/setup-certificates-windows-auto.ps1"
+    echo "  2. Return to WSL2:"
+    echo "     ansible-playbook ansible/site.yml"
     echo
-    echo "Alternative rebuild (manual scripts):"
+    echo "Full rebuild (Ansible method - if certificates exist):"
+    echo "  cd $REPO_ROOT"
+    echo "  ansible-playbook ansible/site.yml"
+    echo
+    echo "Alternative rebuild (legacy scripts):"
     echo "  ./scripts/setup.sh"
     echo
     echo "Quick validation after rebuild:"
-    echo "  ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml"
+    echo "  ansible-playbook ansible/validate-all.yml"
     echo
-    echo -e "${YELLOW}💡 Tip: If you kept certificates, rebuild will be much faster!${NC}"
+    echo -e "${YELLOW}💡 Tip: The hybrid approach automatically installs mkcert and handles Windows certificate trust${NC}"
     echo
 }
 

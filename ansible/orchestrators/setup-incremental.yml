@@ -1,0 +1,83 @@
+---
+# INCREMENTAL PLATFORM SETUP - ATOMIC COMPONENT ORCHESTRATOR
+# Runs components one by one with state tracking and locking
+# Philosophy: "Fix once, never touch again"
+
+- name: "🚀 Incremental Platform Setup with Component Locking"
+  hosts: localhost
+  gather_facts: yes
+
+  vars:
+    state_dir: "{{ ansible_env.HOME }}/.airflow-platform-state"
+    components:
+      - name: "01-mkcert-binary"
+        desc: "mkcert Binary Installation"
+        playbook: "../components/01-mkcert-binary.yml"
+        tasks_file: "../components/01-mkcert-binary-tasks.yml"
+        validator_file: "../components/01-mkcert-binary-validator.yml"
+
+  tasks:
+    - name: "🏷️  Incremental Setup Philosophy"
+      debug:
+        msg: |
+          INCREMENTAL PLATFORM SETUP
+          ==========================
+
+          Philosophy: "Fix once, never touch again"
+
+          How it works:
+          • Run each component independently
+          • Lock successful components (create .done file)
+          • Skip locked components on future runs
+          • Clear failure modes for debugging
+
+          State Directory: {{ state_dir }}
+          Components: {{ components | length }}
+
+    - name: "📁 Create state tracking directory"
+      file:
+        path: "{{ state_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: "📊 Show component lock status"
+      block:
+        - name: "Check existing component locks"
+          stat:
+            path: "{{ state_dir }}/{{ item.name }}.done"
+          register: component_locks
+          loop: "{{ components }}"
+
+        - name: "Display lock status"
+          debug:
+            msg: |
+              COMPONENT STATUS:
+              {% for item in component_locks.results %}
+              {{ "🔒" if item.stat.exists else "⭕" }} {{ item.item.desc }} - {{ "LOCKED" if item.stat.exists else "NEEDS PROCESSING" }}
+              {% endfor %}
+
+              Legend: 🔒 = Locked (working), ⭕ = Needs processing
+
+    - name: "🔄 Process components incrementally"
+      include_tasks: component-processor.yml
+      vars:
+        component: "{{ item }}"
+        component_index: "{{ my_idx }}"
+      loop: "{{ components }}"
+      loop_control:
+        index_var: my_idx
+
+    - name: "🎉 Incremental Setup Complete"
+      debug:
+        msg: |
+          INCREMENTAL SETUP COMPLETE ✅
+
+          All components processed successfully!
+
+          What happens next:
+          • Run this playbook again - locked components will be skipped
+          • Debug specific components: ansible-playbook components/01-mkcert-binary.yml
+          • Reset specific component: rm {{ state_dir }}/01-mkcert-binary.done
+          • Reset everything: rm -rf {{ state_dir }}
+
+          Philosophy achieved: Each working component is locked and never touched again.

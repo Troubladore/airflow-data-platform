@@ -1,0 +1,41 @@
+---
+# MODULAR VALIDATOR: mkcert Binary Component
+# Composed of atomic validators - each testable independently
+
+- name: "🔍 Modular Validation: mkcert Binary"
+  debug:
+    msg: |
+      MODULAR mkcert BINARY VALIDATION
+      ===============================
+      Uses atomic validators for better testability and evolution
+
+- name: "Validate: Binary file exists"
+  include_tasks: "validators/mkcert-binary-exists.yml"
+
+- name: "Validate: Binary is executable"
+  include_tasks: "validators/mkcert-binary-executable.yml"
+
+- name: "Validate: Binary is functional"
+  include_tasks: "validators/mkcert-binary-functional.yml"
+
+- name: "Compute overall validation result"
+  set_fact:
+    component_validation_passed: "{{ mkcert_binary_functional | default(false) }}"
+    component_validation_details: |
+      Binary exists: {{ mkcert_binary_exists | default(false) }}
+      Binary executable: {{ mkcert_binary_executable | default(false) }}
+      Binary functional: {{ mkcert_binary_functional | default(false) }}
+      {% if mkcert_binary_functional | default(false) %}Version: {{ mkcert_binary_version }}{% endif %}
+
+- name: "Display validation result"
+  debug:
+    msg: |
+      MODULAR VALIDATION RESULT: {{ 'PASSED' if component_validation_passed else 'FAILED' }}
+
+      Details:
+      {{ component_validation_details }}
+
+      Atomic validation breakdown:
+      - File exists: {{ '✅' if mkcert_binary_exists | default(false) else '❌' }}
+      - Is executable: {{ '✅' if mkcert_binary_executable | default(false) else '❌' }}
+      - Is functional: {{ '✅' if mkcert_binary_functional | default(false) else '❌' }}

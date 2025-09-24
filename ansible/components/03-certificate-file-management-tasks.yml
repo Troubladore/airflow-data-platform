@@ -1,0 +1,341 @@
+---
+# ATOMIC COMPONENT 3: Certificate File Management
+# Scope: Copy Windows-generated certificates to WSL2 for platform services
+# Dependencies: Component 1 (mkcert binary), Component 2 (Windows CA trust)
+# Idempotent: Yes
+
+- name: "🏷️  Component 3 - Certificate File Management"
+  debug:
+    msg: |
+      ATOMIC COMPONENT: Certificate File Management
+      Scope: Copy Windows-generated certificates to WSL2
+      Method: Find Windows certificates and copy to WSL2 location
+      Dependencies: Components 1 & 2 (mkcert binary + Windows CA trust)
+
+- name: "🔍 Check Component 1 prerequisite (mkcert binary)"
+  command: which mkcert
+  register: mkcert_binary_check
+  failed_when: false
+  changed_when: false
+
+- name: "❌ PREREQUISITE FAILED: Component 1 not complete"
+  fail:
+    msg: |
+      COMPONENT 3 PREREQUISITE FAILED ❌
+
+      Component 3 requires Component 1 (mkcert binary) to be installed first.
+
+      Expected: mkcert binary available at /usr/local/bin/mkcert
+      Actual: mkcert not found in PATH
+
+      Solution: Run Components 1 & 2 first
+      ansible-playbook -i inventory/local-dev.ini orchestrators/setup-simple.yml
+  when: mkcert_binary_check.rc != 0
+
+- name: "🔍 Use advanced certificate detection for copy locations"
+  shell: |
+    # Use our proven certificate detection utility
+    cd {{ ansible_env.HOME }}/repos/airflow-data-platform
+
+    # Run the comprehensive detection utility
+    DETECTION_OUTPUT=$(./scripts/detect-certificates.sh 2>/dev/null || echo "DETECTION_FAILED")
+
+    # Extract Windows certificate directory from the detailed output
+    # The utility outputs: "  └─ Path: /mnt/c/Users/..."
+    WINDOWS_CERT_DIR=$(echo "$DETECTION_OUTPUT" | grep "Path: /mnt/c/Users" | sed 's/.*Path: //' | head -1)
+
+    if [ -n "$WINDOWS_CERT_DIR" ] && [ -d "$WINDOWS_CERT_DIR" ]; then
+      # Verify certificates actually exist in this location
+      cert_count=$(find "$WINDOWS_CERT_DIR" -name "*.pem" -o -name "*.crt" -o -name "*.key" 2>/dev/null | wc -l)
+      if [ "$cert_count" -gt 0 ]; then
+        echo "FOUND_CERTS_AT=$WINDOWS_CERT_DIR"
+        echo "CERT_COUNT=$cert_count"
+        echo "DETECTION_METHOD=advanced_utility"
+        find "$WINDOWS_CERT_DIR" -name "*.pem" -o -name "*.crt" -o -name "*.key" 2>/dev/null | while read cert; do
+          echo "CERT_FILE=$(basename "$cert")"
+        done
+
+        # Run duplicate cleanup automatically before copying
+        echo "RUNNING_DUPLICATE_CLEANUP=true"
+        ./scripts/cleanup-certificate-duplicates.sh >/dev/null 2>&1 || true
+        exit 0
+      fi
+    fi
+
+    echo "NO_CERTS_FOUND"
+    echo "DETECTION_METHOD=advanced_utility"
+    echo "Advanced certificate detection found no copyable certificates"
+
+    # Show what the detection utility found for debugging
+    echo "Detection utility summary:"
+    echo "$DETECTION_OUTPUT" | grep -E "(Windows|WSL2)" | head -5
+  args:
+    executable: /bin/bash
+  register: cert_detection
+  failed_when: false
+  changed_when: false
+
+- name: "✅ Found Windows certificates"
+  debug:
+    msg: |
+      Certificate Discovery: SUCCESS ✅
+
+      {{ cert_detection.stdout }}
+
+      Proceeding with certificate file management...
+  when: "'FOUND_CERTS_AT=' in cert_detection.stdout"
+
+- name: "⚠️  No Windows certificates found"
+  debug:
+    msg: |
+      Certificate Discovery: No certificates found ⚠️
+
+      Component 2 (Windows CA Trust) may not have been completed properly.
+      The Windows automation script should have generated certificates.
+
+      Expected certificate locations (from WSL2):
+      {{ cert_detection.stdout_lines | select('match', '^  - .*') | join('\n') }}
+
+      Next Steps:
+      1. Verify Component 2 was completed (Windows script was run)
+      2. Check if Windows script generated certificates in expected locations
+      3. Re-run Component 2 if needed
+  when: "'NO_CERTS_FOUND' in cert_detection.stdout"
+
+- name: "🔧 Create WSL2 certificate directory"
+  file:
+    path: "{{ ansible_env.HOME }}/.local/share/certs"
+    state: directory
+    mode: '0755'
+  when: "'FOUND_CERTS_AT=' in cert_detection.stdout"
+
+- name: "🔄 Copy certificates from Windows to WSL2"
+  shell: |
+    # Extract Windows certificate location
+    WINDOWS_CERT_DIR=$(echo "{{ cert_detection.stdout }}" | grep "FOUND_CERTS_AT=" | cut -d'=' -f2)
+    WSL2_CERT_DIR="{{ ansible_env.HOME }}/.local/share/certs"
+
+    if [ -z "$WINDOWS_CERT_DIR" ]; then
+      echo "ERROR: Could not determine Windows certificate directory"
+      exit 1
+    fi
+
+    echo "Copying certificates from: $WINDOWS_CERT_DIR"
+    echo "                      to: $WSL2_CERT_DIR"
+
+    # Use rsync for proper idempotent copying (only copies changed files)
+    # First check if rsync is available, otherwise use cp-based approach
+    if command -v rsync >/dev/null 2>&1; then
+      echo "Using rsync for idempotent copy..."
+
+      # Count files before
+      BEFORE_COUNT=$(find "$WSL2_CERT_DIR" -name "*.pem" -o -name "*.crt" -o -name "*.key" 2>/dev/null | wc -l)
+
+      # Use rsync with checksum comparison (only copies if different)
+      # The -i flag shows itemized changes - if output is empty, nothing changed
+      RSYNC_OUTPUT=$(rsync -rci --checksum --include="*.pem" --include="*.crt" --include="*.key" --include="*/" --exclude="*" "$WINDOWS_CERT_DIR/" "$WSL2_CERT_DIR/" 2>&1)
+
+      # Check if rsync made any changes (itemized output will be empty if no changes)
+      if [ -z "$RSYNC_OUTPUT" ]; then
+        echo "ANSIBLE_CHANGED=false"
+        echo "No certificates needed updating"
+      else
+        echo "ANSIBLE_CHANGED=true"
+        echo "Certificates were updated:"
+        echo "$RSYNC_OUTPUT"
+      fi
+    else
+      echo "Using manual copy with change detection..."
+
+      # Track changes manually
+      CHANGES_TRACKER="/tmp/cert_changes_$$"
+      > "$CHANGES_TRACKER"
+
+      # Process each certificate file
+      for cert_pattern in "*.pem" "*.crt" "*.key"; do
+        for cert_file in "$WINDOWS_CERT_DIR"/$cert_pattern; do
+          [ -f "$cert_file" ] || continue
+
+          cert_name=$(basename "$cert_file")
+          target_file="$WSL2_CERT_DIR/$cert_name"
+
+          # Check if file needs copying
+          if [ ! -f "$target_file" ]; then
+            echo "Copying NEW: $cert_name"
+            cp "$cert_file" "$target_file"
+            chmod 644 "$target_file"
+            echo "1" >> "$CHANGES_TRACKER"
+          elif ! cmp -s "$cert_file" "$target_file"; then
+            echo "Updating CHANGED: $cert_name"
+            cp "$cert_file" "$target_file"
+            chmod 644 "$target_file"
+            echo "1" >> "$CHANGES_TRACKER"
+          else
+            echo "Skipping UNCHANGED: $cert_name"
+          fi
+        done
+      done
+
+      # Report changes
+      if [ -s "$CHANGES_TRACKER" ]; then
+        echo "ANSIBLE_CHANGED=true"
+      else
+        echo "ANSIBLE_CHANGED=false"
+      fi
+      rm -f "$CHANGES_TRACKER"
+    fi
+
+    # Count and list actual copied files
+    ACTUAL_COUNT=$(find "$WSL2_CERT_DIR" -name "*.pem" -o -name "*.crt" -o -name "*.key" 2>/dev/null | wc -l)
+    echo "COPIED_FILES=$ACTUAL_COUNT"
+
+    if [ "$ACTUAL_COUNT" -gt 0 ]; then
+      echo "COPY_SUCCESS=true"
+      echo "Certificate files in WSL2:"
+      find "$WSL2_CERT_DIR" -name "*.pem" -o -name "*.crt" -o -name "*.key" 2>/dev/null | while read cert; do
+        echo "  - $(basename "$cert")"
+      done
+    else
+      echo "COPY_SUCCESS=false"
+    fi
+  args:
+    executable: /bin/bash
+  register: cert_copy_result
+  when: "'FOUND_CERTS_AT=' in cert_detection.stdout"
+  changed_when: "'ANSIBLE_CHANGED=true' in cert_copy_result.stdout"
+
+- name: "🔍 Validate certificate contents"
+  shell: |
+    WSL2_CERT_DIR="{{ ansible_env.HOME }}/.local/share/certs"
+
+    echo "Validating certificates in: $WSL2_CERT_DIR"
+
+    # Look for common certificate patterns
+    VALIDATION_RESULTS=()
+
+    # Check for CA certificate
+    if find "$WSL2_CERT_DIR" -name "*CA*.pem" -o -name "rootCA.*" 2>/dev/null | grep -q .; then
+      echo "✅ Found CA certificate"
+      VALIDATION_RESULTS+=("CA_CERT_FOUND=true")
+    else
+      echo "⚠️  No CA certificate found"
+      VALIDATION_RESULTS+=("CA_CERT_FOUND=false")
+    fi
+
+    # Check for server certificates (localhost, wildcard) - both .pem and .crt formats
+    SERVER_CERTS=$(find "$WSL2_CERT_DIR" \( -name "localhost*.pem" -o -name "*wildcard*.pem" -o -name "*.localhost*.pem" -o -name "localhost*.crt" -o -name "*wildcard*.crt" -o -name "*.localhost*.crt" -o -name "dev-*.crt" \) 2>/dev/null | grep -v key | wc -l)
+    if [ "$SERVER_CERTS" -gt 0 ]; then
+      echo "✅ Found $SERVER_CERTS server certificate(s)"
+      VALIDATION_RESULTS+=("SERVER_CERT_COUNT=$SERVER_CERTS")
+
+      # Validate SAN entries in server certificates
+      find "$WSL2_CERT_DIR" -name "localhost*.pem" -o -name "*wildcard*.pem" -o -name "*.localhost*.pem" 2>/dev/null | grep -v key | while read cert_file; do
+        if command -v openssl >/dev/null 2>&1; then
+          SAN_ENTRIES=$(openssl x509 -in "$cert_file" -noout -text 2>/dev/null | grep -A 1 "Subject Alternative Name" | grep DNS: | tr ',' '\n' | grep DNS: | sed 's/.*DNS://' | tr -d ' ')
+          if echo "$SAN_ENTRIES" | grep -q localhost; then
+            echo "✅ $(basename "$cert_file"): Contains localhost SANs"
+            echo "   SANs: $(echo "$SAN_ENTRIES" | tr '\n' ',' | sed 's/,$//')"
+            VALIDATION_RESULTS+=("SAN_VALIDATION=pass")
+          else
+            echo "⚠️  $(basename "$cert_file"): Missing localhost SANs"
+            VALIDATION_RESULTS+=("SAN_VALIDATION=fail")
+          fi
+        else
+          echo "⚠️  Cannot validate SANs - openssl not available"
+          VALIDATION_RESULTS+=("SAN_VALIDATION=skip")
+        fi
+      done
+    else
+      echo "❌ No server certificates found"
+      VALIDATION_RESULTS+=("SERVER_CERT_COUNT=0")
+    fi
+
+    # Check for private keys
+    PRIVATE_KEYS=$(find "$WSL2_CERT_DIR" -name "*key*.pem" -o -name "*.key" 2>/dev/null | wc -l)
+    if [ "$PRIVATE_KEYS" -gt 0 ]; then
+      echo "✅ Found $PRIVATE_KEYS private key(s)"
+      VALIDATION_RESULTS+=("PRIVATE_KEY_COUNT=$PRIVATE_KEYS")
+    else
+      echo "❌ No private keys found"
+      VALIDATION_RESULTS+=("PRIVATE_KEY_COUNT=0")
+    fi
+
+    # Output results
+    for result in "${VALIDATION_RESULTS[@]}"; do
+      echo "$result"
+    done
+
+    # Determine overall validation status
+    if [[ "${VALIDATION_RESULTS[@]}" =~ "CA_CERT_FOUND=true" ]] && [ "$SERVER_CERTS" -gt 0 ] && [ "$PRIVATE_KEYS" -gt 0 ]; then
+      echo "VALIDATION_STATUS=pass"
+    else
+      echo "VALIDATION_STATUS=fail"
+    fi
+  args:
+    executable: /bin/bash
+  register: cert_validation
+  when:
+    - cert_copy_result is defined
+    - cert_copy_result.stdout is defined
+    - "'COPY_SUCCESS=true' in cert_copy_result.stdout"
+  failed_when: false
+  changed_when: false
+
+- name: "✅ Certificate file management successful"
+  debug:
+    msg: |
+      COMPONENT 3 COMPLETE ✅
+
+      Certificate File Management: SUCCESS
+      Source: Windows filesystem
+      Destination: {{ ansible_env.HOME }}/.local/share/certs
+
+      {{ cert_validation.stdout }}
+
+      What this enables:
+      • Platform services can access certificates from WSL2
+      • Traefik can serve HTTPS with trusted certificates
+      • Registry can use HTTPS with proper certificates
+      • Ready for Component 4 (Platform Service Deployment)
+  when:
+    - cert_copy_result is defined
+    - cert_copy_result.stdout is defined
+    - "'COPY_SUCCESS=true' in cert_copy_result.stdout"
+    - cert_validation is defined
+    - cert_validation.stdout is defined
+    - "'VALIDATION_STATUS=pass' in cert_validation.stdout"
+
+- name: "⚠️  Certificate file management needs attention"
+  debug:
+    msg: |
+      COMPONENT 3 NEEDS ATTENTION ⚠️
+
+      Certificate File Management: Issues detected
+
+      {{ cert_validation.stdout if cert_validation is defined else 'Certificate validation not completed' }}
+
+      Possible issues:
+      • Windows certificates missing required components (CA, server cert, private keys)
+      • Certificate SAN entries don't include localhost domains
+      • File copy operations failed
+
+      Solutions:
+      1. Re-run Component 2 (Windows automation script)
+      2. Verify Windows script generated complete certificate set
+      3. Check certificate locations and permissions
+  when:
+    - "'FOUND_CERTS_AT=' in cert_detection.stdout"
+    - "(cert_copy_result is not defined or cert_copy_result.stdout is not defined or 'COPY_SUCCESS=true' not in cert_copy_result.stdout) or (cert_validation is defined and cert_validation.stdout is defined and 'VALIDATION_STATUS=fail' in cert_validation.stdout)"
+
+- name: "📊 Component 3 Summary"
+  debug:
+    msg: |
+      COMPONENT 3 STATUS: {{ 'COMPLETE ✅' if (cert_detection is defined and 'FOUND_CERTS_AT=' in cert_detection.stdout and cert_copy_result is defined and 'COPY_SUCCESS=true' in cert_copy_result.stdout and cert_validation is defined and 'VALIDATION_STATUS=pass' in cert_validation.stdout) else 'NEEDS ATTENTION ⚠️' }}
+
+      Certificate File Management: {{ 'Windows certificates copied to WSL2' if (cert_copy_result is defined and 'COPY_SUCCESS=true' in cert_copy_result.stdout) else 'Certificate discovery or copy failed' }}
+
+      Component Scope: Certificate file operations between Windows and WSL2
+      Next Component: Platform Service Deployment (Traefik, Registry)
+
+      Certificate Location: {{ ansible_env.HOME }}/.local/share/certs
+      Status: {{ 'Ready for platform services' if (cert_validation is defined and 'VALIDATION_STATUS=pass' in cert_validation.stdout) else 'Certificate issues need resolution' }}
