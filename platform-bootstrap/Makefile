@@ -14,7 +14,7 @@ ARTIFACTORY_URL ?= artifactory.company.com
 DOCKER_COMPOSE := docker compose
 
 # Detect if we have Artifactory access
-HAS_ARTIFACTORY := $(shell curl -s -o /dev/null -w "%{http_code}" https://$(ARTIFACTORY_URL) | grep -q "200\|401" && echo "yes" || echo "no")
+HAS_ARTIFACTORY := $(shell curl -s -o /dev/null -w "%{http_code}" https://$(ARTIFACTORY_URL) 2>/dev/null | grep -qE "200|401" && echo "yes" || echo "no")
 
 help: ## Show this help message
 	@echo "Developer Platform Bootstrap"
@@ -67,7 +67,7 @@ platform-status: ## Check status of platform services
 	@echo "Platform Services Status:"
 	@echo "========================"
 	@$(DOCKER_COMPOSE) -f local-registry-cache.yml ps
-	@$(DOCKER_COMPOSE) -f developer-kerberos-standalone.yml ps
+	@$(DOCKER_COMPOSE) -f developer-kerberos-simple.yml ps 2>/dev/null || echo "Kerberos: Not running"
 	@echo ""
 	@make registry-test
 	@make kerberos-test
@@ -106,18 +106,21 @@ registry-list: ## List cached images
 # ==========================================
 
 kerberos-start: ## Start Kerberos platform service
-	@echo "Starting Kerberos service..."
+	@echo "Starting Kerberos ticket sharing..."
 	@# Check if developer has existing ticket
 	@if klist -s 2>/dev/null; then \
-		echo "  Using existing Kerberos ticket"; \
+		echo "  ✓ Found existing Kerberos ticket"; \
+		$(DOCKER_COMPOSE) -f developer-kerberos-simple.yml up -d; \
+		echo "✓ Ticket sharing started"; \
 	else \
-		echo "  No ticket found, will prompt for password"; \
+		echo "  ⚠️  No Kerberos ticket found"; \
+		echo "  Run 'kinit YOUR_USERNAME@DOMAIN.COM' to get a ticket"; \
+		echo "  Skipping Kerberos setup"; \
 	fi
-	@$(DOCKER_COMPOSE) -f developer-kerberos-standalone.yml up -d
-	@echo "✓ Kerberos service started"
 
 kerberos-stop: ## Stop Kerberos service
-	@$(DOCKER_COMPOSE) -f developer-kerberos-standalone.yml down
+	@$(DOCKER_COMPOSE) -f developer-kerberos-simple.yml down 2>/dev/null || true
+	@echo "✓ Kerberos ticket sharing stopped"
 
 kerberos-test: ## Test Kerberos ticket
 	@echo -n "Kerberos service: "
@@ -162,7 +165,7 @@ test-connection: ## Test SQL Server connection through Kerberos
 debug-logs: ## Show logs from all platform services
 	@echo "Platform service logs:"
 	@$(DOCKER_COMPOSE) -f local-registry-cache.yml logs --tail=20
-	@$(DOCKER_COMPOSE) -f developer-kerberos-standalone.yml logs --tail=20
+	@$(DOCKER_COMPOSE) -f developer-kerberos-simple.yml logs --tail=20 2>/dev/null || true
 
 # ==========================================
 # Offline Mode
