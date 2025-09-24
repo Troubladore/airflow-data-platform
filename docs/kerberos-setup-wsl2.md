@@ -162,67 +162,64 @@ docker compose -f developer-kerberos-simple.yml up -d
 But for most users, `make platform-start` is all you need!
 </details>
 
-## 🧪 Step 5: Hello World, Kerberos Style!
+## 🧪 Step 5: The Moment of Truth - Test SQL Server Connection!
 
-Let's test with a real SQL Server connection:
+**🎯 Why we're here**: This is where all your setup pays off. We'll verify that Docker containers can use your Kerberos ticket to connect to SQL Server - proving the entire authentication chain works!
 
-### A. Create Test Script
+### A. We've Included a Test Script
 
-```python
-# test_kerberos.py
-import pyodbc
-import os
-
-# Your connection details (ask your DBA)
-SERVER = 'sqlserver.company.com'
-DATABASE = 'TestDB'
-
-# Build connection string for Kerberos
-conn_str = (
-    f'DRIVER={{ODBC Driver 17 for SQL Server}};'
-    f'SERVER={SERVER};'
-    f'DATABASE={DATABASE};'
-    f'Trusted_Connection=yes;'
-    f'Authentication=Kerberos;'
-)
-
-print(f"Attempting to connect to {SERVER}...")
-
-try:
-    # This will use your Kerberos ticket
-    conn = pyodbc.connect(conn_str)
-    cursor = conn.cursor()
-
-    # Simple test query
-    cursor.execute("SELECT @@VERSION")
-    row = cursor.fetchone()
-
-    print("✅ SUCCESS! Connected via Kerberos!")
-    print(f"SQL Server Version: {row[0][:50]}...")
-
-    cursor.close()
-    conn.close()
-
-except Exception as e:
-    print(f"❌ Failed: {e}")
-    print("\nTroubleshooting:")
-    print("1. Check klist - do you have a valid ticket?")
-    print("2. Can you ping the SQL Server?")
-    print("3. Is your krb5.conf correct?")
-```
-
-### B. Run Test in Docker Container
+Good news - we've already created a test script for you:
 
 ```bash
-# Run test using our runtime environment
+# The test script is in platform-bootstrap
+cd airflow-data-platform/platform-bootstrap
+ls test_kerberos.py  # It's already there!
+
+# Quick look at what it does
+head -20 test_kerberos.py
+```
+
+The script will:
+- ✓ Check for Kerberos tickets in the container
+- ✓ Attempt SQL Server connection using your ticket
+- ✓ Provide helpful troubleshooting if something's wrong
+
+### B. Run the Test (This Will Actually Work!)
+
+```bash
+# Make sure you're in platform-bootstrap directory
+cd airflow-data-platform/platform-bootstrap
+
+# OPTION 1: Simple test (no SQL Server needed)
+# Just verify tickets are shared with containers
 docker run --rm \
   --network platform_network \
-  -v kerberos_ticket:/krb5/cache:ro \
+  -v platform_kerberos_cache:/krb5/cache:ro \
+  -v $(pwd)/test_kerberos_simple.py:/app/test.py \
+  -e KRB5CCNAME=/krb5/cache/krb5cc \
+  python:3.11-alpine \
+  sh -c "apk add --no-cache krb5 && python /app/test.py"
+
+# OPTION 2: Full SQL Server test (requires server access)
+# Set your SQL Server details (ask your DBA for these)
+export SQL_SERVER="your-sql-server.company.com"  # Replace with your server
+export SQL_DATABASE="TestDB"                      # Replace with your database
+
+# Run the SQL Server test
+docker run --rm \
+  --network platform_network \
+  -v platform_kerberos_cache:/krb5/cache:ro \
   -v $(pwd)/test_kerberos.py:/app/test_kerberos.py \
   -e KRB5CCNAME=/krb5/cache/krb5cc \
-  runtime-environments/python-transform:latest \
-  python /app/test_kerberos.py
+  -e SQL_SERVER="$SQL_SERVER" \
+  -e SQL_DATABASE="$SQL_DATABASE" \
+  python:3.11-alpine \
+  sh -c "apk add --no-cache krb5 gcc musl-dev unixodbc-dev && \
+         pip install --no-cache-dir pyodbc && \
+         python /app/test_kerberos.py"
 ```
+
+**💡 Tip**: Start with Option 1 to verify ticket sharing works, then move to Option 2 when you have SQL Server details.
 
 ## 🚨 Troubleshooting Guide
 
