@@ -24,27 +24,27 @@ services:
           if [ \"\${KERBEROS_CACHE_TYPE}\" = \"DIR\" ]; then
             # Directory collection format
             TICKET_PATH=\"/ticket-source/\${KERBEROS_CACHE_TICKET}\"
-            if [ -f \"\$TICKET_PATH\" ]; then
-              cp \"\$TICKET_PATH\" /krb5/cache/krb5cc
+            if [ -f \"\$$TICKET_PATH\" ]; then
+              cp \"\$$TICKET_PATH\" /krb5/cache/krb5cc
               chmod 644 /krb5/cache/krb5cc
-              echo \"✓ Shared ticket from configured DIR location: \$TICKET_PATH\"
+              echo \"✓ Shared ticket from configured DIR location: \$$TICKET_PATH\"
               return 0
             fi
           elif [ \"\${KERBEROS_CACHE_TYPE}\" = \"FILE\" ]; then
             # Single file format
             TICKET_PATH=\"/ticket-source/\${KERBEROS_CACHE_TICKET}\"
-            if [ -f \"\$TICKET_PATH\" ]; then
-              cp \"\$TICKET_PATH\" /krb5/cache/krb5cc
+            if [ -f \"\$$TICKET_PATH\" ]; then
+              cp \"\$$TICKET_PATH\" /krb5/cache/krb5cc
               chmod 644 /krb5/cache/krb5cc
-              echo \"✓ Shared ticket from configured FILE location: \$TICKET_PATH\"
+              echo \"✓ Shared ticket from configured FILE location: \$$TICKET_PATH\"
               return 0
             fi
             # Also check for wildcard pattern
             for ticket in /ticket-source/krb5cc_*; do
-              if [ -f \"\$ticket\" ]; then
-                cp \"\$ticket\" /krb5/cache/krb5cc
+              if [ -f \"\$$ticket\" ]; then
+                cp \"\$$ticket\" /krb5/cache/krb5cc
                 chmod 644 /krb5/cache/krb5cc
-                echo \"✓ Shared ticket from: \$ticket\"
+                echo \"✓ Shared ticket from: \$$ticket\"
                 return 0
               fi
             done
@@ -52,10 +52,10 @@ services:
 
           # Fallback to common locations if configured path fails
           for ticket in /tmp-fallback/krb5cc_* /krb5cache-fallback/krb5cc; do
-            if [ -f \"\$ticket\" ]; then
-              cp \"\$ticket\" /krb5/cache/krb5cc
+            if [ -f \"\$$ticket\" ]; then
+              cp \"\$$ticket\" /krb5/cache/krb5cc
               chmod 644 /krb5/cache/krb5cc
-              echo \"✓ Shared ticket from fallback: \$ticket\"
+              echo \"✓ Shared ticket from fallback: \$$ticket\"
               return 0
             fi
           done
