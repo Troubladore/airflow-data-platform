@@ -23,10 +23,15 @@ help: ## Show this help message
 	@echo "Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 	@echo ""
-	@echo "Quick Start:"
-	@echo "  make install        # Install prerequisites"
-	@echo "  make platform-start # Start platform services"
-	@echo "  make status        # Check everything is running"
+	@echo "Quick Start (90% of users):"
+	@echo "  kinit USERNAME@DOMAIN  # Get Kerberos ticket (if using SQL Server)"
+	@echo "  make platform-start    # Start ALL services (recommended)"
+	@echo "  make platform-stop     # Stop everything when done"
+	@echo ""
+	@echo "Advanced (start specific services only):"
+	@echo "  make registry-start    # Just the Docker registry cache"
+	@echo "  make kerberos-start    # Just Kerberos ticket sharing"
+	@echo "  make mock-start        # Just mock services"
 
 # ==========================================
 # Installation & Setup

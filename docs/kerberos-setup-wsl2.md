@@ -128,20 +128,39 @@ cp /tmp/krb5cc_$(id -u) ~/.krb5_cache/krb5cc
 ls -la ~/.krb5_cache/
 ```
 
-### B. Start Our Ticket Sharer
+### B. Ticket Sharing Happens Automatically!
+
+**🎯 Good news**: If you're following the [daily workflow](getting-started-simple.md#-daily-workflow), ticket sharing is automatic!
 
 ```bash
-# Go to platform bootstrap
+# When you run this (after kinit):
 cd airflow-data-platform/platform-bootstrap
+make platform-start
 
-# Start the ticket sharer
-docker-compose -f developer-kerberos-simple.yml up -d
-
-# This will:
-# 1. Mount your ~/.krb5_cache directory
-# 2. Copy tickets to a Docker volume
-# 3. Refresh every 5 minutes
+# It automatically:
+# 1. Detects your Kerberos ticket
+# 2. Starts the ticket sharer
+# 3. Shares tickets with all Docker containers
+# 4. Refreshes every 5 minutes
 ```
+
+**💡 Why automatic?** The `make platform-start` command checks for tickets and starts the sharer if found. No extra steps needed!
+
+<details>
+<summary>Advanced: Start only Kerberos service</summary>
+
+If you want to start ONLY the Kerberos ticket sharer (without registry or other services):
+
+```bash
+# Start just Kerberos sharing
+docker compose -f developer-kerberos-simple.yml up -d
+
+# Use case: When you only need SQL Server access
+# and don't need the full platform stack
+```
+
+But for most users, `make platform-start` is all you need!
+</details>
 
 ## 🧪 Step 5: Hello World, Kerberos Style!
 

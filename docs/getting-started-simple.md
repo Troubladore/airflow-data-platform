@@ -70,9 +70,17 @@ klist
 Each day when you start development, you'll need these platform services running so your Astronomer projects can access the registry cache and Kerberos tickets:
 
 ```bash
-# Morning - Start platform services
+# Morning - If using SQL Server, get your Kerberos ticket first
+kinit your.username@COMPANY.COM  # Only needed for SQL Server access
+
+# Start all platform services (one command does it all!)
 cd airflow-data-platform/platform-bootstrap
 make platform-start
+
+# This automatically:
+# ✅ Starts the registry cache (speeds up Docker builds)
+# ✅ Detects your Kerberos ticket and shares it with containers
+# ✅ Starts mock services for local testing
 
 # Work on your Astronomer projects...
 # The services enable faster builds and SQL Server auth
@@ -80,6 +88,8 @@ make platform-start
 # Evening - Stop platform services
 make platform-stop
 ```
+
+**🎯 Key Point**: `make platform-start` handles everything! If you have a Kerberos ticket from `kinit`, it automatically shares it. No extra steps needed.
 
 ## 🎯 Next Steps
 
@@ -93,7 +103,7 @@ Now that platform services are running, explore how to use them:
    - [Runtime Patterns](patterns/runtime-patterns.md) - Team dependency isolation
 
 3. **Advanced Setup** (if needed)
-   - [Kerberos Setup for WSL2](kerberos-setup-wsl2.md) - For SQL Server authentication
+   - [Kerberos Setup for WSL2](kerberos-setup-wsl2.md) - One-time setup for SQL Server authentication
 
 ## 🛑 Stop Services
 
