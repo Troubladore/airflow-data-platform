@@ -130,19 +130,31 @@ ls -la ~/.krb5_cache/
 
 ### B. Configure Your Ticket Location (One-Time Setup)
 
-**🎯 New**: Configure where your organization stores tickets:
+**🎯 IMPORTANT**: Use our diagnostic tool to automatically detect your Kerberos configuration:
 
 ```bash
 cd airflow-data-platform/platform-bootstrap
-cp .env.example .env
 
-# Edit .env file to match your klist output
-# If klist shows: DIR::/home/username/.krb5-cache/dev/tkt
-# Set in .env:
-#   KERBEROS_CACHE_TYPE=DIR
-#   KERBEROS_CACHE_PATH=${HOME}/.krb5-cache
-#   KERBEROS_CACHE_TICKET=dev/tkt
+# Run the diagnostic tool
+./diagnose-kerberos.sh
+
+# It will show you EXACT values to put in your .env file:
+# ----------------------------------------
+# # Add to platform-bootstrap/.env
+# KERBEROS_CACHE_TYPE=FILE
+# KERBEROS_CACHE_PATH=/tmp
+# KERBEROS_CACHE_TICKET=krb5cc_1000
+# ----------------------------------------
+
+# Option 1: Copy the values manually
+cp .env.example .env
+# Then edit .env with the values shown above
+
+# Option 2: Use the automatic command provided by the diagnostic
+# (The tool will show you the exact command to run)
 ```
+
+**📖 Need help understanding the output?** See the [Kerberos Diagnostic Tool Guide](kerberos-diagnostic-guide.md) for detailed explanations of all options and recommendations.
 
 ### C. Ticket Sharing Happens Automatically!
 
@@ -268,21 +280,31 @@ This script will:
 
 ## 🔧 Diagnostic Tool
 
-If things aren't working, we have a diagnostic tool that checks everything:
+**The diagnostic tool is your best friend for Kerberos setup!** It automatically detects your configuration and tells you exactly what to put in your `.env` file:
 
 ```bash
 cd airflow-data-platform/platform-bootstrap
-make kerberos-diagnose
 
-# Or run directly:
+# Run the diagnostic
 ./diagnose-kerberos.sh
+
+# Or using make:
+make kerberos-diagnose
 ```
 
-This will check:
-- ✓ Your Kerberos tickets and their location
-- ✓ Docker volumes and networks
-- ✓ Ticket sharing service status
-- ✓ Common issues and how to fix them
+The tool will:
+- ✓ Detect your Kerberos ticket location and format
+- ✓ **Provide exact `.env` configuration values** (ready to copy-paste!)
+- ✓ Check Docker volumes and networks
+- ✓ Test ticket sharing between WSL2 and containers
+- ✓ Offer specific fixes based on your setup
+- ✓ Generate an automatic update command for your `.env` file
+
+**📖 Full Documentation**: See the [Kerberos Diagnostic Tool Guide](kerberos-diagnostic-guide.md) for:
+- Understanding different ticket formats (FILE vs DIR vs KCM)
+- Choosing between configuration options
+- Troubleshooting specific scenarios
+- Best practices and FAQ
 
 ## 🚨 Troubleshooting Guide
 

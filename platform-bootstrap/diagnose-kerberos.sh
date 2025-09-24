@@ -49,7 +49,11 @@ if command -v klist >/dev/null 2>&1; then
         echo ""
         echo -e "${YELLOW}📍 Ticket cache location: $TICKET_CACHE${NC}"
 
-        # Parse different ticket cache formats
+        # Parse different ticket cache formats and store values
+        DETECTED_CACHE_TYPE=""
+        DETECTED_CACHE_PATH=""
+        DETECTED_CACHE_TICKET=""
+
         if [[ "$TICKET_CACHE" == FILE:* ]]; then
             CACHE_FILE=${TICKET_CACHE#FILE:}
             echo "  Type: FILE"
@@ -57,6 +61,11 @@ if command -v klist >/dev/null 2>&1; then
             if [ -f "$CACHE_FILE" ]; then
                 echo -e "  ${GREEN}✓ File exists${NC}"
                 ls -la "$CACHE_FILE"
+
+                # Determine .env values
+                DETECTED_CACHE_TYPE="FILE"
+                DETECTED_CACHE_PATH=$(dirname "$CACHE_FILE")
+                DETECTED_CACHE_TICKET=$(basename "$CACHE_FILE")
             else
                 echo -e "  ${RED}✗ File does not exist${NC}"
             fi
@@ -68,6 +77,22 @@ if command -v klist >/dev/null 2>&1; then
                 echo -e "  ${GREEN}✓ Directory exists${NC}"
                 echo "  Contents:"
                 ls -la "$CACHE_DIR" 2>/dev/null | head -5
+
+                # Find the actual ticket file in the directory
+                for ticket_file in "$CACHE_DIR"/*; do
+                    if [ -f "$ticket_file" ] && [[ "$(basename "$ticket_file")" != "primary" ]]; then
+                        # Determine .env values
+                        DETECTED_CACHE_TYPE="DIR"
+                        DETECTED_CACHE_PATH="$CACHE_DIR"
+                        # Get relative path from cache dir
+                        DETECTED_CACHE_TICKET=$(basename "$ticket_file")
+                        # If there's a subdirectory structure, include it
+                        if [[ "$ticket_file" == *"/dev/"* ]]; then
+                            DETECTED_CACHE_TICKET="dev/$(basename "$ticket_file")"
+                        fi
+                        break
+                    fi
+                done
             else
                 echo -e "  ${RED}✗ Directory does not exist${NC}"
             fi
@@ -79,6 +104,11 @@ if command -v klist >/dev/null 2>&1; then
             echo "  Type: FILE (assumed)"
             if [ -f "$TICKET_CACHE" ]; then
                 echo -e "  ${GREEN}✓ File exists at: $TICKET_CACHE${NC}"
+
+                # Determine .env values
+                DETECTED_CACHE_TYPE="FILE"
+                DETECTED_CACHE_PATH=$(dirname "$TICKET_CACHE")
+                DETECTED_CACHE_TICKET=$(basename "$TICKET_CACHE")
             else
                 echo -e "  ${RED}✗ File not found at: $TICKET_CACHE${NC}"
             fi
@@ -194,54 +224,151 @@ else
     echo -e "${RED}Cannot test - Docker not available${NC}"
 fi
 
-# 5. Recommendations
-echo -e "\n${BLUE}=== 5. RECOMMENDATIONS ===${NC}"
+# 5. .env Configuration Values
+echo -e "\n${BLUE}=== 5. EXACT .ENV CONFIGURATION ===${NC}"
 
-if [ -n "$TICKET_CACHE" ]; then
-    if [[ "$TICKET_CACHE" == DIR::* ]]; then
-        CACHE_DIR=${TICKET_CACHE#DIR::}
-        echo -e "${YELLOW}📌 Your tickets are in a directory collection at: $CACHE_DIR${NC}"
+if [ -n "$DETECTED_CACHE_TYPE" ] && [ -n "$DETECTED_CACHE_PATH" ] && [ -n "$DETECTED_CACHE_TICKET" ]; then
+    echo -e "${GREEN}✅ Copy these exact values to your .env file:${NC}"
+    echo ""
+    echo "----------------------------------------"
+    echo "# Add to platform-bootstrap/.env"
+    echo "KERBEROS_CACHE_TYPE=$DETECTED_CACHE_TYPE"
+
+    # Handle home directory path for better portability
+    if [[ "$DETECTED_CACHE_PATH" == "$HOME"* ]]; then
+        RELATIVE_PATH=${DETECTED_CACHE_PATH#$HOME}
+        echo "KERBEROS_CACHE_PATH=\${HOME}$RELATIVE_PATH"
+    else
+        echo "KERBEROS_CACHE_PATH=$DETECTED_CACHE_PATH"
+    fi
+
+    echo "KERBEROS_CACHE_TICKET=$DETECTED_CACHE_TICKET"
+    echo "----------------------------------------"
+    echo ""
+    echo -e "${YELLOW}📝 Quick setup:${NC}"
+    echo "1. Copy the configuration above"
+    echo "2. Run: cd platform-bootstrap"
+    echo "3. Run: cp .env.example .env  (if .env doesn't exist)"
+    echo "4. Edit .env and replace the KERBEROS_* values with the ones above"
+    echo "5. Run: make platform-start"
+    echo ""
+    echo -e "${BLUE}Or use automatic setup:${NC}"
+    echo ""
+    echo "Run this command to automatically update your .env:"
+    echo ""
+
+    # Generate the sed commands for automatic update
+    if [[ "$DETECTED_CACHE_PATH" == "$HOME"* ]]; then
+        RELATIVE_PATH=${DETECTED_CACHE_PATH#$HOME}
+        PATH_VALUE="\${HOME}$RELATIVE_PATH"
+    else
+        PATH_VALUE="$DETECTED_CACHE_PATH"
+    fi
+
+    echo "cat << 'EOF' > /tmp/update_env.sh"
+    echo "#!/bin/bash"
+    echo "cd platform-bootstrap"
+    echo "[ ! -f .env ] && cp .env.example .env"
+    echo "sed -i 's/^KERBEROS_CACHE_TYPE=.*/KERBEROS_CACHE_TYPE=$DETECTED_CACHE_TYPE/' .env"
+    echo "sed -i 's|^KERBEROS_CACHE_PATH=.*|KERBEROS_CACHE_PATH=$PATH_VALUE|' .env"
+    echo "sed -i 's|^KERBEROS_CACHE_TICKET=.*|KERBEROS_CACHE_TICKET=$DETECTED_CACHE_TICKET|' .env"
+    echo "echo '✅ .env file updated with Kerberos configuration!'"
+    echo "EOF"
+    echo "bash /tmp/update_env.sh"
+elif [ -n "$TICKET_CACHE" ]; then
+    if [[ "$TICKET_CACHE" == KCM:* ]]; then
+        echo -e "${RED}❌ KCM ticket format detected${NC}"
         echo ""
-        echo "To fix ticket sharing, you need to:"
-        echo "1. Update developer-kerberos-simple.yml to mount the correct location:"
-        echo "   Change: - \${HOME}/.krb5_cache:/host:ro"
-        echo "   To:     - $CACHE_DIR:/host:ro"
+        echo "KCM (Kernel Credential Cache) tickets cannot be easily shared with Docker."
+        echo "You need to switch to FILE-based tickets:"
         echo ""
-        echo "2. Update the copy command to handle directory tickets:"
-        echo "   The service needs to copy from $CACHE_DIR/* instead of a single file"
-        echo ""
-        echo "Or convert to a file-based cache:"
+        echo "1. Set environment variable:"
         echo "   export KRB5CCNAME=FILE:/tmp/krb5cc_\$(id -u)"
+        echo ""
+        echo "2. Get a new ticket:"
         echo "   kinit YOUR_USERNAME@DOMAIN.COM"
-    elif [[ "$TICKET_CACHE" != FILE:/tmp/krb5cc_* ]]; then
-        echo -e "${YELLOW}📌 Your ticket cache is at a non-standard location${NC}"
-        echo "Consider using the standard location:"
-        echo "   export KRB5CCNAME=/tmp/krb5cc_\$(id -u)"
+        echo ""
+        echo "3. Run this diagnostic again to get .env values"
+    else
+        echo -e "${YELLOW}⚠️  Could not determine exact .env values${NC}"
+        echo ""
+        echo "Your ticket cache format may need manual configuration."
+        echo "Please check the ticket location above and set these values manually:"
+        echo ""
+        echo "KERBEROS_CACHE_TYPE=FILE  # or DIR"
+        echo "KERBEROS_CACHE_PATH=/path/to/ticket/directory"
+        echo "KERBEROS_CACHE_TICKET=ticket_filename"
+    fi
+else
+    echo -e "${RED}❌ No Kerberos tickets found${NC}"
+    echo ""
+    echo "First, get a Kerberos ticket:"
+    echo "1. Run: kinit YOUR_USERNAME@DOMAIN.COM"
+    echo "2. Enter your password"
+    echo "3. Run this diagnostic again to get .env values"
+fi
+
+# 6. Additional Information
+echo -e "\n${BLUE}=== 6. ADDITIONAL INFORMATION ===${NC}"
+
+if [ -n "$DETECTED_CACHE_TYPE" ]; then
+    echo -e "${GREEN}✓ Configuration detected successfully!${NC}"
+    echo ""
+    echo "Your ticket format: $DETECTED_CACHE_TYPE"
+    if [[ "$DETECTED_CACHE_TYPE" == "DIR" ]]; then
+        echo "  This is a directory-based ticket collection."
+        echo "  Multiple tickets can be stored for different services."
+    elif [[ "$DETECTED_CACHE_TYPE" == "FILE" ]]; then
+        echo "  This is a single-file ticket format."
+        echo "  Standard and widely compatible."
+    fi
+    echo ""
+    echo "📖 For detailed information about ticket formats and options, see:"
+    echo "   docs/kerberos-diagnostic-guide.md"
+elif [ -n "$TICKET_CACHE" ]; then
+    if [[ "$TICKET_CACHE" == DIR::* ]]; then
+        echo -e "${YELLOW}⚠️  Directory collection detected but no ticket files found${NC}"
+        echo ""
+        echo "This usually means your tickets have expired or haven't been created yet."
+        echo "Try getting a fresh ticket:"
         echo "   kinit YOUR_USERNAME@DOMAIN.COM"
+        echo ""
+        echo "Then run this diagnostic again."
     fi
 fi
 
-# 6. Quick fixes
-echo -e "\n${BLUE}=== 6. QUICK FIXES ===${NC}"
+# 7. Quick fixes
+echo -e "\n${BLUE}=== 7. QUICK FIXES ===${NC}"
 
-echo "Try these commands in order:"
-echo ""
-echo "1. Ensure Docker setup is correct:"
-echo "   docker network create platform_network"
-echo "   docker volume create platform_kerberos_cache"
-echo ""
-echo "2. Get a fresh Kerberos ticket:"
-echo "   export KRB5CCNAME=/tmp/krb5cc_\$(id -u)"
-echo "   kinit YOUR_USERNAME@DOMAIN.COM"
-echo ""
-echo "3. Copy ticket to expected location:"
-echo "   mkdir -p ~/.krb5_cache"
-echo "   cp \$KRB5CCNAME ~/.krb5_cache/krb5cc"
-echo ""
-echo "4. Start platform services:"
-echo "   make platform-start"
-echo ""
-echo "5. Test again:"
-echo "   make test-kerberos-simple"
+if [ -n "$DETECTED_CACHE_TYPE" ]; then
+    echo "Your Kerberos is configured! Next steps:"
+    echo ""
+    echo "1. Save the .env configuration shown above"
+    echo "2. Start platform services:"
+    echo "   cd platform-bootstrap"
+    echo "   make platform-start"
+    echo ""
+    echo "3. Test the connection:"
+    echo "   make test-kerberos-simple"
+else
+    echo "Try these commands in order:"
+    echo ""
+    echo "1. Ensure Docker setup is correct:"
+    echo "   docker network create platform_network"
+    echo "   docker volume create platform_kerberos_cache"
+    echo ""
+    echo "2. Get a fresh Kerberos ticket (use standard location):"
+    echo "   export KRB5CCNAME=FILE:/tmp/krb5cc_\$(id -u)"
+    echo "   kinit YOUR_USERNAME@DOMAIN.COM"
+    echo ""
+    echo "3. Run this diagnostic again to get .env values:"
+    echo "   ./diagnose-kerberos.sh"
+    echo ""
+    echo "4. Start platform services:"
+    echo "   make platform-start"
+    echo ""
+    echo "5. Test the connection:"
+    echo "   make test-kerberos-simple"
+fi
 
 echo -e "\n${GREEN}Diagnostic complete!${NC}"
