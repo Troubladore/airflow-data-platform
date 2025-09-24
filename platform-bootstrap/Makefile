@@ -114,7 +114,16 @@ kerberos-start: ## Start Kerberos platform service
 		echo "✓ Ticket sharing started"; \
 	else \
 		echo "  ⚠️  No Kerberos ticket found"; \
-		echo "  Run 'kinit $$(whoami)@$(COMPANY_DOMAIN)' to get a ticket"; \
+		if [ -f /mnt/c/Windows/System32/cmd.exe ]; then \
+			WIN_USER=$$(/mnt/c/Windows/System32/cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r\n'); \
+			if [ -n "$$WIN_USER" ]; then \
+				echo "  Run 'kinit $$WIN_USER@$(COMPANY_DOMAIN)' to get a ticket"; \
+			else \
+				echo "  Run 'kinit $$(whoami)@$(COMPANY_DOMAIN)' to get a ticket"; \
+			fi; \
+		else \
+			echo "  Run 'kinit $$(whoami)@$(COMPANY_DOMAIN)' to get a ticket"; \
+		fi; \
 		echo "  Skipping Kerberos setup"; \
 	fi
 
