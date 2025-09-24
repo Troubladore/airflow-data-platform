@@ -199,27 +199,56 @@ docker run --rm \
   -e KRB5CCNAME=/krb5/cache/krb5cc \
   python:3.11-alpine \
   sh -c "apk add --no-cache krb5 && python /app/test.py"
+```
 
-# OPTION 2: Full SQL Server test (requires server access)
-# Set your SQL Server details (ask your DBA for these)
-export SQL_SERVER="your-sql-server.company.com"  # Replace with your server
-export SQL_DATABASE="TestDB"                      # Replace with your database
+**✅ If Option 1 shows "SUCCESS! Kerberos tickets are accessible", continue to Option 2:**
 
-# Run the SQL Server test
+```bash
+# OPTION 2: Full SQL Server test
+# Just replace these two values with your actual server details:
 docker run --rm \
   --network platform_network \
   -v platform_kerberos_cache:/krb5/cache:ro \
   -v $(pwd)/test_kerberos.py:/app/test_kerberos.py \
   -e KRB5CCNAME=/krb5/cache/krb5cc \
-  -e SQL_SERVER="$SQL_SERVER" \
-  -e SQL_DATABASE="$SQL_DATABASE" \
+  -e SQL_SERVER="sqlserver01.company.com" \
+  -e SQL_DATABASE="AdventureWorks" \
   python:3.11-alpine \
   sh -c "apk add --no-cache krb5 gcc musl-dev unixodbc-dev && \
          pip install --no-cache-dir pyodbc && \
          python /app/test_kerberos.py"
 ```
 
-**💡 Tip**: Start with Option 1 to verify ticket sharing works, then move to Option 2 when you have SQL Server details.
+**🎯 Quick Configuration Guide:**
+- `SQL_SERVER`: Replace `sqlserver01.company.com` with your SQL Server hostname
+- `SQL_DATABASE`: Replace `AdventureWorks` with any database you can access
+
+**Example with real values:**
+```bash
+# For a server called "analytics-sql-prod" with database "DataWarehouse":
+-e SQL_SERVER="analytics-sql-prod.mycompany.com" \
+-e SQL_DATABASE="DataWarehouse" \
+```
+
+**💡 Tip**: Ask your DBA or check your existing connection strings for these values.
+
+### C. Even Easier: Use Our Helper Script
+
+We've included a convenience script that walks you through both tests:
+
+```bash
+# Interactive mode - prompts for server details
+./test-kerberos.sh
+
+# Or provide values directly
+./test-kerberos.sh sqlserver01.company.com AdventureWorks
+```
+
+This script will:
+1. ✓ Test ticket sharing automatically
+2. ✓ Prompt for SQL Server details (or use command line args)
+3. ✓ Run the full connection test
+4. ✓ Provide clear success/failure messages
 
 ## 🚨 Troubleshooting Guide
 

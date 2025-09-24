@@ -170,11 +170,16 @@ create-project: ## Create new Astronomer project from template
 
 test-connection: ## Test SQL Server connection through Kerberos
 	@echo "Testing SQL Server connection..."
+	@./test-kerberos.sh
+
+test-kerberos-simple: ## Test Kerberos ticket sharing only
 	@docker run --rm \
 		--network platform_network \
 		-v platform_kerberos_cache:/krb5/cache:ro \
+		-v $(shell pwd)/test_kerberos_simple.py:/app/test.py \
 		-e KRB5CCNAME=/krb5/cache/krb5cc \
-		localhost:$(REGISTRY_CACHE_PORT)/datakits/connection-tester:latest
+		python:3.11-alpine \
+		sh -c "apk add --no-cache krb5 >/dev/null 2>&1 && python /app/test.py"
 
 debug-logs: ## Show logs from all platform services
 	@echo "Platform service logs:"
