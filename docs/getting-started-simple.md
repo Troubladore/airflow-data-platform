@@ -41,8 +41,12 @@ Start the 3 enhancement services mentioned above:
 git clone https://github.com/Troubladore/airflow-data-platform.git
 cd airflow-data-platform
 
-# 2. Start the platform services
+# 2. Configure for your organization (optional)
 cd platform-bootstrap
+cp .env.example .env
+# Edit .env to match your Kerberos ticket location if needed
+
+# 3. Start the platform services
 make platform-start
 
 # You should see:

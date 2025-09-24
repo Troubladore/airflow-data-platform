@@ -145,6 +145,9 @@ kerberos-refresh: ## Refresh Kerberos ticket
 	@echo "Refreshing Kerberos ticket..."
 	@docker exec -it kerberos-platform-service kinit $(USER)@$(COMPANY_DOMAIN)
 
+kerberos-diagnose: ## Diagnose Kerberos configuration issues
+	@./diagnose-kerberos.sh
+
 # ==========================================
 # Mock Services
 # ==========================================

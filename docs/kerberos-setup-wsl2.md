@@ -128,7 +128,23 @@ cp /tmp/krb5cc_$(id -u) ~/.krb5_cache/krb5cc
 ls -la ~/.krb5_cache/
 ```
 
-### B. Ticket Sharing Happens Automatically!
+### B. Configure Your Ticket Location (One-Time Setup)
+
+**🎯 New**: Configure where your organization stores tickets:
+
+```bash
+cd airflow-data-platform/platform-bootstrap
+cp .env.example .env
+
+# Edit .env file to match your klist output
+# If klist shows: DIR::/home/username/.krb5-cache/dev/tkt
+# Set in .env:
+#   KERBEROS_CACHE_TYPE=DIR
+#   KERBEROS_CACHE_PATH=${HOME}/.krb5-cache
+#   KERBEROS_CACHE_TICKET=dev/tkt
+```
+
+### C. Ticket Sharing Happens Automatically!
 
 **🎯 Good news**: If you're following the [daily workflow](getting-started-simple.md#-daily-workflow), ticket sharing is automatic!
 
@@ -250,7 +266,39 @@ This script will:
 3. ✓ Run the full connection test
 4. ✓ Provide clear success/failure messages
 
+## 🔧 Diagnostic Tool
+
+If things aren't working, we have a diagnostic tool that checks everything:
+
+```bash
+cd airflow-data-platform/platform-bootstrap
+make kerberos-diagnose
+
+# Or run directly:
+./diagnose-kerberos.sh
+```
+
+This will check:
+- ✓ Your Kerberos tickets and their location
+- ✓ Docker volumes and networks
+- ✓ Ticket sharing service status
+- ✓ Common issues and how to fix them
+
 ## 🚨 Troubleshooting Guide
+
+### "Ticket cache: DIR:: format"
+
+Your organization might use directory-based ticket collections:
+```bash
+# You'll see this format:
+Ticket cache: DIR::/home/username/.krb5-cache/dev/tkt
+
+# This is normal! The platform now handles this automatically.
+# The ticket sharer will find and copy tickets from:
+# - /tmp/krb5cc_* (standard file)
+# - ~/.krb5_cache/ (alternative location)
+# - ~/.krb5-cache/dev/tkt (DIR:: collections)
+```
 
 ### "Cannot find KDC for realm"
 
