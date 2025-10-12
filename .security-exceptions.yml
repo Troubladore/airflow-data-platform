@@ -75,32 +75,9 @@ exceptions:
     expires: "2026-03-22"  # 6 months out
     review_frequency: "biannual"
 
-  # Exception 6: Certificate trust validation test command
-  - location: "ansible/validate-all.yml:48"
-    category: "dynamic_downloads"
-    justification: |
-      WHAT: curl command testing HTTPS certificate trust to traefik.localhost
-      WHY FLAGGED: Scanner detects curl in command task
-      WHY ACCEPTED: Tests certificate trust without downloading/executing code
-      RISK LEVEL: None - connectivity test to local service only
-      CONTEXT: Core validation that platform certificates work properly
-    accepted_by: "Platform Team"
-    accepted_date: "2025-09-22"
-    expires: "2026-03-22"  # 6 months out
-    review_frequency: "biannual"
+  # Exception 6: REMOVED - Traefik deprecated, tests moved to deprecated/ directory
 
-  # Exception 7: Curl test command for certificate validation
-  - content: "          command: curl -s --max-time 10 https://traefik.localhost/api/http/services"
-    category: "dynamic_downloads"
-    justification: |
-      WHAT: Certificate trust validation test using curl
-      WHY FLAGGED: Scanner detects curl command
-      WHY ACCEPTED: Tests HTTPS connectivity to local service, no code execution
-      RISK LEVEL: None - local service connectivity test only
-    accepted_by: "Platform Team"
-    accepted_date: "2025-09-22"
-    expires: "2026-03-22"
-    review_frequency: "biannual"
+  # Exception 7: REMOVED - Traefik deprecated, tests moved to deprecated/ directory
 
   # Exception 8: Curl test references in debug output
   - pattern: "ansible/validate-all.yml.*curl"
@@ -156,6 +133,100 @@ exceptions:
     accepted_date: "2025-09-19"
     expires: "2025-12-19"  # 3 months - review documentation patterns
     review_frequency: "quarterly"
+
+  # Exception 11: Deprecated Kerberos README documentation
+  - pattern: "deprecated/kerberos-astronomer/README.md"
+    category: "dynamic_downloads"
+    justification: |
+      WHAT: Documentation showing "curl -sSL install.astronomer.io | sudo bash -s"
+      WHY FLAGGED: Pipe-to-shell pattern detected
+      WHY ACCEPTED: This is deprecated documentation, not executed code
+      RISK LEVEL: None - historical reference only, not in active codebase
+      CONTEXT: Old implementation preserved for migration reference
+    accepted_by: "Platform Team"
+    accepted_date: "2025-10-12"
+    expires: "2026-10-12"
+    review_frequency: "annual"
+
+  # Exception 12: Architecture documentation examples
+  - pattern: "platform-architecture-vision.md.*pip install"
+    category: "unpinned_dependencies"
+    justification: |
+      WHAT: Dockerfile examples in architecture documentation
+      WHY FLAGGED: Shows pip install without version pins
+      WHY ACCEPTED: Documentation examples explaining design patterns, not executable code
+      RISK LEVEL: None - illustrative examples in design document
+      CONTEXT: Shows how Layer 1 image will install sqlmodel-framework from local source
+    accepted_by: "Platform Team"
+    accepted_date: "2025-10-12"
+    expires: "2026-10-12"
+    review_frequency: "annual"
+
+  # Exception 13: Deprecated Ansible - PowerShell ExecutionPolicy Bypass
+  - location: "deprecated/ansible/02-platform-setup.yml"
+    category: "windows_patterns"
+    justification: |
+      WHAT: PowerShell ExecutionPolicy Bypass in deprecated Ansible playbooks
+      WHY FLAGGED: ExecutionPolicy Bypass detected
+      WHY ACCEPTED: Deprecated code from old architecture, not in active use
+      RISK LEVEL: None - historical reference only
+      CONTEXT: Old Traefik/certificate setup preserved for migration reference
+    accepted_by: "Platform Team"
+    accepted_date: "2025-10-12"
+    expires: "2026-10-12"
+    review_frequency: "annual"
+
+  # Exception 14: Deprecated Ansible - more PowerShell bypasses
+  - location: "deprecated/ansible/02-config-fixes.yml"
+    category: "windows_patterns"
+    justification: |
+      WHAT: PowerShell ExecutionPolicy Bypass in deprecated config fixes
+      WHY FLAGGED: ExecutionPolicy Bypass detected
+      WHY ACCEPTED: Deprecated code, not in active use
+      RISK LEVEL: None - historical reference only
+    accepted_by: "Platform Team"
+    accepted_date: "2025-10-12"
+    expires: "2026-10-12"
+    review_frequency: "annual"
+
+  # Exception 15: Deprecated Ansible site.yml
+  - location: "deprecated/ansible/site.yml"
+    category: "windows_patterns"
+    justification: |
+      WHAT: PowerShell ExecutionPolicy Bypass in deprecated site.yml
+      WHY FLAGGED: ExecutionPolicy Bypass detected
+      WHY ACCEPTED: Deprecated code, not in active use
+      RISK LEVEL: None - historical reference only
+    accepted_by: "Platform Team"
+    accepted_date: "2025-10-12"
+    expires: "2026-10-12"
+    review_frequency: "annual"
+
+  # Exception 16: Deprecated Docker compose - unpinned images
+  - location: "deprecated/kerberos-astronomer/docker-compose.kdc-test.yml:9"
+    category: "unpinned_dependencies"
+    justification: |
+      WHAT: Docker image using :latest tag (gcavalcante8808/krb5-server:latest)
+      WHY FLAGGED: Unpinned Docker image version
+      WHY ACCEPTED: Deprecated experimental KDC test code
+      RISK LEVEL: None - not in active codebase
+    accepted_by: "Platform Team"
+    accepted_date: "2025-10-12"
+    expires: "2026-10-12"
+    review_frequency: "annual"
+
+  # Exception 17: Deprecated Dockerfile - variable version
+  - location: "deprecated/kerberos-astronomer/Dockerfile.astronomer-kerberos:5"
+    category: "unpinned_dependencies"
+    justification: |
+      WHAT: Dockerfile using variable for version (ASTRONOMER_VERSION)
+      WHY FLAGGED: Version not pinned in Dockerfile
+      WHY ACCEPTED: Deprecated experimental code
+      RISK LEVEL: None - not in active codebase
+    accepted_by: "Platform Team"
+    accepted_date: "2025-10-12"
+    expires: "2026-10-12"
+    review_frequency: "annual"
 
 # Global settings
 settings:

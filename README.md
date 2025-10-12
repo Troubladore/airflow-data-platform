@@ -1,41 +1,86 @@
 # Airflow Data Platform
 
-A modern data platform framework that provides table mixins, schema management, and deployment utilities for data engineering teams. Built on SQLModel with containerized infrastructure for local development and testing.
+A modern data platform framework that provides table mixins, schema management, and deployment utilities for data engineering teams. Built on [Astronomer](https://www.astronomer.io/) and [SQLModel](https://sqlmodel.tiangolo.com/) with containerized infrastructure for local development and testing.
 
-This repository contains the **platform framework**. For business implementations and examples, see [airflow-data-platform-examples](https://github.com/Troubladore/airflow-data-platform-examples).
+## 📦 Two Repositories, Clear Separation
 
-## 🚀 Quick Start
+- **This repo**: Platform framework and enhancement services
+- **[Examples repo](https://github.com/Troubladore/airflow-data-platform-examples)**: How to use it (once platform is deployed)
 
-**New to the platform?** → **[Learn About This Platform](docs/technical-reference.md)**
+## 🎯 The Problem We're Solving
 
-**Ready to set up your environment?** → **[Platform Setup](docs/getting-started.md)**
+Modern data teams face common challenges:
+- **Multiple teams** need to share data patterns while maintaining autonomy
+- **Dependency conflicts** between different teams' requirements
+- **Reusable data models** need to be defined once and deployed to multiple environments
+- **Self-hosted requirements** for data sovereignty and control
+- **Standardized patterns** needed across Bronze → Silver → Gold data layers
 
-## 📖 Documentation
+This framework provides a thin layer of enterprise patterns on top of Astronomer that addresses these challenges.
 
-- **[docs/](docs/)** - Complete documentation and guides
-- **[Platform Setup](docs/getting-started.md)** - Environment setup and prerequisites
-- **[Technical Reference](docs/technical-reference.md)** - Framework architecture and APIs
-- **[Security](docs/SECURITY-RISK-ACCEPTANCE.md)** - Security model and risk management
+## 🏗️ Architecture Stack
 
-## 🤝 Contributing
+```
+┌─────────────────────────────────────┐
+│   Your Business Logic (DAGs)        │ ← Business-specific workflows
+├─────────────────────────────────────┤
+│   Our Patterns (This Repo)          │ ← Enterprise standards
+│   - SQLModel for data models        │   "Define once, deploy many"
+│   - Runtime environments for teams  │   Team autonomy with isolation
+│   - Bootstrap for developers        │   Quick local development
+├─────────────────────────────────────┤
+│   Astronomer Platform               │ ← Orchestration layer
+│   - Manages Airflow lifecycle       │   Self-hosted or cloud
+│   - Provides UI and monitoring      │   Enterprise authentication
+├─────────────────────────────────────┤
+│   Apache Airflow                    │ ← Workflow engine
+│   - Executes DAGs                   │   Industry standard
+│   - Schedules and dependencies      │   Battle-tested
+├─────────────────────────────────────┤
+│   Docker/Kubernetes                 │ ← Execution layer
+│   - Container isolation             │   Local: Docker
+│   - Resource management             │   Prod: Kubernetes
+└─────────────────────────────────────┘
+```
 
-- **Framework improvements** - Enhance core platform capabilities
-- **Documentation** - Keep guides synchronized with code changes
-- **Infrastructure** - Improve deployment and development experience
+## 🚀 Getting Started
 
-See [CLAUDE.md](CLAUDE.md) for development patterns and git workflows.
+Start with platform setup, then explore examples:
 
-## 📋 Current Status
+1. **[Platform Setup Guide](docs/getting-started-simple.md)** - Deploy the enhancement services
+2. **[Hello World Example](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/hello-world)** - Your first project (after platform setup)
 
-- ✅ **Apache Airflow** platform with HTTPS and authentication
-- ✅ **Component-based deployment** - 6 atomic, idempotent Ansible components
-- ✅ **SQLModel framework** with table mixins and deployment utilities
-- ✅ **Multi-database support** (SQLite, PostgreSQL, SQL Server)
-- ✅ **Docker Registry** with UI for private image management
-- ✅ **Traefik proxy** with automatic HTTPS for all services
-- ✅ **mkcert certificates** - Valid HTTPS without browser warnings
-- ✅ **Comprehensive test suite** and CI/CD automation
+## 📚 Documentation
+
+### Setup & Configuration
+- **[Platform Setup](docs/getting-started-simple.md)** - Install platform services
+- **[Kerberos Setup for WSL2](docs/kerberos-setup-wsl2.md)** - SQL Server authentication
+
+### Patterns & Architecture
+- **[SQLModel Patterns](docs/patterns/sqlmodel-patterns.md)** - Data engineering with SQLModel
+- **[Runtime Environment Patterns](docs/patterns/runtime-patterns.md)** - Dependency isolation
+- **[Directory Structure](docs/directory-structure.md)** - Repository organization
+
+### Examples & Tutorials
+- **[Hello World](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/hello-world)** - Simplest example
+- **[Hello Kerberos](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/hello-kerberos)** - SQL Server auth
+- **[All Examples](https://github.com/Troubladore/airflow-data-platform-examples)** - Complete examples repo
+
+## 📊 Status
+
+| Component | Status | Purpose |
+|-----------|--------|---------|
+| SQLModel Framework | ✅ Production Ready | Table mixins, triggers, deployment |
+| Runtime Environments | ✅ Production Ready | Dependency isolation |
+| Platform Bootstrap | ✅ Simplified | Developer tools |
+| Documentation | 🚧 Updating | Aligning with new vision |
+
+## 🎯 Philosophy
+
+> "The best platform is invisible. If developers are thinking about the platform instead of their data, we've failed."
+
+We provide just enough glue to make Astronomer work brilliantly for enterprise data teams, then get out of the way.
 
 ---
 
-**Questions?** Check the [documentation](docs/) or create an issue for support.
+**Questions?** Open an issue. We aim for simplicity - if something seems complex, it probably needs fixing.

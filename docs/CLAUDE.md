@@ -89,7 +89,7 @@ allow-direct-references = true
 packages = ["datakits"]
 
 dependencies = [
-    "sqlmodel-framework @ git+https://github.com/Troubladore/airflow-data-platform.git@feature/layer2-data-processing-v2#subdirectory=data-platform/sqlmodel-workspace/sqlmodel-framework"
+    "sqlmodel-framework @ git+https://github.com/Troubladore/airflow-data-platform.git@feature/layer2-data-processing-v2#subdirectory=sqlmodel-framework"
 ]
 ```
 
@@ -108,8 +108,8 @@ dependencies = [
 **Key Insight**: Docker Compose `version:` attribute is obsolete and causes warnings.
 
 ### 4. Directory Structure Evolution
-**Previous**: `data-workspace/data-platform-framework/`
-**Current**: `data-platform/sqlmodel-workspace/sqlmodel-framework/`
+**Previous**: `data-workspace/data-platform-framework/` → `data-platform/sqlmodel-workspace/sqlmodel-framework/`
+**Current**: `sqlmodel-framework/`
 
 **Impact**: All test paths needed updating for new structure.
 

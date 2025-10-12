@@ -1,0 +1,124 @@
+version: '3.8'
+
+# Local Kerberos KDC for Testing
+# This creates a complete Kerberos environment for local development
+
+services:
+  # MIT Kerberos KDC Server
+  kdc:
+    image: gcavalcante8808/krb5-server:latest
+    container_name: kerberos-kdc
+    hostname: kdc.test.local
+    environment:
+      KRB5_REALM: TEST.LOCAL
+      KRB5_KDC: kdc.test.local
+      KRB5_ADMIN_SERVER: kdc.test.local
+      KRB5_ADMIN_USER: admin/admin
+      KRB5_ADMIN_PASS: admin_password
+    volumes:
+      - ./config/kdc:/var/kerberos
+      - ./scripts/init-kdc.sh:/init-kdc.sh:ro
+    ports:
+      - "88:88"
+      - "88:88/udp"
+      - "749:749"
+    networks:
+      kerberos-test:
+        aliases:
+          - kdc.test.local
+    command: >
+      sh -c "
+        /init-kdc.sh &&
+        /usr/sbin/krb5kdc -n &&
+        /usr/sbin/kadmind -nofork
+      "
+
+  # Test SQL Server with Windows Authentication
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: test-sqlserver
+    hostname: sql.test.local
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "YourStrong@Password123"
+      MSSQL_PID: "Developer"
+      MSSQL_AGENT_ENABLED: "true"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+      - ./scripts/init-sqlserver.sh:/init-sqlserver.sh:ro
+    networks:
+      kerberos-test:
+        aliases:
+          - sql.test.local
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "YourStrong@Password123", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Kerberos Client for Testing
+  krb-client:
+    build:
+      context: .
+      dockerfile: Dockerfile.kerberos-sidecar
+    container_name: krb-client
+    hostname: client.test.local
+    environment:
+      KRB_PRINCIPAL: airflow@TEST.LOCAL
+      KRB_REALM: TEST.LOCAL
+      USE_PASSWORD: "true"
+      KRB_PASSWORD: "airflow123"
+      KRB_RENEWAL_INTERVAL: 300
+    volumes:
+      - ./config/krb5-test.conf:/krb5/conf/krb5.conf:ro
+      - krb5_test_cache:/krb5/cache:rw
+    networks:
+      kerberos-test:
+        aliases:
+          - client.test.local
+    depends_on:
+      - kdc
+      - sqlserver
+
+  # Astronomer Airflow with Test KDC
+  airflow-webserver:
+    extends:
+      file: docker-compose.override.yml
+      service: webserver
+    environment:
+      KRB5_CONFIG: /etc/krb5-test.conf
+      KRB5CCNAME: /krb5/cache/krb5cc
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    volumes:
+      - ./config/krb5-test.conf:/etc/krb5-test.conf:ro
+      - krb5_test_cache:/krb5/cache:ro
+    networks:
+      - kerberos-test
+    depends_on:
+      - krb-client
+
+  airflow-scheduler:
+    extends:
+      file: docker-compose.override.yml
+      service: scheduler
+    environment:
+      KRB5_CONFIG: /etc/krb5-test.conf
+      KRB5CCNAME: /krb5/cache/krb5cc
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    volumes:
+      - ./config/krb5-test.conf:/etc/krb5-test.conf:ro
+      - krb5_test_cache:/krb5/cache:ro
+    networks:
+      - kerberos-test
+    depends_on:
+      - krb-client
+
+volumes:
+  sqlserver_data:
+  krb5_test_cache:
+
+networks:
+  kerberos-test:
+    driver: bridge

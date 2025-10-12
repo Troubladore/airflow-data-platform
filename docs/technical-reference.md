@@ -24,7 +24,7 @@ This documentation is for:
 ## 🔧 Framework Components
 
 ### **SQLModel Framework**
-- **Location**: `data-platform/sqlmodel-workspace/sqlmodel-framework/`
+- **Location**: `sqlmodel-framework/`
 - **Purpose**: Table mixins, deployment utilities, schema management
 - **Installation**: UV dependency via git+https
 
@@ -51,7 +51,7 @@ The platform is designed to be **imported, not forked**:
 ```toml
 # Business implementations reference platform via UV dependency
 [dependencies]
-sqlmodel-framework = {git = "https://github.com/Troubladore/airflow-data-platform.git", branch = "main", subdirectory = "data-platform/sqlmodel-workspace/sqlmodel-framework"}
+sqlmodel-framework = {git = "https://github.com/Troubladore/airflow-data-platform.git", branch = "main", subdirectory = "sqlmodel-framework"}
 ```
 
 **Technical Benefits**:
@@ -95,7 +95,7 @@ class CustomDatabaseEngine(BaseEngine):
 ## 🔬 Development Workflow
 
 ### **Framework Development**
-1. **Modify core** - Update `data-platform/sqlmodel-workspace/sqlmodel-framework/`
+1. **Modify core** - Update `sqlmodel-framework/`
 2. **Run tests** - Execute framework test suite with `uv run pytest`
 3. **Version bump** - Update version for breaking API changes
 4. **Integration test** - Validate with example implementations
@@ -122,7 +122,7 @@ class CustomDatabaseEngine(BaseEngine):
 ### **For Platform Developers**
 1. **[WHY-THIS-ARCHITECTURE.md](WHY-THIS-ARCHITECTURE.md)** - Understand design rationale
 2. **[TECHNICAL-ARCHITECTURE.md](TECHNICAL-ARCHITECTURE.md)** - Deep dive into implementation
-3. **Framework source code** - Explore `data-platform/sqlmodel-workspace/sqlmodel-framework/`
+3. **Framework source code** - Explore `sqlmodel-framework/`
 
 ### **For Infrastructure Engineers**
 1. **[ECOSYSTEM-OVERVIEW.md](ECOSYSTEM-OVERVIEW.md)** - Component relationships

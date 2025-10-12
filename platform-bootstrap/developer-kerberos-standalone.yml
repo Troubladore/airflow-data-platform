@@ -1,0 +1,81 @@
+# Developer Workstation Kerberos Service
+# ========================================
+# Platform-level Kerberos for developer workstations
+# (Before int/qa/prod infrastructure exists)
+
+version: '3.8'
+
+services:
+  # Platform-level Kerberos sidecar for developers
+  developer-kerberos-service:
+    # Custom sidecar image (built locally, cached by Docker)
+    # Build: docker build -t platform/kerberos-sidecar:latest .
+    image: platform/kerberos-sidecar:latest
+    container_name: kerberos-platform-service
+    restart: unless-stopped
+
+    environment:
+      # Developer mode configuration
+      ENVIRONMENT: development
+      KRB_PRINCIPAL: ${USER}@${COMPANY_DOMAIN}
+      KRB_REALM: ${COMPANY_DOMAIN}
+
+      # Use password auth for developers (keytab in production)
+      USE_PASSWORD: "true"
+      KRB_PASSWORD_COMMAND: "cat /run/secrets/krb_password"
+
+      # More frequent renewal for development
+      RENEWAL_INTERVAL: 1800  # 30 minutes
+
+      # Mount existing developer ticket if available
+      IMPORT_EXISTING_TICKET: "true"
+      HOST_TICKET_PATH: ${HOME}/.krb5_cache/krbtgt_${COMPANY_DOMAIN}
+
+    volumes:
+      # Share ticket cache with all local containers
+      - kerberos_cache:/krb5/cache:rw
+
+      # Use developer's existing krb5.conf
+      - ${KRB5_CONF_PATH:-/etc/krb5.conf}:/krb5/conf/krb5.conf:ro
+
+      # Mount WSL2 ticket cache if exists
+      - ${HOME}/.krb5_cache:/host/krb5_cache:ro
+
+    secrets:
+      - krb_password
+
+    networks:
+      - platform-net
+
+    healthcheck:
+      test: ["CMD", "klist", "-s"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+  # Mock Delinea for development
+  # (Real Delinea isn't accessible from workstations)
+  mock-delinea:
+    image: mockserver/mockserver:latest
+    container_name: mock-delinea
+    ports:
+      - "8443:1080"
+    environment:
+      MOCKSERVER_INITIALIZATION_JSON_PATH: /config/delinea-mock.json
+    volumes:
+      - ./config/delinea-mock.json:/config/delinea-mock.json:ro
+    networks:
+      - platform-net
+
+volumes:
+  kerberos_cache:
+    name: platform_kerberos_cache
+
+networks:
+  platform-net:
+    name: platform_network
+    driver: bridge
+
+secrets:
+  krb_password:
+    file: ./.secrets/krb_password.txt
