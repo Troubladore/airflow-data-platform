@@ -4,10 +4,11 @@ Minimal setup to get developers productive with Astronomer + enterprise requirem
 
 ## 🎯 What This Does
 
-1. **Caches Artifactory images locally** (work offline)
-2. **Shares your existing Kerberos ticket** (no complex Kerberos setup)
-3. **Provides a local registry** (faster builds)
-4. **Mocks unavailable services** (Delinea, etc.)
+1. **Shares your existing Kerberos ticket** (no complex Kerberos setup)
+2. **Provides SQLModel framework** (consistent data patterns)
+3. **Mocks unavailable services** (Delinea, etc.)
+
+Note: Docker caches images automatically - no local registry service needed!
 
 ## 🚀 Quick Start (10 minutes)
 
@@ -29,9 +30,9 @@ cd platform-bootstrap
 make platform-start
 
 # This starts:
-# - Local registry (caches Artifactory images)
 # - Ticket sharer (uses your existing WSL2 Kerberos ticket)
-# - That's it! No complex infrastructure
+# - Mock services (for local development)
+# That's it! No complex infrastructure
 ```
 
 ### Step 3: Create Your Project
@@ -65,31 +66,33 @@ kinit YOUR_USERNAME@COMPANY.COM
 # That's it! The platform shares this with containers
 ```
 
-## 📦 Offline Development
+## 📦 Image Caching
 
-The local registry caches images from Artifactory:
+Docker automatically caches all pulled images:
 
 ```bash
-# First time (online): Images pulled from Artifactory and cached
+# First time (online): Images pulled and cached by Docker
 astro dev start
 
-# Later (offline): Images served from local cache
-astro dev start  # Still works on airplane!
+# Later (offline): Images served from Docker's cache
+astro dev start  # Works offline after initial pull!
 ```
 
 ## 🏗️ What's Actually Running
 
 Just two lightweight services:
 
-1. **Registry Cache** (registry:2)
-   - Proxies to Artifactory when online
-   - Serves from cache when offline
-
-2. **Ticket Sharer** (alpine container)
+1. **Ticket Sharer** (alpine container)
    - Copies your WSL2 Kerberos ticket every 5 minutes
    - Mounts to containers that need it
 
+2. **Mock Services** (optional)
+   - Mock Delinea for local development
+   - Other mock services as needed
+
 That's it! No complex infrastructure.
+
+Note: Docker caches images automatically - no registry service needed.
 
 ## 📊 Architecture
 
@@ -134,15 +137,6 @@ kinit USERNAME@COMPANY.COM
 export USE_MOCK_DATA=true
 ```
 
-### Registry not caching
-
-```bash
-# Check it's running
-docker ps | grep registry-cache
-
-# Restart if needed
-make registry-start
-```
 
 ### Can't connect to SQL Server
 

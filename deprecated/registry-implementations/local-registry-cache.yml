@@ -1,24 +1,27 @@
 # Local Registry as Artifactory Cache
 # =====================================
-# Provides disconnected development capability
-
-version: '3.8'
+# Provides pull-through cache from corporate Artifactory
+#
+# Image sources configured via .env:
+# - ARTIFACTORY_REGISTRY_IMAGE (corporate) or registry:2 (public default)
+# - ARTIFACTORY_REDIS_IMAGE (corporate) or redis:7-alpine (public default)
+# - ARTIFACTORY_DOCKER_REPO_URL (corporate Artifactory Docker repository)
 
 services:
   # Local registry that caches Artifactory images
   local-registry-cache:
-    image: registry:2
+    image: ${ARTIFACTORY_REGISTRY_IMAGE:-registry:2}
     container_name: registry-cache
     restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "${REGISTRY_CACHE_PORT:-5000}:5000"
     volumes:
       - registry_cache_data:/var/lib/registry
       - ./config/registry-config.yml:/etc/docker/registry/config.yml:ro
     environment:
-      REGISTRY_PROXY_REMOTEURL: https://artifactory.company.com
-      REGISTRY_PROXY_USERNAME: ${ARTIFACTORY_USERNAME}
-      REGISTRY_PROXY_PASSWORD: ${ARTIFACTORY_PASSWORD}
+      REGISTRY_PROXY_REMOTEURL: ${ARTIFACTORY_DOCKER_REPO_URL:-https://registry-1.docker.io}
+      REGISTRY_PROXY_USERNAME: ${ARTIFACTORY_USERNAME:-}
+      REGISTRY_PROXY_PASSWORD: ${ARTIFACTORY_PASSWORD:-}
       # Cache settings
       REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR: redis
       REGISTRY_REDIS_ADDR: redis-cache:6379
@@ -27,7 +30,7 @@ services:
 
   # Redis for registry caching metadata
   redis-cache:
-    image: redis:7-alpine
+    image: ${ARTIFACTORY_REDIS_IMAGE:-redis:7-alpine}
     container_name: registry-redis
     restart: unless-stopped
     volumes:

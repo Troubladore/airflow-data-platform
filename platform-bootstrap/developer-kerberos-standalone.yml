@@ -8,7 +8,9 @@ version: '3.8'
 services:
   # Platform-level Kerberos sidecar for developers
   developer-kerberos-service:
-    image: localhost:5000/platform/kerberos-sidecar:latest
+    # Custom sidecar image (built locally, cached by Docker)
+    # Build: docker build -t platform/kerberos-sidecar:latest .
+    image: platform/kerberos-sidecar:latest
     container_name: kerberos-platform-service
     restart: unless-stopped
 

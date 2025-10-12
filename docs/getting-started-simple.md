@@ -4,13 +4,14 @@ Set up the Airflow Data Platform enhancement services that work alongside Astron
 
 ## 🎯 What This Does
 
-The platform provides **3 enhancement services** that make Astronomer better for enterprise teams:
+The platform provides **2 enhancement services** that work alongside Astronomer for enterprise teams:
 
-1. **Registry Cache** - Speeds up Docker builds and enables offline development
-2. **Kerberos Ticket Sharer** - Enables SQL Server Windows Authentication without passwords
-3. **SQLModel Framework** - Provides consistent data patterns across teams
+1. **Kerberos Ticket Sharer** - Enables SQL Server Windows Authentication without passwords
+2. **SQLModel Framework** - Provides consistent data patterns across teams
 
 These services run locally alongside your Astronomer projects.
+
+**Note:** Docker caches images automatically - no local registry service needed!
 
 ## 📋 Prerequisites
 
@@ -50,9 +51,9 @@ cp .env.example .env
 make platform-start
 
 # You should see:
-# ✓ Registry cache started at localhost:5000
 # ✓ Ticket sharer started (if Kerberos tickets detected)
 # ✓ SQLModel framework available for import
+# ✓ Docker caches images automatically (no registry service needed)
 ```
 
 ## ✅ Verify Services
@@ -60,14 +61,13 @@ make platform-start
 Confirm the platform services are running correctly:
 
 ```bash
-# Check registry cache (should return empty JSON)
-curl http://localhost:5000/v2/_catalog
-# Expected: {"repositories":[]}
-
 # Check Kerberos tickets (only if using SQL Server)
 klist
 # Expected: Your domain tickets (if configured)
-```
+
+# Note: Docker caches images automatically
+docker images
+# Shows all cached images (pulled and built)
 
 ## 🔧 Daily Workflow
 
@@ -82,9 +82,9 @@ cd airflow-data-platform/platform-bootstrap
 make platform-start
 
 # This automatically:
-# ✅ Starts the registry cache (speeds up Docker builds)
 # ✅ Detects your Kerberos ticket and shares it with containers
 # ✅ Starts mock services for local testing
+# ✅ Docker caches images automatically (no registry service needed)
 
 # Work on your Astronomer projects...
 # The services enable faster builds and SQL Server auth
@@ -123,11 +123,14 @@ make platform-stop
 <details>
 <summary>Click to expand troubleshooting</summary>
 
-### Registry cache not responding
+### Images not pulling
 ```bash
-docker ps | grep registry
-# Should show the registry container running
-# If not, check Docker is running
+# Check Docker is running
+docker info
+
+# Test image pull
+docker pull hello-world
+# Should pull and cache automatically
 ```
 
 ### Kerberos tickets not working

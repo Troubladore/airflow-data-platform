@@ -5,16 +5,15 @@
 .PHONY: help all start stop status clean
 
 # Configuration
-REGISTRY_CACHE_PORT ?= 5000
-REGISTRY_UI_PORT ?= 5080
+# Load from .env file if it exists, otherwise use defaults
+-include .env
+export
+
 COMPANY_DOMAIN ?= COMPANY.COM
-ARTIFACTORY_URL ?= artifactory.company.com
 
 # Use modern Docker Compose syntax (v2+)
 DOCKER_COMPOSE := docker compose
 
-# Detect if we have Artifactory access
-HAS_ARTIFACTORY := $(shell curl -s -o /dev/null -w "%{http_code}" https://$(ARTIFACTORY_URL) 2>/dev/null | grep -qE "200|401" && echo "yes" || echo "no")
 
 help: ## Show this help message
 	@echo "Developer Platform Bootstrap"
@@ -29,7 +28,6 @@ help: ## Show this help message
 	@echo "  make platform-stop     # Stop everything when done"
 	@echo ""
 	@echo "Advanced (start specific services only):"
-	@echo "  make registry-start    # Just the Docker registry cache"
 	@echo "  make kerberos-start    # Just Kerberos ticket sharing"
 	@echo "  make mock-start        # Just mock services"
 
@@ -55,56 +53,31 @@ validate: ## Validate environment is ready
 # Platform Services
 # ==========================================
 
-platform-start: registry-start kerberos-start mock-start ## Start all platform services
+platform-start: kerberos-start mock-start ## Start all platform services
 	@echo "✓ Platform services started"
 	@echo ""
 	@echo "Access points:"
-	@echo "  Registry:      http://localhost:$(REGISTRY_CACHE_PORT)"
-	@echo "  Registry UI:   http://localhost:$(REGISTRY_UI_PORT)"
 	@echo "  Mock Delinea:  https://localhost:8443"
 	@echo ""
+	@echo "Note: Docker caches images automatically - no registry service needed"
 	@echo "Next: astro dev init my-project"
 
-platform-stop: registry-stop kerberos-stop mock-stop ## Stop all platform services
+platform-stop: kerberos-stop mock-stop ## Stop all platform services
 	@echo "✓ Platform services stopped"
 
 platform-status: ## Check status of platform services
 	@echo "Platform Services Status:"
 	@echo "========================"
-	@$(DOCKER_COMPOSE) -f local-registry-cache.yml ps
 	@$(DOCKER_COMPOSE) -f developer-kerberos-simple.yml ps 2>/dev/null || echo "Kerberos: Not running"
 	@echo ""
-	@make registry-test
 	@make kerberos-test
 
 # ==========================================
-# Registry Cache
+# Note: Registry Removed
 # ==========================================
-
-registry-start: ## Start local registry cache
-	@echo "Starting registry cache..."
-ifeq ($(HAS_ARTIFACTORY),yes)
-	@echo "  Artifactory detected, configuring as pull-through cache"
-	@$(DOCKER_COMPOSE) -f local-registry-cache.yml up -d
-else
-	@echo "  No Artifactory access, using local-only registry"
-	@docker run -d -p $(REGISTRY_CACHE_PORT):5000 --name registry-cache registry:2 2>/dev/null || true
-endif
-	@echo "✓ Registry cache started at localhost:$(REGISTRY_CACHE_PORT)"
-
-registry-stop: ## Stop registry cache
-	@$(DOCKER_COMPOSE) -f local-registry-cache.yml down 2>/dev/null || true
-	@docker stop registry-cache 2>/dev/null || true
-	@docker rm registry-cache 2>/dev/null || true
-
-registry-test: ## Test registry is working
-	@echo -n "Registry cache: "
-	@curl -s http://localhost:$(REGISTRY_CACHE_PORT)/v2/_catalog >/dev/null 2>&1 && \
-		echo "✓ Running" || echo "✗ Not running"
-
-registry-list: ## List cached images
-	@echo "Cached images:"
-	@curl -s http://localhost:$(REGISTRY_CACHE_PORT)/v2/_catalog | jq -r '.repositories[]' 2>/dev/null || echo "  No images cached yet"
+# Docker caches pulled images automatically in its native image store.
+# No local registry service is needed for single-developer environments.
+# See: deprecated/registry-implementations/ for historical reference.
 
 # ==========================================
 # Kerberos Service
@@ -190,42 +163,17 @@ test-connection: ## Test SQL Server connection through Kerberos
 	@echo "Testing SQL Server connection..."
 	@./test-kerberos.sh
 
-test-kerberos-simple: ## Test Kerberos ticket sharing only
-	@docker run --rm \
-		--network platform_network \
-		-v platform_kerberos_cache:/krb5/cache:ro \
-		-v $(shell pwd)/test_kerberos_simple.py:/app/test.py \
-		-e KRB5CCNAME=/krb5/cache/krb5cc \
-		python:3.11-alpine \
-		sh -c "apk add --no-cache krb5 >/dev/null 2>&1 && python /app/test.py"
-
 debug-logs: ## Show logs from all platform services
 	@echo "Platform service logs:"
-	@$(DOCKER_COMPOSE) -f local-registry-cache.yml logs --tail=20
 	@$(DOCKER_COMPOSE) -f developer-kerberos-simple.yml logs --tail=20 2>/dev/null || true
 
 # ==========================================
-# Offline Mode
+# Note: Offline Mode Removed
 # ==========================================
-
-offline-enable: ## Enable offline mode (use cached images only)
-	@echo "Enabling offline mode..."
-	@touch .offline-mode
-	@echo "✓ Offline mode enabled - using cached images only"
-
-offline-disable: ## Disable offline mode
-	@rm -f .offline-mode
-	@echo "✓ Offline mode disabled - will pull from Artifactory"
-
-offline-cache-astronomer: ## Cache Astronomer images for offline work
-	@echo "Caching Astronomer images..."
-	@for image in ap-airflow:11.10.0 ap-airflow:11.9.0; do \
-		echo "  Pulling $$image..."; \
-		docker pull $(ARTIFACTORY_URL)/astronomer-certified/$$image; \
-		docker tag $(ARTIFACTORY_URL)/astronomer-certified/$$image localhost:$(REGISTRY_CACHE_PORT)/astronomer-certified/$$image; \
-		docker push localhost:$(REGISTRY_CACHE_PORT)/astronomer-certified/$$image; \
-	done
-	@echo "✓ Astronomer images cached"
+# Docker automatically caches all pulled images locally.
+# For offline development, simply pull images once while online:
+#   docker pull <image>
+# They remain cached until explicitly removed.
 
 # ==========================================
 # Cleanup
@@ -234,8 +182,6 @@ offline-cache-astronomer: ## Cache Astronomer images for offline work
 clean: platform-stop ## Clean up all platform services and volumes
 	@echo "Cleaning up platform services..."
 	@docker volume rm platform_kerberos_cache 2>/dev/null || true
-	@docker volume rm registry_cache_data 2>/dev/null || true
-	@docker volume rm redis_cache_data 2>/dev/null || true
 	@echo "✓ Cleanup complete"
 
 reset: clean ## Reset everything to fresh state

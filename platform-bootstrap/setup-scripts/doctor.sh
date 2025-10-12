@@ -54,7 +54,7 @@ check "Docker daemon" \
 
 check "Astronomer CLI" \
     "astro version" \
-    "Run: curl -sSL install.astronomer.io | sudo bash -s"
+    "See: https://docs.astronomer.io/astro/cli/install-cli"
 
 check "Python 3.8+" \
     "python3 --version | grep -E '3\.(8|9|10|11|12)'" \
@@ -72,10 +72,6 @@ check "Docker network" \
     "docker network inspect platform_network" \
     "Run: docker network create platform_network"
 
-check "Port 5000 available" \
-    "! lsof -i:5000" \
-    "Stop service using port 5000 or change REGISTRY_CACHE_PORT"
-
 check "Port 8080 available" \
     "! lsof -i:8080" \
     "Stop service using port 8080 (usually another Airflow)"
@@ -83,10 +79,6 @@ check "Port 8080 available" \
 echo ""
 echo "Platform Services:"
 echo "-----------------"
-
-check "Registry cache" \
-    "curl -s http://localhost:5000/v2/_catalog" \
-    "Run: make registry-start"
 
 check "Kerberos service" \
     "docker ps | grep kerberos-platform-service" \
@@ -109,20 +101,11 @@ check "WSL2 (if Windows)" \
     "Enable WSL2 in Windows Features"
 
 echo ""
-echo "Artifactory Access:"
-echo "------------------"
-
-if [ -n "${ARTIFACTORY_URL:-}" ]; then
-    check "Artifactory connectivity" \
-        "curl -s -o /dev/null -w '%{http_code}' https://${ARTIFACTORY_URL} | grep -qE '200|401|403'" \
-        "Check VPN connection or ARTIFACTORY_URL setting"
-
-    check "Artifactory credentials" \
-        "[ -n \"\${ARTIFACTORY_USERNAME:-}\" ] && [ -n \"\${ARTIFACTORY_PASSWORD:-}\" ]" \
-        "Set ARTIFACTORY_USERNAME and ARTIFACTORY_PASSWORD"
-else
-    echo -e "${YELLOW}⚠${NC} ARTIFACTORY_URL not set (offline mode)"
-fi
+echo "Note: Docker Image Caching:"
+echo "---------------------------"
+echo -e "${GREEN}ℹ${NC} Docker automatically caches all pulled images"
+echo "  No local registry service needed for development"
+echo "  Custom images: docker build -t myimage:latest . (cached automatically)"
 
 echo ""
 echo "Kerberos Configuration:"
