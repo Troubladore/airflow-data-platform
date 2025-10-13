@@ -1,6 +1,13 @@
 # Kerberos Sidecar Container for Astronomer Airflow
 # Purpose: Manages Kerberos tickets for SQL Server NT Authentication
-FROM alpine:3.19
+#
+# Corporate Artifactory Support:
+# - Set IMAGE_ALPINE build arg for corporate registry
+# - APK packages use Alpine repos (configure /etc/apk/repositories if needed)
+# - ODBC drivers downloaded from Microsoft (can be cached in Artifactory)
+
+ARG IMAGE_ALPINE
+FROM ${IMAGE_ALPINE:-alpine:3.19}
 
 # Install Kerberos client libraries and SQL Server ODBC drivers
 RUN apk add --no-cache \
@@ -24,8 +31,10 @@ RUN apk add --no-cache \
     openssl-dev
 
 # Install Microsoft ODBC Driver for SQL Server (Alpine compatible)
-RUN curl -O https://download.microsoft.com/download/3/5/5/355d7943-a338-41a7-858d-53b259ea33f5/msodbcsql18_18.3.2.1-1_amd64.apk && \
-    curl -O https://download.microsoft.com/download/3/5/5/355d7943-a338-41a7-858d-53b259ea33f5/mssql-tools18_18.3.1.1-1_amd64.apk && \
+# Corporate: If Artifactory mirrors these, set ODBC_DRIVER_URL build arg
+ARG ODBC_DRIVER_URL=https://download.microsoft.com/download/3/5/5/355d7943-a338-41a7-858d-53b259ea33f5
+RUN curl -O ${ODBC_DRIVER_URL}/msodbcsql18_18.3.2.1-1_amd64.apk && \
+    curl -O ${ODBC_DRIVER_URL}/mssql-tools18_18.3.1.1-1_amd64.apk && \
     apk add --allow-untrusted msodbcsql18_18.3.2.1-1_amd64.apk && \
     apk add --allow-untrusted mssql-tools18_18.3.1.1-1_amd64.apk && \
     rm *.apk

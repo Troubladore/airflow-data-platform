@@ -14,7 +14,23 @@ This sidecar container:
 
 ### Build the Image
 
+**Public internet (default):**
 ```bash
+make build
+```
+
+**Corporate Artifactory:**
+```bash
+# Corporate configuration is in platform-bootstrap/.env (one place!)
+# Your DevOps person likely already configured it in your fork
+
+# 1. Verify configuration (already done in fork)
+cat ../.env | grep IMAGE_ALPINE
+
+# 2. Login to corporate registry
+docker login artifactory.company.com
+
+# 3. Build (uses parent .env automatically)
 make build
 ```
 

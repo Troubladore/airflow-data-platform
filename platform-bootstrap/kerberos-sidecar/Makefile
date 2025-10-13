@@ -4,20 +4,35 @@
 
 .PHONY: help build test push clean
 
+# Load corporate configuration from parent .env (single source of truth)
+# DevOps person configures platform-bootstrap/.env once for the organization
+-include ../.env
+export
+
 IMAGE_NAME ?= platform/kerberos-sidecar
 IMAGE_TAG ?= latest
 REGISTRY ?= registry.company.com
+
+# Corporate Artifactory configuration (from .env or defaults)
+# IMAGE_ALPINE - Base Alpine image source
+# ODBC_DRIVER_URL - Microsoft ODBC driver mirror location
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 
 build: ## Build sidecar image for local development
 	@echo "Building Kerberos sidecar image..."
-	docker build -t $(IMAGE_NAME):$(IMAGE_TAG) .
+	@echo "Configuration:"
+	@echo "  Base image: ${IMAGE_ALPINE:-alpine:3.19} (public default)"
+	@echo "  ODBC source: ${ODBC_DRIVER_URL:-Microsoft download} (public default)"
+	docker build \
+		$(if $(IMAGE_ALPINE),--build-arg IMAGE_ALPINE=$(IMAGE_ALPINE),) \
+		$(if $(ODBC_DRIVER_URL),--build-arg ODBC_DRIVER_URL=$(ODBC_DRIVER_URL),) \
+		-t $(IMAGE_NAME):$(IMAGE_TAG) .
 	@echo "✓ Built: $(IMAGE_NAME):$(IMAGE_TAG)"
 	@echo ""
 	@echo "Image ready for local development"
-	@echo "To use: docker compose -f ../developer-kerberos-standalone.yml up -d"
+	@echo "To use: docker compose -f ../docker-compose.yml up -d"
 
 test: ## Test sidecar image locally
 	@echo "Testing sidecar image..."
