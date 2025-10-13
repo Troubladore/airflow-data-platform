@@ -96,16 +96,34 @@ if command -v klist >/dev/null 2>&1; then
                 echo -e "  ${RED}✗ File does not exist${NC}"
             fi
         elif [[ "$TICKET_CACHE" == DIR::* ]]; then
-            CACHE_DIR=${TICKET_CACHE#DIR::}
-            echo "  Type: DIR (collection)"
-            echo "  Path: $CACHE_DIR"
-            if [ -d "$CACHE_DIR" ]; then
+            # DIR format: DIR::/path/to/collection/dir/ticket_file
+            # The full path includes the ticket file, need to separate directory from filename
+            FULL_PATH=${TICKET_CACHE#DIR::}
+
+            # Check if the full path is actually a file (common case)
+            if [ -f "$FULL_PATH" ]; then
+                # Path includes the ticket file itself
+                DETECTED_CACHE_TYPE="DIR"
+                DETECTED_CACHE_PATH=$(dirname "$FULL_PATH")
+                DETECTED_CACHE_TICKET=$(basename "$FULL_PATH")
+
+                echo "  Type: DIR (collection)"
+                echo "  Full path: $FULL_PATH"
+                echo -e "  ${GREEN}✓ Ticket file exists${NC}"
+                echo "  Cache directory: $DETECTED_CACHE_PATH"
+                echo "  Ticket file: $DETECTED_CACHE_TICKET"
+                ls -la "$FULL_PATH"
+
+            elif [ -d "$FULL_PATH" ]; then
+                # Path is a directory, need to find ticket inside
+                CACHE_DIR="$FULL_PATH"
+                echo "  Type: DIR (collection)"
+                echo "  Directory: $CACHE_DIR"
                 echo -e "  ${GREEN}✓ Directory exists${NC}"
                 echo "  Contents:"
                 ls -la "$CACHE_DIR" 2>/dev/null | head -5
 
                 # Find the actual ticket file in the directory
-                # Check both root level and subdirectories
                 TICKET_FOUND=""
 
                 # First check subdirectories (like dev/)
@@ -247,12 +265,22 @@ if docker info >/dev/null 2>&1; then
     fi
 else
     echo -e "${RED}✗ Docker is not running or not accessible${NC}"
+    echo ""
+    echo -e "${YELLOW}ACTION REQUIRED:${NC}"
+    echo "  Please start Docker Desktop or Docker daemon before running this diagnostic."
+    echo "  - Windows: Start Docker Desktop from the Start menu"
+    echo "  - Linux: sudo systemctl start docker"
+    echo ""
+    echo "Then re-run: ./diagnose-kerberos.sh"
 fi
 
 # 3.5. Check Sidecar Health Status
 echo -e "\n${BLUE}=== 3.5. SIDECAR HEALTH STATUS ===${NC}"
 
-if docker ps --format "table {{.Names}}" | grep -q "kerberos-platform-service" 2>/dev/null; then
+if ! docker info >/dev/null 2>&1; then
+    echo -e "${YELLOW}⚠️  Cannot test - Docker not available${NC}"
+    echo "  Start Docker and re-run diagnostic"
+elif docker ps --format "table {{.Names}}" | grep -q "kerberos-platform-service" 2>/dev/null; then
     echo "Querying health status from running sidecar..."
     echo ""
 
