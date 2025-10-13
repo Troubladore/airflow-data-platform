@@ -57,6 +57,16 @@ docker-compose.override.yml
 docker-compose.layer2.yml
 .env.local
 
+# Corporate/personal configuration (NEVER commit!)
+platform-bootstrap/.env
+platform-bootstrap/kerberos-sidecar/.env
+layer1-base-image/.env
+.env
+
+# Corporate secrets
+platform-bootstrap/.secrets/
+**/.secrets/
+
 # Large data files (can be regenerated)
 **/pagila-data.sql
 **/pagila-init/
