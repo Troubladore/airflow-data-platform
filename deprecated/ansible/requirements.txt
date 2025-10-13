@@ -2,7 +2,7 @@
 # Last updated: 2025-09-21
 
 # Core Ansible
-ansible-core==2.16.13
+ansible-core==2.16.14rc1
 
 # Windows Remote Management support
 pywinrm==0.4.3
