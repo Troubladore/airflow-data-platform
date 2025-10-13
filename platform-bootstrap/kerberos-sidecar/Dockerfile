@@ -42,18 +42,20 @@ RUN curl -O ${ODBC_DRIVER_URL}/msodbcsql18_18.3.2.1-1_amd64.apk && \
 # Create directories for Kerberos configuration and cache
 RUN mkdir -p /krb5/conf /krb5/cache /krb5/keytabs /scripts
 
-# Copy the ticket management script
+# Copy the ticket management and health check scripts
 COPY scripts/kerberos-ticket-manager.sh /scripts/
-RUN chmod +x /scripts/kerberos-ticket-manager.sh
+COPY scripts/health-check.sh /scripts/
+RUN chmod +x /scripts/kerberos-ticket-manager.sh /scripts/health-check.sh
 
 # Set environment variables for Kerberos
 ENV KRB5_CONFIG=/krb5/conf/krb5.conf \
     KRB5CCNAME=/krb5/cache/krb5cc \
     KRB5_TRACE=/dev/stdout
 
-# Health check to ensure tickets are valid
+# Health check with structured output for diagnostics
+# Use the health-check.sh script which provides detailed status
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD klist -s || exit 1
+    CMD /scripts/health-check.sh || exit 1
 
 # Default command - run the ticket manager
 CMD ["/scripts/kerberos-ticket-manager.sh"]

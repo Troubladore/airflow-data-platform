@@ -249,6 +249,95 @@ else
     echo -e "${RED}✗ Docker is not running or not accessible${NC}"
 fi
 
+# 3.5. Check Sidecar Health Status
+echo -e "\n${BLUE}=== 3.5. SIDECAR HEALTH STATUS ===${NC}"
+
+if docker ps --format "table {{.Names}}" | grep -q "kerberos-platform-service" 2>/dev/null; then
+    echo "Querying health status from running sidecar..."
+    echo ""
+
+    # Get health check output
+    HEALTH_OUTPUT=$(docker exec kerberos-platform-service /scripts/health-check.sh 2>/dev/null || echo '{"status":"error","message":"Health check script failed"}')
+
+    # Parse JSON output
+    STATUS=$(echo "$HEALTH_OUTPUT" | grep -o '"status": *"[^"]*"' | cut -d'"' -f4)
+    MESSAGE=$(echo "$HEALTH_OUTPUT" | grep -o '"message": *"[^"]*"' | cut -d'"' -f4)
+    ERROR_TYPE=$(echo "$HEALTH_OUTPUT" | grep -o '"error_type": *"[^"]*"' | cut -d'"' -f4)
+    FIX_GUIDANCE=$(echo "$HEALTH_OUTPUT" | grep -o '"fix_guidance": *"[^"]*"' | sed 's/"fix_guidance": *"//; s/"$//')
+    EXPIRY=$(echo "$HEALTH_OUTPUT" | grep -o '"ticket_expiry": *"[^"]*"' | cut -d'"' -f4)
+
+    if [ "$STATUS" == "healthy" ]; then
+        echo -e "${GREEN}✓ Sidecar is HEALTHY${NC}"
+        echo "  Status: $MESSAGE"
+        if [ -n "$EXPIRY" ]; then
+            echo "  Ticket expires: $EXPIRY"
+        fi
+        echo ""
+        echo -e "${GREEN}Everything looks good! Your Kerberos sidecar is working.${NC}"
+    elif [ "$STATUS" == "unhealthy" ]; then
+        echo -e "${RED}✗ Sidecar is UNHEALTHY${NC}"
+        echo "  Problem: $MESSAGE"
+        if [ -n "$ERROR_TYPE" ]; then
+            echo "  Error Type: $ERROR_TYPE"
+        fi
+        echo ""
+
+        if [ -n "$FIX_GUIDANCE" ]; then
+            echo -e "${YELLOW}HOW TO FIX:${NC}"
+            echo "$FIX_GUIDANCE" | sed 's/\\n/\n/g' | sed 's/^/  /'
+        fi
+
+        echo ""
+        echo "Recent sidecar logs:"
+        docker logs kerberos-platform-service --tail 10 2>&1 | sed 's/^/  /'
+
+        echo ""
+        echo -e "${BLUE}Troubleshooting steps:${NC}"
+        case "$ERROR_TYPE" in
+            missing_password)
+                echo "1. Set KRB_PASSWORD in your .env file"
+                echo "2. Restart: make platform-restart"
+                ;;
+            missing_keytab)
+                echo "1. Obtain keytab file from your DBA/Domain Admin"
+                echo "2. Mount it in docker-compose.yml"
+                echo "3. Restart: make platform-restart"
+                ;;
+            missing_principal)
+                echo "1. Set KRB_PRINCIPAL in your .env file (example: user@DOMAIN.COM)"
+                echo "2. Restart: make platform-restart"
+                ;;
+            password_auth_failed|keytab_auth_failed)
+                echo "1. Check the error logs above for specific details"
+                echo "2. Verify your credentials/keytab are correct"
+                echo "3. Test manually: kinit your_principal"
+                echo "4. Contact IT/Domain Admin if still failing"
+                ;;
+            ticket_manager_not_running)
+                echo "1. Check if container crashed: docker ps -a"
+                echo "2. View full logs: docker logs kerberos-platform-service"
+                echo "3. Restart: make platform-restart"
+                ;;
+            *)
+                echo "1. Check full logs: docker logs kerberos-platform-service"
+                echo "2. Run diagnostic: ./diagnose-kerberos.sh"
+                echo "3. Restart service: make platform-restart"
+                ;;
+        esac
+    else
+        echo -e "${YELLOW}⚠️  Could not determine health status${NC}"
+        echo "  Response: $HEALTH_OUTPUT"
+        echo ""
+        echo "Check container logs:"
+        docker logs kerberos-platform-service --tail 10 2>&1 | sed 's/^/  /'
+    fi
+else
+    echo -e "${YELLOW}⚠️  kerberos-platform-service is not running${NC}"
+    echo "Cannot check health status - service needs to be started"
+    echo ""
+    echo "Start with: make platform-start"
+fi
+
 # 4. Test ticket sharing
 echo -e "\n${BLUE}=== 4. TICKET SHARING TEST ===${NC}"
 

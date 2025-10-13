@@ -84,6 +84,38 @@ platform-status: ## Check status of platform services
 # ==========================================
 
 kerberos-start: ## Start Kerberos sidecar service
+	@echo "Checking for Kerberos sidecar image..."
+	@if ! docker images platform/kerberos-sidecar:latest --format "{{.Repository}}" | grep -q "platform/kerberos-sidecar"; then \
+		echo "❌ Image not found (this is normal on first run)"; \
+		echo ""; \
+		echo "Building Kerberos sidecar (one-time setup, 2-3 minutes)..."; \
+		echo ""; \
+		cd kerberos-sidecar && $(MAKE) build || { \
+			echo ""; \
+			echo "❌ Build failed. Common issues:"; \
+			echo ""; \
+			echo "1. Network connectivity"; \
+			echo "   - Check internet connection or VPN"; \
+			echo "   - May need corporate Artifactory (see .env.example)"; \
+			echo ""; \
+			echo "2. Docker not running"; \
+			echo "   - Run: docker info"; \
+			echo ""; \
+			echo "3. Insufficient disk space"; \
+			echo "   - Run: docker system prune"; \
+			echo ""; \
+			echo "For detailed diagnostics, run:"; \
+			echo "   cd kerberos-sidecar && make check-requirements"; \
+			echo ""; \
+			exit 1; \
+		}; \
+		echo ""; \
+		echo "✓ Sidecar built successfully"; \
+		echo ""; \
+	else \
+		echo "✓ Image found"; \
+		echo ""; \
+	fi
 	@echo "Starting Kerberos sidecar..."
 	@# Note: Sidecar obtains tickets via keytab or password (configured in docker-compose.yml)
 	@$(DOCKER_COMPOSE) up -d developer-kerberos-service
@@ -104,6 +136,9 @@ kerberos-test: ## Test Kerberos ticket
 kerberos-refresh: ## Refresh Kerberos ticket
 	@echo "Refreshing Kerberos ticket..."
 	@docker exec -it kerberos-platform-service kinit $(USER)@$(COMPANY_DOMAIN)
+
+kerberos-setup: ## Interactive wizard to set up Kerberos from scratch
+	@./setup-kerberos.sh
 
 kerberos-diagnose: ## Diagnose Kerberos configuration issues
 	@./diagnose-kerberos.sh

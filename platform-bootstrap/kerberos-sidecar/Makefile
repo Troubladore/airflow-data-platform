@@ -20,7 +20,10 @@ REGISTRY ?= registry.company.com
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 
-build: ## Build sidecar image for local development
+check-requirements: ## Check build requirements before building
+	@./scripts/check-build-requirements.sh
+
+build: check-requirements ## Build sidecar image for local development
 	@echo "Building Kerberos sidecar image..."
 	@echo "Configuration:"
 	@echo "  Base image: ${IMAGE_ALPINE:-alpine:3.19} (public default)"

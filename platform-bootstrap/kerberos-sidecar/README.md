@@ -14,6 +14,25 @@ This sidecar container:
 
 ### Build the Image
 
+**Build with automatic diagnostics:**
+```bash
+# Automatically checks requirements before building
+make build
+```
+
+**Check requirements manually:**
+```bash
+# Run pre-build diagnostics without building
+make check-requirements
+
+# Shows:
+# ✓ Docker accessibility
+# ✓ Disk space availability
+# ✓ Network connectivity (Docker Hub, Microsoft)
+# ✓ Corporate proxy detection
+# ✓ Build configuration preview
+```
+
 **Public internet (default):**
 ```bash
 make build
@@ -147,6 +166,25 @@ docker run --rm -it \
 
 ## Troubleshooting
 
+### Build failures
+
+```bash
+# Run build diagnostics
+make check-requirements
+
+# Common build issues:
+# - Docker not running: sudo systemctl start docker
+# - Network blocked: Check corporate proxy/firewall
+# - Insufficient disk space: docker system prune
+# - Artifactory access: docker login artifactory.company.com
+```
+
+The build diagnostics tool (`scripts/check-build-requirements.sh`) provides:
+- Specific failure mode detection (unauthorized, timeout, proxy, firewall)
+- Exact fix commands for each issue
+- Corporate proxy detection and guidance
+- Color-coded status indicators
+
 ### Sidecar won't start
 
 ```bash
@@ -205,6 +243,7 @@ SQL Server (Windows Authentication)
 
 - **Dockerfile** - Alpine 3.19 with Kerberos + ODBC
 - **scripts/kerberos-ticket-manager.sh** - Ticket lifecycle management
+- **scripts/check-build-requirements.sh** - Pre-build diagnostics
 - **Makefile** - Build, test, push commands
 - **README.md** - This file
 
