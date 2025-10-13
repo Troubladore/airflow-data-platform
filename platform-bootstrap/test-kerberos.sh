@@ -103,8 +103,8 @@ echo ""
 echo "(This may take a minute to download dependencies...)"
 echo ""
 
-# Run the actual test
-docker run --rm \
+# Run the actual test and capture output
+TEST_OUTPUT=$(docker run --rm \
   --network platform_network \
   -v platform_kerberos_cache:/krb5/cache:ro \
   -v $(pwd)/test_kerberos.py:/app/test_kerberos.py \
@@ -114,21 +114,106 @@ docker run --rm \
   python:3.11-alpine \
   sh -c "apk add --no-cache krb5 gcc musl-dev unixodbc-dev >/dev/null 2>&1 && \
          pip install --no-cache-dir pyodbc >/dev/null 2>&1 && \
-         python /app/test_kerberos.py"
+         python /app/test_kerberos.py" 2>&1)
 
-echo -e "\n${GREEN}🎉 Test complete!${NC}"
+TEST_EXIT_CODE=$?
 
-# Provide helpful next steps based on detected configuration
-if [ -n "$DETECTED_DOMAIN" ]; then
+# Display the output
+echo "$TEST_OUTPUT"
+
+# Parse the output and provide specific next steps
+if [ $TEST_EXIT_CODE -eq 0 ]; then
+    echo -e "\n${GREEN}=========================================================================${NC}"
+    echo -e "${GREEN}🎉 SUCCESS! Your Kerberos authentication is working!${NC}"
+    echo -e "${GREEN}=========================================================================${NC}"
+else
     echo ""
-    echo "Your Kerberos configuration:"
-    echo "  Domain: $DETECTED_DOMAIN"
-    echo "  Server tested: $SQL_SERVER"
-    echo "  Database: $SQL_DATABASE"
+    echo -e "${RED}=========================================================================${NC}"
+    echo -e "${RED}Test Failed - Parsing Error for Specific Guidance${NC}"
+    echo -e "${RED}=========================================================================${NC}"
     echo ""
-    echo "To test with other SQL Servers, run:"
-    echo "  ./test-kerberos.sh <server> <database>"
+
+    # Parse error type from output
+    if echo "$TEST_OUTPUT" | grep -qi "SPN (Service Principal Name)"; then
+        echo -e "${YELLOW}QUICK ACTION:${NC}"
+        echo ""
+        echo "This is an SPN issue that requires DBA help."
+        echo ""
+        echo "Run this command to generate a message for your DBA:"
+        echo -e "  ${GREEN}./check-sql-spn.sh $SQL_SERVER${NC}"
+        echo ""
+        echo "This will create a ready-to-send email with exact commands."
+
+    elif echo "$TEST_OUTPUT" | grep -qi "Network Connectivity"; then
+        echo -e "${YELLOW}QUICK ACTION:${NC}"
+        echo ""
+        echo "Test network connectivity:"
+        echo -e "  ${GREEN}nc -zv $SQL_SERVER 1433${NC}"
+        echo ""
+        echo "If connection fails:"
+        echo "  1. Check you're on corporate VPN (if remote)"
+        echo "  2. Verify server name is correct: $SQL_SERVER"
+        echo "  3. Ask DBA: 'Is $SQL_SERVER reachable from my network?'"
+
+    elif echo "$TEST_OUTPUT" | grep -qi "ODBC Driver"; then
+        echo -e "${YELLOW}QUICK ACTION:${NC}"
+        echo ""
+        echo "The ODBC driver issue is in the test container."
+        echo "This should not happen with the standard test setup."
+        echo ""
+        echo "Try rebuilding the test environment or contact platform support."
+
+    elif echo "$TEST_OUTPUT" | grep -qi "Kerberos Ticket Issue"; then
+        echo -e "${YELLOW}QUICK ACTION:${NC}"
+        echo ""
+        echo "Your Kerberos ticket needs attention."
+        echo ""
+        echo "Run the diagnostic tool:"
+        echo -e "  ${GREEN}./diagnose-kerberos.sh${NC}"
+        echo ""
+        echo "This will check your ticket and provide specific fixes."
+
+    elif echo "$TEST_OUTPUT" | grep -qi "Database Access Issue"; then
+        echo -e "${YELLOW}QUICK ACTION:${NC}"
+        echo ""
+        echo "Connected to server but cannot access the database."
+        echo ""
+        echo "Tell your DBA:"
+        echo "  'I need read access (db_datareader) to database: $SQL_DATABASE'"
+        echo "  'On server: $SQL_SERVER'"
+        echo ""
+        echo "Or try a different database you know you have access to."
+
+    else
+        echo -e "${YELLOW}GENERAL TROUBLESHOOTING:${NC}"
+        echo ""
+        echo "1. Check Kerberos setup:"
+        echo -e "   ${GREEN}./diagnose-kerberos.sh${NC}"
+        echo ""
+        echo "2. Check for SPN issues:"
+        echo -e "   ${GREEN}./check-sql-spn.sh $SQL_SERVER${NC}"
+        echo ""
+        echo "3. Test network connectivity:"
+        echo -e "   ${GREEN}nc -zv $SQL_SERVER 1433${NC}"
+        echo ""
+        echo "4. Review the error message above for specific details"
+    fi
 fi
 
 echo ""
-echo "If you see 'SUCCESS' above, you're ready to use SQL Server with Astronomer!"
+
+# Provide helpful next steps based on detected configuration and test result
+if [ $TEST_EXIT_CODE -eq 0 ]; then
+    if [ -n "$DETECTED_DOMAIN" ]; then
+        echo ""
+        echo "Your Kerberos configuration:"
+        echo "  Domain: $DETECTED_DOMAIN"
+        echo "  Server tested: $SQL_SERVER"
+        echo "  Database: $SQL_DATABASE"
+        echo ""
+    fi
+    echo "To test with other SQL Servers, run:"
+    echo "  ./test-kerberos.sh <server> <database>"
+    echo ""
+    echo "You're ready to use SQL Server with Astronomer!"
+fi

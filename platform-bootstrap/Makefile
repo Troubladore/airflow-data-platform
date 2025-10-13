@@ -68,7 +68,7 @@ platform-stop: kerberos-stop mock-stop ## Stop all platform services
 platform-status: ## Check status of platform services
 	@echo "Platform Services Status:"
 	@echo "========================"
-	@$(DOCKER_COMPOSE) -f developer-kerberos-simple.yml ps 2>/dev/null || echo "Kerberos: Not running"
+	@$(DOCKER_COMPOSE) ps 2>/dev/null || echo "No services running"
 	@echo ""
 	@make kerberos-test
 
@@ -83,31 +83,50 @@ platform-status: ## Check status of platform services
 # Kerberos Service
 # ==========================================
 
-kerberos-start: ## Start Kerberos platform service
-	@echo "Starting Kerberos ticket sharing..."
-	@# Check if developer has existing ticket
-	@if klist -s 2>/dev/null; then \
-		echo "  ✓ Found existing Kerberos ticket"; \
-		$(DOCKER_COMPOSE) -f developer-kerberos-simple.yml up -d; \
-		echo "✓ Ticket sharing started"; \
+kerberos-start: ## Start Kerberos sidecar service
+	@echo "Checking for Kerberos sidecar image..."
+	@if ! docker images platform/kerberos-sidecar:latest --format "{{.Repository}}" | grep -q "platform/kerberos-sidecar"; then \
+		echo "❌ Image not found (this is normal on first run)"; \
+		echo ""; \
+		echo "Building Kerberos sidecar (one-time setup, 2-3 minutes)..."; \
+		echo ""; \
+		cd kerberos-sidecar && $(MAKE) build || { \
+			echo ""; \
+			echo "❌ Build failed. Common issues:"; \
+			echo ""; \
+			echo "1. Network connectivity"; \
+			echo "   - Check internet connection or VPN"; \
+			echo "   - May need corporate Artifactory (see .env.example)"; \
+			echo ""; \
+			echo "2. Docker not running"; \
+			echo "   - Run: docker info"; \
+			echo ""; \
+			echo "3. Insufficient disk space"; \
+			echo "   - Run: docker system prune"; \
+			echo ""; \
+			echo "For detailed diagnostics, run:"; \
+			echo "   cd kerberos-sidecar && make check-requirements"; \
+			echo ""; \
+			exit 1; \
+		}; \
+		echo ""; \
+		echo "✓ Sidecar built successfully"; \
+		echo ""; \
 	else \
-		echo "  ⚠️  No Kerberos ticket found"; \
-		if [ -f /mnt/c/Windows/System32/cmd.exe ]; then \
-			WIN_USER=$$(/mnt/c/Windows/System32/cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r\n'); \
-			if [ -n "$$WIN_USER" ]; then \
-				echo "  Run 'kinit $$WIN_USER@$(COMPANY_DOMAIN)' to get a ticket"; \
-			else \
-				echo "  Run 'kinit $$(whoami)@$(COMPANY_DOMAIN)' to get a ticket"; \
-			fi; \
-		else \
-			echo "  Run 'kinit $$(whoami)@$(COMPANY_DOMAIN)' to get a ticket"; \
-		fi; \
-		echo "  Skipping Kerberos setup"; \
+		echo "✓ Image found"; \
+		echo ""; \
 	fi
+	@echo "Starting Kerberos sidecar..."
+	@# Note: Sidecar obtains tickets via keytab or password (configured in docker-compose.yml)
+	@$(DOCKER_COMPOSE) up -d developer-kerberos-service
+	@echo "✓ Kerberos sidecar started"
+	@echo ""
+	@echo "To verify: docker logs kerberos-platform-service"
+	@echo "To check ticket: docker exec kerberos-platform-service klist"
 
-kerberos-stop: ## Stop Kerberos service
-	@$(DOCKER_COMPOSE) -f developer-kerberos-simple.yml down 2>/dev/null || true
-	@echo "✓ Kerberos ticket sharing stopped"
+kerberos-stop: ## Stop Kerberos sidecar
+	@$(DOCKER_COMPOSE) down 2>/dev/null || true
+	@echo "✓ Kerberos sidecar stopped"
 
 kerberos-test: ## Test Kerberos ticket
 	@echo -n "Kerberos service: "
@@ -117,6 +136,9 @@ kerberos-test: ## Test Kerberos ticket
 kerberos-refresh: ## Refresh Kerberos ticket
 	@echo "Refreshing Kerberos ticket..."
 	@docker exec -it kerberos-platform-service kinit $(USER)@$(COMPANY_DOMAIN)
+
+kerberos-setup: ## Interactive wizard to set up Kerberos from scratch
+	@./setup-kerberos.sh
 
 kerberos-diagnose: ## Diagnose Kerberos configuration issues
 	@./diagnose-kerberos.sh
@@ -165,7 +187,7 @@ test-connection: ## Test SQL Server connection through Kerberos
 
 debug-logs: ## Show logs from all platform services
 	@echo "Platform service logs:"
-	@$(DOCKER_COMPOSE) -f developer-kerberos-simple.yml logs --tail=20 2>/dev/null || true
+	@$(DOCKER_COMPOSE) logs --tail=20 2>/dev/null || true
 
 # ==========================================
 # Note: Offline Mode Removed

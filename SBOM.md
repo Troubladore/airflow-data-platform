@@ -20,12 +20,13 @@ quay.io/astronomer/astro-runtime:3.0-10  # Airflow 3.0.6
 quay.io/astronomer/astro-runtime:latest
 astrocrpublic.azurecr.io/runtime:3.0-10
 
-# Apache Spark (for Spark runner)
-apache/spark-py:v3.5.0
-
 # Alpine (for utility containers)
 alpine:latest
 alpine:3.18
+
+# Note: Apache Spark
+# Spark is installed via PyPI package (pyspark), not Docker image
+# See "Spark Runner" section below for pyspark version
 
 # Development/Testing
 gcavalcante8808/krb5-server:latest  # Kerberos testing only

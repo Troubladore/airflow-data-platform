@@ -12,27 +12,41 @@ Note: Docker caches images automatically - no local registry service needed!
 
 ## 🚀 Quick Start (10 minutes)
 
-### Step 1: Prerequisites (One-time)
+### Option 1: Guided Setup (Recommended for First-Time Users)
 
-```bash
-# You probably already have these
-docker --version           # Docker Desktop
-astro version              # Astronomer CLI
-klist                      # Kerberos ticket from your corporate login
-```
-
-### Step 2: Start Platform Services
+Use the interactive setup wizard:
 
 ```bash
 cd platform-bootstrap
+make kerberos-setup
 
-# Start the minimal platform services
+# The wizard will:
+# ✓ Check all prerequisites
+# ✓ Help you get Kerberos tickets
+# ✓ Auto-detect and configure everything
+# ✓ Test the complete setup
+# Takes 10-15 minutes, fully guided!
+```
+
+See [KERBEROS-SETUP-WIZARD.md](./KERBEROS-SETUP-WIZARD.md) for complete wizard documentation.
+
+### Option 2: Manual Setup (For Experienced Users)
+
+If you've done this before:
+
+```bash
+# Step 1: Prerequisites (one-time)
+docker --version           # Docker Desktop
+astro version              # Astronomer CLI
+klist                      # Kerberos ticket
+
+# Step 2: Start platform services
+cd platform-bootstrap
 make platform-start
 
 # This starts:
-# - Ticket sharer (uses your existing WSL2 Kerberos ticket)
+# - Ticket sharer (uses your existing Kerberos ticket)
 # - Mock services (for local development)
-# That's it! No complex infrastructure
 ```
 
 ### Step 3: Create Your Project
@@ -127,16 +141,28 @@ For local dev, you can use SQL auth or mock data. Kerberos only needed for real 
 
 ## 🛠️ Troubleshooting
 
+### Need Help Getting Started?
+
+```bash
+# Interactive setup wizard (guides you through everything)
+make kerberos-setup
+
+# Diagnose configuration issues
+make kerberos-diagnose
+
+# Test ticket sharing
+make test-kerberos-simple
+```
+
 ### No Kerberos ticket found
 
 ```bash
 # Just get one the normal way
 kinit USERNAME@COMPANY.COM
 
-# Or use mock data for local development
-export USE_MOCK_DATA=true
+# Or run the wizard for guided help
+make kerberos-setup
 ```
-
 
 ### Can't connect to SQL Server
 
@@ -144,9 +170,22 @@ export USE_MOCK_DATA=true
 # Check your ticket
 klist
 
-# Make sure ticket sharer is running
-docker ps | grep ticket-refresher
+# Run diagnostic tool
+make kerberos-diagnose
+
+# Test basic ticket sharing
+make test-kerberos-simple
+
+# Test SQL Server connection
+make test-kerberos-full
 ```
+
+## 📚 Documentation
+
+- **[Quick Start Guide](./KERBEROS-QUICK-START.md)** - One-page command reference
+- **[Setup Wizard Guide](./KERBEROS-SETUP-WIZARD.md)** - Complete wizard documentation
+- **[Getting Started](../docs/getting-started-simple.md)** - Overall platform setup
+- **[Kerberos Diagnostic Guide](../docs/kerberos-diagnostic-guide.md)** - Troubleshooting
 
 ## 🎯 Key Point
 

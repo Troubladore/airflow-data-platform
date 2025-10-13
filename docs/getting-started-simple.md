@@ -35,25 +35,55 @@ python3 --version    # Python 3.8+
 
 ## 🚀 Setup Platform Services
 
-Start the 3 enhancement services mentioned above:
+### Option 1: Guided Setup (Recommended for First-Time Users)
+
+Use the interactive setup wizard that guides you through every step:
+
+```bash
+# 1. Clone the platform repository
+git clone https://github.com/Troubladore/airflow-data-platform.git
+cd airflow-data-platform/platform-bootstrap
+
+# 2. Run the setup wizard
+make kerberos-setup
+
+# The wizard will:
+# ✓ Check prerequisites (Docker, krb5-user, etc.)
+# ✓ Validate your krb5.conf configuration
+# ✓ Help you obtain Kerberos tickets
+# ✓ Auto-detect ticket location and type
+# ✓ Configure .env file automatically
+# ✓ Build and start all services
+# ✓ Test ticket sharing with containers
+# ✓ Optionally test SQL Server connection
+```
+
+The wizard is fully interactive with color-coded output, progress tracking, and can be safely resumed if interrupted.
+
+### Option 2: Manual Setup (For Experienced Users)
+
+If you prefer manual configuration or are re-configuring an existing setup:
 
 ```bash
 # 1. Clone the platform repository
 git clone https://github.com/Troubladore/airflow-data-platform.git
 cd airflow-data-platform
 
-# 2. Configure for your organization (optional)
+# 2. Configure for your organization
 cd platform-bootstrap
 cp .env.example .env
-# Edit .env to match your Kerberos ticket location if needed
+# Edit .env to match your Kerberos ticket location
 
-# 3. Start the platform services
+# 3. Get Kerberos ticket (if using SQL Server)
+kinit your.username@COMPANY.COM
+
+# 4. Start the platform services
 make platform-start
 
 # You should see:
-# ✓ Ticket sharer started (if Kerberos tickets detected)
-# ✓ SQLModel framework available for import
-# ✓ Docker caches images automatically (no registry service needed)
+# ✓ Kerberos sidecar started (with ticket sharing)
+# ✓ Mock services started
+# ✓ Docker caches images automatically
 ```
 
 ## ✅ Verify Services
@@ -102,12 +132,18 @@ Now that platform services are running, explore how to use them:
 1. **[Hello World Example](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/hello-world/README.md)**
    Simple Astronomer project using the platform (5 minutes)
 
-2. **Learn the Patterns**
+2. **Validate Kerberos Setup** (if using SQL Server)
+   - [Kerberos Progressive Validation](kerberos-progressive-validation.md) - Step-by-step validation (15-30 min)
+   - Proves each layer works before moving to the next
+   - From `kinit` to Airflow DAG execution
+
+3. **Learn the Patterns**
    - [SQLModel Patterns](patterns/sqlmodel-patterns.md) - Consistent data models
    - [Runtime Patterns](patterns/runtime-patterns.md) - Team dependency isolation
 
-3. **Advanced Setup** (if needed)
-   - [Kerberos Setup for WSL2](kerberos-setup-wsl2.md) - One-time setup for SQL Server authentication
+4. **Advanced Setup** (if needed)
+   - [Kerberos Setup for WSL2](kerberos-setup-wsl2.md) - Detailed Kerberos configuration
+   - [Kerberos Diagnostic Guide](kerberos-diagnostic-guide.md) - Understanding diagnose-kerberos.sh
 
 ## 🛑 Stop Services
 
@@ -134,6 +170,8 @@ docker pull hello-world
 ```
 
 ### Kerberos tickets not working
+- Run the setup wizard: `make kerberos-setup` (guides you through every step)
+- Or diagnose issues: `make kerberos-diagnose` (detailed troubleshooting)
 - Ensure you have valid tickets: `kinit YOUR_USERNAME@DOMAIN.COM`
 - Check tickets are in the right location: `ls ~/.krb5_cache/`
 - See [Kerberos Setup Guide](kerberos-setup-wsl2.md) for detailed setup
