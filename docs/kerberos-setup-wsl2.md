@@ -111,26 +111,15 @@ klist
 
 **🎉 If you see a ticket, Kerberos is working in WSL2!**
 
-## 🐳 Step 4: Share Ticket with Docker Containers
+## 🐳 Step 4: Configure Docker Integration
 
-Now we need to make your ticket available to Docker containers.
+**🎯 RECOMMENDED APPROACH**: Use the diagnostic tool to auto-detect everything!
 
-### A. Create a Shared Ticket Location
+Most modern systems (including yours if tickets go to `~/.krb5-cache/dev/`) already store tickets in a persistent, Docker-accessible location. You likely don't need to manually create or copy anything.
 
-```bash
-# Create directory for sharing
-mkdir -p ~/.krb5_cache
+### A. Run the Diagnostic Tool (Start Here!)
 
-# Copy your ticket there
-cp /tmp/krb5cc_$(id -u) ~/.krb5_cache/krb5cc
-
-# Verify it's there
-ls -la ~/.krb5_cache/
-```
-
-### B. Configure Your Ticket Location (One-Time Setup)
-
-**🎯 IMPORTANT**: Use our diagnostic tool to automatically detect your Kerberos configuration:
+**This auto-detects your ticket location and gives you exact .env values:**
 
 ```bash
 cd airflow-data-platform/platform-bootstrap
@@ -146,15 +135,37 @@ cd airflow-data-platform/platform-bootstrap
 # KERBEROS_CACHE_TICKET=krb5cc_1000
 # ----------------------------------------
 
-# Option 1: Copy the values manually
+# Copy the values to .env
+cd platform-bootstrap
 cp .env.example .env
-# Then edit .env with the values shown above
+nano .env  # Paste the values shown by diagnostic
 
-# Option 2: Use the automatic command provided by the diagnostic
-# (The tool will show you the exact command to run)
+# Or use the automatic update command the diagnostic provides
 ```
 
-**📖 Need help understanding the output?** See the [Kerberos Diagnostic Tool Guide](kerberos-diagnostic-guide.md) for detailed explanations of all options and recommendations.
+**📖 Need help understanding the output?** See the [Kerberos Diagnostic Tool Guide](kerberos-diagnostic-guide.md).
+
+### B. Only If Diagnostic Fails: Manual Ticket Location Setup
+
+**⚠️ Skip this if the diagnostic tool worked!** This is only for edge cases.
+
+If your tickets are in `/tmp/krb5cc_*` (default FILE format) and you want persistent storage:
+
+```bash
+# Create directory for sharing
+mkdir -p ~/.krb5_cache
+
+# Configure ticket to go there
+export KRB5CCNAME=FILE:$HOME/.krb5_cache/krb5cc
+
+# Get fresh ticket (will use new location)
+kinit YOUR_USERNAME@COMPANY.COM
+
+# Run diagnostic again to detect new location
+./diagnose-kerberos.sh
+```
+
+But most systems (Ubuntu 24.04, modern setups) already use persistent locations like `DIR::/home/user/.krb5-cache/dev/tkt` - no manual setup needed!
 
 ### C. Ticket Sharing Happens Automatically!
 
