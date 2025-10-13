@@ -44,13 +44,18 @@ RUN uv pip install --system scikit-learn==1.3.0
 **Purpose**: Big data processing with Apache Spark
 
 ```dockerfile
-FROM apache/spark-py:v3.5.0
+FROM python:3.11-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openjdk-17-jre-headless ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir uv && \
+    uv pip install --system pyspark==3.5.1
 ```
 
 **Pre-installed**:
-- Apache Spark 3.5
-- PySpark
-- Delta Lake support
+- OpenJDK 17 (required for Spark)
+- PySpark 3.5.1 (via PyPI, not Docker image)
+- Python data processing libraries
 - `uv` for additional Python packages
 
 **Use when**:
@@ -59,10 +64,16 @@ FROM apache/spark-py:v3.5.0
 - Complex aggregations
 - Streaming data
 
+**Why not apache/spark-py?**
+- The apache/spark-py Docker image is no longer actively maintained
+- Installing pyspark via pip gives us latest versions and better control
+- Smaller image size (only includes what we need)
+- Easier to upgrade Spark versions
+
 **Example extension**:
 ```dockerfile
 FROM runtime-environments/pyspark-transform:v2.1
-RUN uv pip install --system koalas==1.8.2
+RUN uv pip install --system delta-spark==3.1.0
 ```
 
 ## 3. dbt Transform Base
@@ -120,15 +131,22 @@ Every base image includes:
 
 ## Getting the Base Images
 
-Base images are available from:
-- **Local development**: `registry:5000/runtime-environments/`
-- **Production**: `your-company-registry.com/runtime-environments/`
+Base images are built locally and cached by Docker:
 
-Pull manually to inspect:
 ```bash
-docker pull registry:5000/runtime-environments/python-transform:v2.1
-docker run -it --rm registry:5000/runtime-environments/python-transform:v2.1 bash
+# Build from source
+cd runtime-environments/spark-runner
+docker build -t runtime-environments/spark-runner:latest .
+
+# Docker caches it automatically - available to all projects
+# No registry needed for single-developer environments
+
+# Inspect the image
+docker run -it --rm runtime-environments/spark-runner:latest bash
 ```
+
+For team sharing or production:
+- Push to corporate registry: `docker push your-company-registry.com/runtime-environments/spark-runner:v2.1`
 
 ---
 
