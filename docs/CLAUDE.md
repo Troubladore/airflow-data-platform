@@ -2,6 +2,50 @@
 
 Development patterns, Git workflows, and lessons learned established for the airflow-data-platform repository, incorporating insights from repository separation and platform-as-dependency architecture.
 
+## ⚠️ CRITICAL: Protected Branch Policy
+
+**NEVER commit directly to main branch. NO EXCEPTIONS.**
+
+### Workflow Rules:
+1. **ALL work** must be done on feature branches
+2. **ALL changes** must go through Pull Requests
+3. **NEVER** `git push origin main` directly
+4. **NEVER** commit to main, even for "small fixes"
+
+### Correct Workflow:
+```bash
+# Create feature branch
+git checkout -b fix/diagnostic-improvements
+
+# Make changes, commit
+git add .
+git commit -m "fix: improve diagnostic"
+
+# Push to feature branch
+git push origin fix/diagnostic-improvements
+
+# Create PR
+gh pr create --base main
+
+# After review and approval, merge via GitHub UI or gh pr merge
+```
+
+### If You Accidentally Commit to Main:
+```bash
+# DO NOT PUSH! Create branch from current state:
+git branch fix/accidental-work
+git reset --hard origin/main
+git checkout fix/accidental-work
+# Now create PR from this branch
+```
+
+### Why This Matters:
+- Maintains code review process
+- Prevents untested changes in main
+- Enables rollback and bisection
+- Tracks all changes through PR history
+- Allows CI/CD validation before merge
+
 ## 🏗️ Repository Architecture Evolution
 
 ### Platform Separation (Major Learning)
