@@ -102,12 +102,18 @@ Now that platform services are running, explore how to use them:
 1. **[Hello World Example](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/hello-world/README.md)**
    Simple Astronomer project using the platform (5 minutes)
 
-2. **Learn the Patterns**
+2. **Validate Kerberos Setup** (if using SQL Server)
+   - [Kerberos Progressive Validation](kerberos-progressive-validation.md) - Step-by-step validation (15-30 min)
+   - Proves each layer works before moving to the next
+   - From `kinit` to Airflow DAG execution
+
+3. **Learn the Patterns**
    - [SQLModel Patterns](patterns/sqlmodel-patterns.md) - Consistent data models
    - [Runtime Patterns](patterns/runtime-patterns.md) - Team dependency isolation
 
-3. **Advanced Setup** (if needed)
-   - [Kerberos Setup for WSL2](kerberos-setup-wsl2.md) - One-time setup for SQL Server authentication
+4. **Advanced Setup** (if needed)
+   - [Kerberos Setup for WSL2](kerberos-setup-wsl2.md) - Detailed Kerberos configuration
+   - [Kerberos Diagnostic Guide](kerberos-diagnostic-guide.md) - Understanding diagnose-kerberos.sh
 
 ## 🛑 Stop Services
 

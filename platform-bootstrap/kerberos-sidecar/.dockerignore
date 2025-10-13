@@ -1,0 +1,7 @@
+README.md
+Makefile
+.git
+*.md
+__pycache__
+*.pyc
+.pytest_cache
