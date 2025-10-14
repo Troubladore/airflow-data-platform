@@ -111,13 +111,16 @@ if command -v klist >/dev/null 2>&1; then
                 DETECTED_CACHE_TICKET="$(basename "$TICKET_DIR")"
 
                 echo "  Type: DIR (collection)"
-                echo "  Current ticket: $FULL_PATH"
-                echo -e "  ${GREEN}✓ Ticket file exists${NC}"
+                echo "  Current ticket file: $FULL_PATH"
+                echo -e "  ${GREEN}✓ Ticket exists${NC}"
                 echo ""
-                echo "  Configuration (points to directory, not specific ticket):"
-                echo "    Base directory: $DETECTED_CACHE_PATH"
-                echo "    Subdirectory with tickets: $DETECTED_CACHE_TICKET"
-                echo "    (Sidecar will find active tickets in this directory automatically)"
+                echo "  ${BLUE}Configuration for .env:${NC}"
+                echo "    KERBEROS_CACHE_PATH:   $DETECTED_CACHE_PATH  (base directory)"
+                echo "    KERBEROS_CACHE_TICKET: $DETECTED_CACHE_TICKET  (subdirectory - NOT ticket filename)"
+                echo ""
+                echo "  ${BLUE}How it works:${NC}"
+                echo "    Sidecar searches: \$CACHE_PATH/\$CACHE_TICKET/* for active tickets"
+                echo "    Current ticket 'tkt' found automatically in '$DETECTED_CACHE_TICKET/' directory"
 
             elif [ -d "$FULL_PATH" ]; then
                 # Path is a directory, need to find ticket inside

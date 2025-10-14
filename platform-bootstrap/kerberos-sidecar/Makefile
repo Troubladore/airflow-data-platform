@@ -25,9 +25,9 @@ check-requirements: ## Check build requirements before building
 
 build: check-requirements ## Build sidecar image for local development
 	@echo "Building Kerberos sidecar image..."
-	@echo "Configuration:"
-	@echo "  Base image: ${IMAGE_ALPINE:-alpine:3.19} (public default)"
-	@echo "  ODBC source: ${ODBC_DRIVER_URL:-Microsoft download} (public default)"
+	@echo -e "Configuration:"
+	@echo -e "  Base image: ${IMAGE_ALPINE:-alpine:3.19} (public default)"
+	@echo -e "  ODBC source: ${ODBC_DRIVER_URL:-Microsoft download} (public default)"
 	docker build \
 		$(if $(IMAGE_ALPINE),--build-arg IMAGE_ALPINE=$(IMAGE_ALPINE),) \
 		$(if $(ODBC_DRIVER_URL),--build-arg ODBC_DRIVER_URL=$(ODBC_DRIVER_URL),) \

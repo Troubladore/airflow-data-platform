@@ -462,9 +462,14 @@ step_5_detect_ticket_location() {
             echo ""
             print_success "Ticket location detected successfully!"
             echo ""
-            echo -e "  Type:   ${CYAN}$DETECTED_CACHE_TYPE${NC}"
-            echo -e "  Path:   ${CYAN}$DETECTED_CACHE_PATH${NC}"
-            echo -e "  Ticket: ${CYAN}$DETECTED_CACHE_TICKET${NC}"
+            echo -e "  ${BLUE}Configuration Values:${NC}"
+            echo -e "    Type:      ${CYAN}$DETECTED_CACHE_TYPE${NC}"
+            echo -e "    Base path: ${CYAN}$DETECTED_CACHE_PATH${NC}"
+            if [ "$DETECTED_CACHE_TYPE" = "DIR" ]; then
+                echo -e "    Subdir:    ${CYAN}$DETECTED_CACHE_TICKET${NC} (directory containing tickets)"
+            else
+                echo -e "    Filename:  ${CYAN}$DETECTED_CACHE_TICKET${NC}"
+            fi
 
             save_state
             return 0
@@ -846,15 +851,19 @@ step_9_start_services() {
     echo -n "Creating platform_network... "
     if docker network create platform_network 2>/dev/null; then
         print_success "Created"
-    else
+    elif docker network ls | grep -q "platform_network"; then
         print_info "Already exists"
+    else
+        print_warning "Failed to create (may already exist from previous setup)"
     fi
 
     echo -n "Creating platform_kerberos_cache volume... "
     if docker volume create platform_kerberos_cache 2>/dev/null; then
         print_success "Created"
-    else
+    elif docker volume ls | grep -q "platform_kerberos_cache"; then
         print_info "Already exists"
+    else
+        print_warning "Failed to create"
     fi
 
     echo ""
