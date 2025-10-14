@@ -382,12 +382,16 @@ if ! docker info >/dev/null 2>&1; then
     echo -e "${YELLOW}⚠️  Cannot test - Docker not available${NC}"
     echo "  Start Docker and re-run diagnostic"
 elif docker ps -a --format "{{.Names}}" | grep -q "kerberos-platform-service"; then
+    # Use configured Alpine image from .env or default
+    local test_image="${IMAGE_ALPINE:-alpine:latest}"
     echo "Testing ticket visibility in container..."
+    echo "  Using image: $test_image"
+    echo ""
 
     docker run --rm \
         --network platform_network \
         -v platform_kerberos_cache:/krb5/cache:ro \
-        alpine sh -c '
+        "$test_image" sh -c '
             echo "  Checking /krb5/cache directory:"
             if [ -d /krb5/cache ]; then
                 echo "    ✓ Directory exists"

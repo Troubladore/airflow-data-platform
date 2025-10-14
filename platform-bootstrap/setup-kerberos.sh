@@ -579,9 +579,19 @@ EOF
         if ask_yes_no "Update .env with these detected values?" "y"; then
             # Update .env file
             if [ -n "$DETECTED_DOMAIN" ]; then
-                sed -i "s|^COMPANY_DOMAIN=.*|COMPANY_DOMAIN=$DETECTED_DOMAIN|" "$env_file"
+                if grep -q "^COMPANY_DOMAIN=" "$env_file"; then
+                    sed -i "s|^COMPANY_DOMAIN=.*|COMPANY_DOMAIN=$DETECTED_DOMAIN|" "$env_file"
+                else
+                    echo "COMPANY_DOMAIN=$DETECTED_DOMAIN" >> "$env_file"
+                fi
             fi
-            sed -i "s|^KERBEROS_TICKET_DIR=.*|KERBEROS_TICKET_DIR=$DETECTED_TICKET_DIR|" "$env_file"
+
+            # Update or add KERBEROS_TICKET_DIR
+            if grep -q "^KERBEROS_TICKET_DIR=" "$env_file"; then
+                sed -i "s|^KERBEROS_TICKET_DIR=.*|KERBEROS_TICKET_DIR=$DETECTED_TICKET_DIR|" "$env_file"
+            else
+                echo "KERBEROS_TICKET_DIR=$DETECTED_TICKET_DIR" >> "$env_file"
+            fi
 
             print_success ".env file updated successfully!"
             save_state
@@ -1155,7 +1165,7 @@ show_summary() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     echo -e "  1. ${GREEN}Create or start your Airflow project:${NC}"
-    echo "     ${CYAN}astro dev init my-project${NC}    # New project"
+    echo -e "     ${CYAN}astro dev init my-project${NC}    # New project"
     echo -e "     ${CYAN}cd my-project && astro dev start${NC}"
     echo ""
     echo -e "  2. ${GREEN}Your Airflow containers will automatically have access to:${NC}"
@@ -1163,18 +1173,18 @@ show_summary() {
     echo "     • Shared network (platform_network)"
     echo ""
     echo -e "  3. ${GREEN}Useful commands:${NC}"
-    echo "     ${CYAN}make platform-status${NC}       # Check service status"
-    echo "     ${CYAN}make kerberos-test${NC}         # Verify Kerberos ticket"
-    echo "     ${CYAN}make test-kerberos-simple${NC}  # Test ticket sharing"
-    echo "     ${CYAN}docker compose logs${NC}        # View service logs"
+    echo -e "     ${CYAN}make platform-status${NC}       # Check service status"
+    echo -e "     ${CYAN}make kerberos-test${NC}         # Verify Kerberos ticket"
+    echo -e "     ${CYAN}make test-kerberos-simple${NC}  # Test ticket sharing"
+    echo -e "     ${CYAN}docker compose logs${NC}        # View service logs"
     echo ""
     echo -e "  4. ${GREEN}Managing Kerberos tickets:${NC}"
-    echo "     ${CYAN}klist${NC}                      # Check ticket status"
-    echo "     ${CYAN}kinit $DETECTED_USERNAME@$DETECTED_DOMAIN${NC}  # Renew ticket"
-    echo "     ${CYAN}./diagnose-kerberos.sh${NC}     # Troubleshoot issues"
+    echo -e "     ${CYAN}klist${NC}                      # Check ticket status"
+    echo -e "     ${CYAN}kinit $DETECTED_USERNAME@$DETECTED_DOMAIN${NC}  # Renew ticket"
+    echo -e "     ${CYAN}./diagnose-kerberos.sh${NC}     # Troubleshoot issues"
     echo ""
     echo -e "  5. ${GREEN}When done for the day:${NC}"
-    echo "     ${CYAN}make platform-stop${NC}         # Stop all services"
+    echo -e "     ${CYAN}make platform-stop${NC}         # Stop all services"
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
@@ -1284,6 +1294,13 @@ main() {
     [ $CURRENT_STEP -le 9 ] && { step_9_start_services && CURRENT_STEP=10; }
     [ $CURRENT_STEP -le 10 ] && { step_10_test_ticket_sharing && CURRENT_STEP=11; }
     [ $CURRENT_STEP -le 11 ] && { step_11_test_sql_server && CURRENT_STEP=12; }
+
+    # Pause before showing summary
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    read -p "Press Enter to view setup summary..."
+    echo ""
 
     # Show summary
     show_summary
