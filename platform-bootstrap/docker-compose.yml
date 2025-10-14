@@ -3,8 +3,6 @@
 # Platform-level Kerberos for developer workstations
 # (Before int/qa/prod infrastructure exists)
 
-version: '3.8'
-
 services:
   # Platform-level Kerberos sidecar for developers
   developer-kerberos-service:
@@ -56,7 +54,7 @@ services:
   # Mock Delinea for development
   # (Real Delinea isn't accessible from workstations)
   mock-delinea:
-    image: mockserver/mockserver:latest
+    image: ${IMAGE_MOCKSERVER:-mockserver/mockserver:latest}
     container_name: mock-delinea
     ports:
       - "8443:1080"

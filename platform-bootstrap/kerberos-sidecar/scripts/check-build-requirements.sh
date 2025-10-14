@@ -113,10 +113,17 @@ elif [ "$AVAILABLE_SPACE" -lt 5 ] && [ "$AVAILABLE_SPACE" -ne 0 ]; then
     echo "  Recommended: 5GB or more"
     echo ""
 elif [ "$AVAILABLE_SPACE" -eq 0 ]; then
-    echo -e "${WARNING} Could not determine disk space"
-    echo "  Docker root: $DOCKER_ROOT"
-    echo "  (This may be normal on some systems like WSL2)"
-    echo ""
+    # Check if we're in WSL2
+    if [ -f /proc/sys/fs/binfmt_misc/WSLInterop ]; then
+        echo -e "${CHECK_MARK} WSL2 detected - disk space check skipped"
+        echo "  (WSL2 uses dynamically allocated disk space)"
+        echo ""
+    else
+        echo -e "${WARNING} Could not determine disk space"
+        echo "  Docker root: $DOCKER_ROOT"
+        echo "  (Build may fail if insufficient space)"
+        echo ""
+    fi
 else
     echo -e "${CHECK_MARK} Sufficient disk space"
     echo "  Available: ${AVAILABLE_SPACE}GB at $DOCKER_ROOT"

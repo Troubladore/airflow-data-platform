@@ -977,28 +977,73 @@ step_11_test_sql_server() {
     fi
 
     echo ""
-    echo "You'll need:"
-    echo "  1. SQL Server hostname (e.g., sqlserver01.company.com)"
-    echo "  2. Database name (e.g., TestDB or AdventureWorks)"
-    echo ""
-    print_info "Ask your DBA or check your team's documentation for test servers"
-    echo ""
 
-    read -p "SQL Server hostname (or 'skip' to skip): " sql_server
-
-    if [ "$sql_server" = "skip" ] || [ -z "$sql_server" ]; then
-        print_info "Skipping SQL Server test"
-        save_state
-        return 0
+    # Check for saved SQL Server details from previous run
+    local saved_server=""
+    local saved_database=""
+    if [ -f "$SCRIPT_DIR/.env" ]; then
+        saved_server=$(grep "^TEST_SQL_SERVER=" "$SCRIPT_DIR/.env" 2>/dev/null | cut -d= -f2)
+        saved_database=$(grep "^TEST_SQL_DATABASE=" "$SCRIPT_DIR/.env" 2>/dev/null | cut -d= -f2)
     fi
 
-    read -p "Database name: " sql_database
+    if [ -n "$saved_server" ] && [ -n "$saved_database" ]; then
+        print_info "Found saved SQL Server configuration:"
+        echo "  Server:   $saved_server"
+        echo "  Database: $saved_database"
+        echo ""
 
-    if [ -z "$sql_database" ]; then
-        print_warning "Database name is required for SQL Server test"
-        print_info "Skipping SQL Server test"
-        save_state
-        return 0
+        if ask_yes_no "Use these settings?" "y"; then
+            sql_server="$saved_server"
+            sql_database="$saved_database"
+        else
+            saved_server=""
+            saved_database=""
+        fi
+    fi
+
+    # Prompt for SQL Server details if not using saved
+    if [ -z "$saved_server" ]; then
+        echo "You'll need:"
+        echo "  1. SQL Server hostname (e.g., sqlserver01.company.com)"
+        echo "  2. Database name (e.g., TestDB or AdventureWorks)"
+        echo ""
+        print_info "Ask your DBA or check your team's documentation for test servers"
+        echo ""
+
+        read -p "SQL Server hostname (or 'skip' to skip): " sql_server
+
+        if [ "$sql_server" = "skip" ] || [ -z "$sql_server" ]; then
+            print_info "Skipping SQL Server test"
+            save_state
+            return 0
+        fi
+
+        read -p "Database name: " sql_database
+
+        if [ -z "$sql_database" ]; then
+            print_warning "Database name is required for SQL Server test"
+            print_info "Skipping SQL Server test"
+            save_state
+            return 0
+        fi
+
+        # Save for future runs
+        echo ""
+        if ask_yes_no "Save these SQL Server details for future tests?" "y"; then
+            if grep -q "^TEST_SQL_SERVER=" "$SCRIPT_DIR/.env" 2>/dev/null; then
+                sed -i "s|^TEST_SQL_SERVER=.*|TEST_SQL_SERVER=$sql_server|" "$SCRIPT_DIR/.env"
+            else
+                echo "TEST_SQL_SERVER=$sql_server" >> "$SCRIPT_DIR/.env"
+            fi
+
+            if grep -q "^TEST_SQL_DATABASE=" "$SCRIPT_DIR/.env" 2>/dev/null; then
+                sed -i "s|^TEST_SQL_DATABASE=.*|TEST_SQL_DATABASE=$sql_database|" "$SCRIPT_DIR/.env"
+            else
+                echo "TEST_SQL_DATABASE=$sql_database" >> "$SCRIPT_DIR/.env"
+            fi
+
+            print_success "SQL Server details saved to .env"
+        fi
     fi
 
     echo ""
