@@ -10,6 +10,15 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# Load .env for IMAGE_PYTHON configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    source "$SCRIPT_DIR/.env" 2>/dev/null || true
+fi
+
+# Use configured Python image or default
+TEST_IMAGE="${IMAGE_PYTHON:-python:3.11-alpine}"
+
 echo "🔍 Kerberos SQL Server Connection Tester"
 echo "========================================"
 
@@ -36,12 +45,13 @@ fi
 
 # Step 1: Test basic ticket sharing
 echo -e "\n${YELLOW}Step 1: Testing ticket sharing...${NC}"
+echo "  Using image: $TEST_IMAGE"
 docker run --rm \
   --network platform_network \
   -v platform_kerberos_cache:/krb5/cache:ro \
   -v $(pwd)/test_kerberos_simple.py:/app/test.py \
   -e KRB5CCNAME=/krb5/cache/krb5cc \
-  python:3.11-alpine \
+  "$TEST_IMAGE" \
   sh -c "apk add --no-cache krb5 >/dev/null 2>&1 && python /app/test.py" | grep -q "SUCCESS" && \
   echo -e "${GREEN}✓ Ticket sharing is working!${NC}" || \
   (echo -e "${RED}✗ Ticket sharing failed. Run 'make platform-start' first.${NC}" && exit 1)
@@ -92,12 +102,13 @@ echo "  -v \$(pwd)/test_kerberos.py:/app/test_kerberos.py \\"
 echo "  -e KRB5CCNAME=/krb5/cache/krb5cc \\"
 echo "  -e SQL_SERVER=\"$SQL_SERVER\" \\"
 echo "  -e SQL_DATABASE=\"$SQL_DATABASE\" \\"
-echo "  python:3.11-alpine \\"
+echo "  $TEST_IMAGE \\"
 echo "  sh -c \"apk add --no-cache krb5 gcc musl-dev unixodbc-dev && \\"
 echo "         pip install --no-cache-dir pyodbc && \\"
 echo "         python /app/test_kerberos.py\""
 echo "----------------------------------------"
 echo ""
+echo "Using image from .env: $TEST_IMAGE"
 echo "You can copy and reuse this command with your own SQL servers!"
 echo ""
 echo "(This may take a minute to download dependencies...)"
@@ -111,7 +122,7 @@ TEST_OUTPUT=$(docker run --rm \
   -e KRB5CCNAME=/krb5/cache/krb5cc \
   -e SQL_SERVER="$SQL_SERVER" \
   -e SQL_DATABASE="$SQL_DATABASE" \
-  python:3.11-alpine \
+  "$TEST_IMAGE" \
   sh -c "apk add --no-cache krb5 gcc musl-dev unixodbc-dev >/dev/null 2>&1 && \
          pip install --no-cache-dir pyodbc >/dev/null 2>&1 && \
          python /app/test_kerberos.py" 2>&1)
