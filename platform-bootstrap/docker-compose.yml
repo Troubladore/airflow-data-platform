@@ -74,7 +74,7 @@ volumes:
 networks:
   platform-net:
     name: platform_network
-    driver: bridge
+    external: true
 
 secrets:
   krb_password:

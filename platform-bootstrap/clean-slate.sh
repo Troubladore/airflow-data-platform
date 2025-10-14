@@ -17,37 +17,45 @@ echo ""
 echo -e "${YELLOW}This will remove:${NC}"
 echo "  • Kerberos sidecar container"
 echo "  • Mock services containers"
-echo "  • platform_kerberos_cache volume"
 echo "  • platform_network"
 echo ""
-echo -e "${YELLOW}Options:${NC}"
-echo "  1. Clean resources only (keep built images)"
-echo "  2. Full clean (also remove built images - forces rebuild)"
+echo -e "${YELLOW}Optional removals (you choose):${NC}"
 echo ""
 
-read -p "Choose [1-2, default 1]: " -n 1 -r cleanup_level
-echo
-cleanup_level=${cleanup_level:-1}
-
+# Ask about images
 REMOVE_IMAGES=false
-if [ "$cleanup_level" = "2" ]; then
+if ask_yes_no() {
+    local prompt="$1"
+    read -p "$prompt [y/N]: " -n 1 -r
+    echo
+    [[ $REPLY =~ ^[Yy]$ ]]
+}
+
+if ask_yes_no "Remove built sidecar image? (forces rebuild next time)"; then
     REMOVE_IMAGES=true
-    echo ""
-    echo -e "${YELLOW}Full clean selected - will also remove:${NC}"
-    echo "  • platform/kerberos-sidecar:latest image"
-    echo "  • This forces a complete rebuild next time"
-    echo ""
+    echo -e "  ${YELLOW}→ Will remove: platform/kerberos-sidecar:latest${NC}"
+else
+    echo -e "  ${GREEN}→ Will keep: platform/kerberos-sidecar:latest (reusable)${NC}"
 fi
 
-echo -e "${GREEN}Preserved:${NC}"
+echo ""
+
+# Ask about ticket cache
+CLEAR_TICKET_CACHE=false
+if ask_yes_no "Clear ticket cache volume? (removes stale tickets)"; then
+    CLEAR_TICKET_CACHE=true
+    echo -e "  ${YELLOW}→ Will remove: platform_kerberos_cache volume${NC}"
+else
+    echo -e "  ${GREEN}→ Will keep: platform_kerberos_cache volume${NC}"
+fi
+
+echo ""
+echo -e "${GREEN}Always preserved:${NC}"
 echo "  • Your .env configuration"
 echo "  • Your Kerberos tickets on host"
-if [ "$REMOVE_IMAGES" = false ]; then
-    echo "  • Built sidecar image (reusable)"
-fi
 echo ""
 
-read -p "Continue? [y/N]: " -n 1 -r
+read -p "Proceed with cleanup? [y/N]: " -n 1 -r
 echo
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     echo "Cancelled"
@@ -68,11 +76,17 @@ docker rm -f mock-delinea 2>/dev/null || echo "  mock-delinea: not found"
 echo ""
 echo "Removing Docker resources..."
 
-# Remove volume
-if docker volume rm platform_kerberos_cache 2>/dev/null; then
-    echo -e "${GREEN}✓${NC} Removed platform_kerberos_cache volume"
+# Handle ticket cache based on purge level
+if [ "$CLEAR_TICKET_CACHE" = true ]; then
+    # Complete purge - remove volume entirely
+    if docker volume rm platform_kerberos_cache 2>/dev/null; then
+        echo -e "${GREEN}✓${NC} Removed platform_kerberos_cache volume (tickets cleared)"
+    else
+        echo "  platform_kerberos_cache: not found or in use"
+    fi
 else
-    echo "  platform_kerberos_cache: not found or in use"
+    # Just clean - keep volume and tickets
+    echo -e "${GREEN}✓${NC} Keeping platform_kerberos_cache volume (tickets preserved)"
 fi
 
 # Remove network
