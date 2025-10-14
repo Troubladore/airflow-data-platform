@@ -3,11 +3,13 @@
 set -e
 
 # Configuration from environment variables
+TICKET_MODE="${TICKET_MODE:-copy}"  # copy (local) or create (production)
+COPY_INTERVAL="${COPY_INTERVAL:-300}"  # 5 minutes for copy mode
 PRINCIPAL="${KRB_PRINCIPAL}"
 KEYTAB_PATH="${KRB_KEYTAB_PATH:-/krb5/keytabs/service.keytab}"
 PASSWORD="${KRB_PASSWORD}"
 REALM="${KRB_REALM}"
-RENEWAL_INTERVAL="${KRB_RENEWAL_INTERVAL:-3600}"  # Default: 1 hour
+RENEWAL_INTERVAL="${KRB_RENEWAL_INTERVAL:-3600}"  # 1 hour for create mode
 USE_PASSWORD="${USE_PASSWORD:-false}"
 
 # Structured logging functions
@@ -21,6 +23,39 @@ log_error() {
 
 log_warn() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [WARN] $1" >&2
+}
+
+# COPY MODE: Copy tickets from host (local development)
+copy_mode() {
+    log "Starting ticket copier (local development mode)"
+    log "  Copying tickets from host to shared volume"
+    log "  Refresh interval: ${COPY_INTERVAL} seconds"
+    log "  Source: /host/tickets/"
+    log "  Destination: /krb5/cache/krb5cc"
+    echo ""
+
+    while true; do
+        # Find and copy the most recent ticket
+        local found_ticket=false
+
+        # Search for ticket files recursively
+        for ticket in $(find /host/tickets -type f 2>/dev/null | grep -v "primary\|\.conf"); do
+            if [ -f "$ticket" ] && [ -s "$ticket" ]; then
+                cp "$ticket" /krb5/cache/krb5cc 2>/dev/null && chmod 644 /krb5/cache/krb5cc
+                log "Copied ticket from: $ticket"
+                found_ticket=true
+                break  # Use first valid ticket found
+            fi
+        done
+
+        if [ "$found_ticket" = false ]; then
+            log_warn "No tickets found in /host/tickets - check KERBEROS_TICKET_DIR in .env"
+            log_warn "  Run 'klist' on host to verify you have tickets"
+            log_warn "  Expected mount: ${KERBEROS_TICKET_DIR:-\${HOME}/.krb5-cache}"
+        fi
+
+        sleep "${COPY_INTERVAL}"
+    done
 }
 
 # Function to obtain initial ticket
@@ -212,7 +247,15 @@ main() {
 }
 
 # Handle signals for graceful shutdown
-trap 'log "Received shutdown signal"; kdestroy; exit 0' SIGTERM SIGINT
+trap 'log "Received shutdown signal"; kdestroy 2>/dev/null || true; exit 0' SIGTERM SIGINT
 
-# Run main function
-main
+# Run based on mode
+if [ "${TICKET_MODE}" = "copy" ]; then
+    log "TICKET_MODE=copy: Local development mode"
+    log "Copying tickets from host (no password/keytab needed)"
+    copy_mode
+else
+    log "TICKET_MODE=create: Production mode"
+    log "Creating tickets via password/keytab"
+    main
+fi

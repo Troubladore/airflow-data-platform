@@ -13,21 +13,25 @@ services:
     restart: unless-stopped
 
     environment:
+      # Ticket mode: copy (local dev) or create (production)
+      # - copy: Copies your existing kinit tickets from host
+      # - create: Creates tickets via password/keytab
+      TICKET_MODE: ${TICKET_MODE:-copy}
+
       # Developer mode configuration
       ENVIRONMENT: development
       KRB_PRINCIPAL: ${USER}@${COMPANY_DOMAIN}
       KRB_REALM: ${COMPANY_DOMAIN}
 
-      # Use password auth for developers (keytab in production)
-      USE_PASSWORD: "true"
-      KRB_PASSWORD_COMMAND: "cat /run/secrets/krb_password"
+      # Copy mode refreshes tickets from host every 5 minutes
+      # (No password or keytab needed for local development)
+      COPY_INTERVAL: ${COPY_INTERVAL:-300}
 
-      # More frequent renewal for development
-      RENEWAL_INTERVAL: 1800  # 30 minutes
-
-      # Mount existing developer ticket if available
-      IMPORT_EXISTING_TICKET: "true"
-      HOST_TICKET_PATH: ${HOME}/.krb5_cache/krbtgt_${COMPANY_DOMAIN}
+      # Create mode settings (for production/K8s)
+      # Uncomment when using TICKET_MODE=create:
+      # USE_PASSWORD: "true"
+      # KRB_PASSWORD_COMMAND: "cat /run/secrets/krb_password"
+      # RENEWAL_INTERVAL: 1800
 
     volumes:
       # Share ticket cache with all local containers
@@ -70,6 +74,7 @@ services:
 volumes:
   kerberos_cache:
     name: platform_kerberos_cache
+    external: true
 
 networks:
   platform-net:
