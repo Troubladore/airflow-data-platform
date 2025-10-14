@@ -1,36 +1,69 @@
 # Software Bill of Materials (SBOM)
-## Airflow Data Platform & Examples Repositories
+## Airflow Data Platform
 
-This document provides a comprehensive list of all packages and images required for both the `airflow-data-platform` and `airflow-data-platform-examples` repositories.
+**Last Updated:** October 2025
+**Platform Version:** Current main branch
+**Purpose:** Comprehensive list of all Docker images and packages needed for the platform
+
+This document tracks dependencies for corporate Artifactory registration and security scanning.
 
 ---
 
-## 🐳 Docker Base Images
+## 🐳 Docker Images Required
 
-### Core Base Images
-These images need to be available in your Artifactory:
+### Platform Bootstrap Images
+**Used by:** `platform-bootstrap/` services
 
 ```yaml
-# Python Base Images
-python:3.11-slim
-python:3.12-slim
+# Kerberos Sidecar (built from source)
+alpine:3.19
+# Used as base for platform/kerberos-sidecar:latest
+# Source: platform-bootstrap/kerberos-sidecar/Dockerfile
+# APK packages: krb5, unixodbc, freetds, bash, curl
+# Binary downloads: Microsoft ODBC Driver 18 (msodbcsql18, mssql-tools18)
 
-# Astronomer/Airflow Images
-quay.io/astronomer/astro-runtime:3.0-10  # Airflow 3.0.6
-quay.io/astronomer/astro-runtime:latest
-astrocrpublic.azurecr.io/runtime:3.0-10
-
-# Alpine (for utility containers)
-alpine:latest
-alpine:3.18
-
-# Note: Apache Spark
-# Spark is installed via PyPI package (pyspark), not Docker image
-# See "Spark Runner" section below for pyspark version
-
-# Development/Testing
-gcavalcante8808/krb5-server:latest  # Kerberos testing only
+# Mock Services
+mockserver/mockserver:latest
+# Used for: Mock Delinea service (local development only)
 ```
+
+### Testing & Diagnostic Images
+**Used by:** Diagnostic scripts and wizard
+
+```yaml
+# Diagnostic Tests (diagnose-kerberos.sh, setup-kerberos.sh)
+alpine:latest
+python:3.11-alpine
+
+# Test Scripts
+python:3.11-alpine
+# Used in: test_kerberos_simple.py ticket sharing validation
+```
+
+### Astronomer/Airflow Images
+**Used by:** Developer Airflow projects (when they run `astro dev init`)
+
+```yaml
+# Astronomer Runtime (choose version based on needs)
+quay.io/astronomer/astro-runtime:11.10.0  # Airflow 3.0.6
+quay.io/astronomer/astro-runtime:latest
+# Or use older versions as needed:
+# astrocrpublic.azurecr.io/runtime:3.0-10
+```
+
+### Development/Testing Only
+**Used by:** Deprecated experimental code (not required for platform)
+
+```yaml
+# Deprecated Kerberos Testing (deprecated/kerberos-astronomer/)
+gcavalcante8808/krb5-server:latest  # Mock KDC (not needed - use corporate KDC)
+```
+
+### Notes on Apache Spark
+- ❌ **NOT using** `apache/spark-py` Docker image (stale, unmaintained)
+- ✅ **Using** `pyspark` Python package (installed via pip/uv)
+- Base: `python:3.11-slim` + `pyspark==3.5.1` package
+- See runtime-environments/spark-runner/Dockerfile
 
 ---
 
@@ -216,20 +249,17 @@ ODBC Driver 17 for SQL Server
 
 ---
 
-## 📦 Platform Bootstrap Dependencies
+## 📦 Microsoft Binary Downloads
 
-### Docker Compose Services
-```yaml
-# Registry & Cache
-registry:2
-joxit/docker-registry-ui:latest
+### ODBC Drivers (for Kerberos Sidecar)
+**Default source:** https://download.microsoft.com/download/3/5/5/355d7943-a338-41a7-858d-53b259ea33f5/
 
-# Kerberos (development)
-alpine:latest  # For ticket sharing service
+**Files needed:**
+- `msodbcsql18_18.3.2.1-1_amd64.apk` (ODBC Driver 18)
+- `mssql-tools18_18.3.1.1-1_amd64.apk` (SQL Server command-line tools)
 
-# PostgreSQL (testing)
-postgres:16-alpine
-```
+**Corporate:** If your Artifactory mirrors these, set `ODBC_DRIVER_URL` in `.env`
+**Example:** `https://artifactory.company.com/microsoft-binaries/odbc/v18.3`
 
 ---
 
@@ -254,22 +284,38 @@ The Astronomer Runtime image includes:
 
 ## 📋 Pre-Registration Checklist
 
-### Priority 1 - Critical Dependencies
-Must be available before any deployment:
+### Priority 1 - Critical for Platform Bootstrap
+**Must have before running `make kerberos-setup`:**
 
-1. **Base Images**:
-   - `python:3.11-slim`
-   - `python:3.12-slim`
-   - `quay.io/astronomer/astro-runtime:3.0-10`
-   - `alpine:latest`
+1. **Docker Images**:
+   - `alpine:3.19` (sidecar base)
+   - `alpine:latest` (diagnostic tests)
+   - `python:3.11-alpine` (test scripts)
+   - `mockserver/mockserver:latest` (mock services)
 
-2. **Core Python Packages**:
+2. **Microsoft Binaries**:
+   - ODBC Driver 18 for SQL Server (msodbcsql18)
+   - SQL Server Tools 18 (mssql-tools18)
+
+3. **Astronomer Images** (for when developers create projects):
+   - `quay.io/astronomer/astro-runtime:11.10.0`
+
+### Priority 2 - Core Python Packages
+**Installed via pip/uv:**
+
+1. **SQLModel Framework** (built into Layer 1):
    - `sqlmodel>=0.0.25`
    - `sqlalchemy>=2.0.43`
-   - `psycopg2-binary>=2.9.10`
+   - `pydantic>=2.10.5`
+
+2. **SQL Server Connectivity**:
    - `pyodbc>=5.2.0`
+   - `pymssql>=2.3.1`
+
+3. **Data Processing**:
    - `pandas>=2.2.3`
    - `pyspark==3.5.1`
+   - `pyarrow>=18.1.0`
 
 ### Priority 2 - Runtime Dependencies
 Needed for runtime environments:
