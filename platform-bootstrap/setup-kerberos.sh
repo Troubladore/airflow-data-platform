@@ -525,8 +525,32 @@ EOF
     # Show current configuration
     echo "Current .env configuration:"
     echo "----------------------------------------"
+
+    # Check for both old and new variables
+    local has_old_config=false
+    if grep -qE "^KERBEROS_CACHE_(TYPE|PATH|TICKET)=" "$env_file" 2>/dev/null; then
+        has_old_config=true
+        echo -e "  ${YELLOW}Found old 3-variable configuration (needs migration):${NC}"
+        grep -E "^KERBEROS_CACHE_(TYPE|PATH|TICKET)=" "$env_file" | sed 's/^/    OLD: /'
+        echo ""
+    fi
+
     grep -E "^(COMPANY_DOMAIN|KERBEROS_TICKET_DIR)=" "$env_file" 2>/dev/null | sed 's/^/  /' || echo "  (no Kerberos configuration found)"
     echo "----------------------------------------"
+
+    if [ "$has_old_config" = true ]; then
+        echo ""
+        print_warning "Old configuration format detected"
+        echo ""
+        if ask_yes_no "Replace old 3-variable config with new single variable?" "y"; then
+            # Remove old variables
+            sed -i '/^KERBEROS_CACHE_TYPE=/d' "$env_file"
+            sed -i '/^KERBEROS_CACHE_PATH=/d' "$env_file"
+            sed -i '/^KERBEROS_CACHE_TICKET=/d' "$env_file"
+            print_success "Old configuration removed"
+        fi
+    fi
+
     echo ""
 
     # Determine if we have detected values
@@ -962,12 +986,12 @@ step_10_test_ticket_sharing() {
                 print_error "Sidecar does NOT have ticket"
                 echo ""
                 echo -e "${BLUE}FIX:${NC}"
-                echo "  Sidecar can't obtain tickets. Check logs:"
-                echo "    ${CYAN}docker logs kerberos-platform-service --tail 30${NC}"
+                echo -e "  Sidecar can't obtain tickets. Check logs:"
+                echo -e "    ${CYAN}docker logs kerberos-platform-service --tail 30${NC}"
                 echo ""
-                echo "  Common causes:"
-                echo "    - Wrong ticket path in .env (KERBEROS_TICKET_DIR)"
-                echo "    - Missing password/keytab configuration"
+                echo -e "  Common causes:"
+                echo -e "    - Wrong ticket path in .env (KERBEROS_TICKET_DIR)"
+                echo -e "    - Missing password/keytab configuration"
             fi
 
         else

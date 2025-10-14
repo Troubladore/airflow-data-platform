@@ -70,10 +70,11 @@ if command -v klist >/dev/null 2>&1; then
             DETECTED_DOMAIN=$(echo "$PRINCIPAL" | sed 's/.*@//')
         fi
 
-        # Extract ticket cache location
+        # Extract ticket cache info from klist
         TICKET_CACHE=$(klist 2>/dev/null | grep "Ticket cache:" | sed 's/Ticket cache: //')
         echo ""
-        echo "📍 Ticket cache location: $TICKET_CACHE"
+        echo -e "${BLUE}klist output:${NC} $TICKET_CACHE"
+        echo -e "  (This shows the format and full path from Kerberos)"
 
         # Parse different ticket cache formats and extract base directory
         DETECTED_TICKET_DIR=""
