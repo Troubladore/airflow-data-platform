@@ -210,10 +210,12 @@ debug-logs: ## Show logs from all platform services
 # Cleanup
 # ==========================================
 
-clean: platform-stop ## Clean up all platform services and volumes
+clean: platform-stop ## Clean up platform services and volumes (keeps images)
 	@echo "Cleaning up platform services..."
-	@docker volume rm platform_kerberos_cache 2>/dev/null || true
-	@echo "✓ Cleanup complete"
+	@echo "1" | ./clean-slate.sh || true
+
+clean-slate: ## Interactive cleanup (option to remove built images too)
+	@./clean-slate.sh
 
 reset: clean ## Reset everything to fresh state
 	@echo "Resetting platform..."
