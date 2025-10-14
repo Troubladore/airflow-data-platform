@@ -1,0 +1,26 @@
+# Optional Mock Services
+# ======================
+# These services are NOT required for Kerberos functionality
+# Start with: docker compose -f docker-compose.mock-services.yml up -d
+
+services:
+  # Mock Delinea for development
+  # (Real Delinea isn't accessible from workstations)
+  mock-delinea:
+    image: ${IMAGE_MOCKSERVER:-mockserver/mockserver:latest}
+    container_name: mock-delinea
+    ports:
+      - "8443:1080"
+    environment:
+      MOCKSERVER_INITIALIZATION_JSON_PATH: /config/delinea-mock.json
+    volumes:
+      - ./config/delinea-mock.json:/config/delinea-mock.json:ro
+    networks:
+      - platform-net
+    profiles:
+      - optional
+
+networks:
+  platform-net:
+    external: true
+    name: platform_network

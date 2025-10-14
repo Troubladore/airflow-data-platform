@@ -36,7 +36,7 @@ print_banner() {
     clear
     echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${CYAN}║${NC}          ${BLUE}Kerberos Setup Wizard for Airflow Development${NC}         ${CYAN}║${NC}"
-    echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
 
@@ -143,7 +143,7 @@ step_1_prerequisites() {
         print_error "Not found"
         echo ""
         echo "  Kerberos tools are required. Install with:"
-        echo "  ${CYAN}sudo apt-get update && sudo apt-get install -y krb5-user${NC}"
+        echo -e "  ${CYAN}sudo apt-get update && sudo apt-get install -y krb5-user${NC}"
         all_ok=false
     fi
 
@@ -160,9 +160,9 @@ step_1_prerequisites() {
             print_error "Not running"
             echo ""
             echo "  Start Docker with:"
-            echo "  ${CYAN}sudo systemctl start docker${NC}"
+            echo -e "  ${CYAN}sudo systemctl start docker${NC}"
             echo "  or"
-            echo "  ${CYAN}sudo service docker start${NC}"
+            echo -e "  ${CYAN}sudo service docker start${NC}"
             all_ok=false
         fi
     else
@@ -243,7 +243,7 @@ step_2_krb5_conf() {
         echo ""
         echo "  The file /etc/krb5.conf is required for Kerberos authentication."
         echo ""
-        echo "  ${YELLOW}Options:${NC}"
+        echo -e "  ${YELLOW}Options:${NC}"
         echo "  1. Contact your IT department for the correct krb5.conf"
         echo "  2. Copy it from another working system"
         echo "  3. Use your organization's domain controller DNS to auto-configure"
@@ -307,7 +307,7 @@ step_3_test_kdc() {
             echo ""
             print_info "We'll verify in the next step by actually obtaining a ticket"
             echo ""
-            echo "  ${YELLOW}Possible solutions:${NC}"
+            echo -e "  ${YELLOW}Possible solutions:${NC}"
             echo "  1. Connect to your corporate VPN"
             echo "  2. Check your network connection"
             echo "  3. Verify krb5.conf has correct KDC address"
@@ -406,7 +406,7 @@ step_4_kerberos_ticket() {
     fi
 
     echo ""
-    echo "Running: ${CYAN}kinit $principal${NC}"
+    echo -e "Running: ${CYAN}kinit $principal${NC}"
     echo ""
 
     if kinit "$principal"; then
@@ -424,7 +424,7 @@ step_4_kerberos_ticket() {
         echo ""
         print_error "Failed to obtain Kerberos ticket"
         echo ""
-        echo "  ${YELLOW}Possible issues:${NC}"
+        echo -e "  ${YELLOW}Possible issues:${NC}"
         echo "  1. Incorrect password"
         echo "  2. Not connected to VPN"
         echo "  3. Username or domain is incorrect"
@@ -580,7 +580,7 @@ EOF
 
     # Manual configuration
     echo ""
-    echo "${YELLOW}Manual configuration required${NC}"
+    echo -e "${YELLOW}Manual configuration required${NC}"
     echo ""
 
     if ask_yes_no "Would you like to manually edit .env now?"; then
@@ -590,7 +590,7 @@ EOF
     else
         print_warning "Skipping .env update - you'll need to configure it manually"
         echo ""
-        echo "  Edit: ${CYAN}$env_file${NC}"
+        echo -e "  Edit: ${CYAN}$env_file${NC}"
         echo ""
         echo "  Required variables:"
         echo "    COMPANY_DOMAIN=YOUR_DOMAIN.COM"
@@ -698,7 +698,7 @@ step_7_corporate_environment() {
         # ODBC_DRIVER_URL (Microsoft binaries)
         echo ""
         echo -e "${CYAN}5. Microsoft ODBC Drivers (binary downloads):${NC}"
-        echo "   ${YELLOW}Public default:${NC}"
+        echo -e "   ${YELLOW}Public default:${NC}"
         echo "   https://download.microsoft.com/download/3/5/5/355d7943-a338-41a7-858d-53b259ea33f5/"
         echo ""
         echo "   ${YELLOW}Files:${NC} msodbcsql18_18.3.2.1-1_amd64.apk"
@@ -751,7 +751,7 @@ step_7_corporate_environment() {
         print_warning "IMPORTANT: Docker login required!"
         echo ""
         echo "Before building, you must authenticate to your Artifactory:"
-        echo "  ${CYAN}docker login artifactory.yourcompany.com${NC}"
+        echo -e "  ${CYAN}docker login artifactory.yourcompany.com${NC}"
         echo ""
 
         if ask_yes_no "Have you already run docker login for your Artifactory?" "y"; then
@@ -760,7 +760,7 @@ step_7_corporate_environment() {
             echo ""
             print_info "Please login to Artifactory now:"
             echo ""
-            echo "  ${CYAN}docker login ${image_alpine%%/*}${NC}"
+            echo -e "  ${CYAN}docker login ${image_alpine%%/*}${NC}"
             echo ""
             read -p "Press Enter after you've logged in..."
         fi
@@ -888,7 +888,7 @@ step_9_start_services() {
         print_error "Failed to start services"
         echo ""
         echo "  Check the logs with:"
-        echo "  ${CYAN}docker compose logs${NC}"
+        echo -e "  ${CYAN}docker compose logs${NC}"
         return 1
     fi
 }
@@ -943,16 +943,52 @@ step_10_test_ticket_sharing() {
         print_error "Ticket sharing test FAILED"
         echo ""
         echo "Test output saved to: /tmp/kerberos-test-output.txt"
-        echo ""
-        print_warning "Kerberos may not be configured correctly"
-        echo ""
-        echo "  ${YELLOW}Troubleshooting steps:${NC}"
-        echo "  1. Check service logs: ${CYAN}docker compose logs${NC}"
-        echo "  2. Verify .env configuration: ${CYAN}cat .env${NC}"
-        echo "  3. Run diagnostic: ${CYAN}./diagnose-kerberos.sh${NC}"
-        echo "  4. Check ticket: ${CYAN}klist${NC}"
+        # Smart failure analysis
+        local test_output=$(cat /tmp/kerberos-test-output.txt 2>/dev/null || echo "")
+
+        echo -e "${BLUE}Analyzing failure...${NC}"
         echo ""
 
+        # Check 1: Is sidecar even running?
+        if ! docker ps --format "{{.Names}}" | grep -q "kerberos-platform-service"; then
+            print_error "ROOT CAUSE: Kerberos sidecar is NOT running"
+            echo ""
+            echo -e "${BLUE}FIX:${NC}"
+            echo "  Sidecar failed to start in Step 9. Check logs:"
+            echo "    ${CYAN}docker compose logs developer-kerberos-service${NC}"
+
+        # Check 2: Sidecar running but no ticket in volume?
+        elif echo "$test_output" | grep -q "does NOT exist"; then
+            print_error "ROOT CAUSE: Sidecar running but ticket not copied to volume"
+            echo ""
+
+            # Check if sidecar itself has a ticket
+            if docker exec kerberos-platform-service klist -s 2>/dev/null; then
+                print_warning "Sidecar HAS ticket, but not sharing it"
+                echo ""
+                echo -e "${BLUE}FIX:${NC}"
+                echo "  Check what's in volume:"
+                echo "    ${CYAN}docker exec kerberos-platform-service ls -la /krb5/cache/${NC}"
+            else
+                print_error "Sidecar does NOT have ticket"
+                echo ""
+                echo -e "${BLUE}FIX:${NC}"
+                echo "  Sidecar can't obtain tickets. Check logs:"
+                echo "    ${CYAN}docker logs kerberos-platform-service --tail 30${NC}"
+                echo ""
+                echo "  Common causes:"
+                echo "    - Wrong ticket path in .env (KERBEROS_CACHE_PATH)"
+                echo "    - Missing password/keytab configuration"
+            fi
+
+        else
+            print_warning "Test failed for unknown reason"
+            echo ""
+            echo "  Output: /tmp/kerberos-test-output.txt"
+            echo "  Diagnostic: ${CYAN}./diagnose-kerberos.sh${NC}"
+        fi
+
+        echo ""
         if ask_yes_no "Continue anyway?"; then
             save_state
             return 0
@@ -977,28 +1013,73 @@ step_11_test_sql_server() {
     fi
 
     echo ""
-    echo "You'll need:"
-    echo "  1. SQL Server hostname (e.g., sqlserver01.company.com)"
-    echo "  2. Database name (e.g., TestDB or AdventureWorks)"
-    echo ""
-    print_info "Ask your DBA or check your team's documentation for test servers"
-    echo ""
 
-    read -p "SQL Server hostname (or 'skip' to skip): " sql_server
-
-    if [ "$sql_server" = "skip" ] || [ -z "$sql_server" ]; then
-        print_info "Skipping SQL Server test"
-        save_state
-        return 0
+    # Check for saved SQL Server details from previous run
+    local saved_server=""
+    local saved_database=""
+    if [ -f "$SCRIPT_DIR/.env" ]; then
+        saved_server=$(grep "^TEST_SQL_SERVER=" "$SCRIPT_DIR/.env" 2>/dev/null | cut -d= -f2)
+        saved_database=$(grep "^TEST_SQL_DATABASE=" "$SCRIPT_DIR/.env" 2>/dev/null | cut -d= -f2)
     fi
 
-    read -p "Database name: " sql_database
+    if [ -n "$saved_server" ] && [ -n "$saved_database" ]; then
+        print_info "Found saved SQL Server configuration:"
+        echo "  Server:   $saved_server"
+        echo "  Database: $saved_database"
+        echo ""
 
-    if [ -z "$sql_database" ]; then
-        print_warning "Database name is required for SQL Server test"
-        print_info "Skipping SQL Server test"
-        save_state
-        return 0
+        if ask_yes_no "Use these settings?" "y"; then
+            sql_server="$saved_server"
+            sql_database="$saved_database"
+        else
+            saved_server=""
+            saved_database=""
+        fi
+    fi
+
+    # Prompt for SQL Server details if not using saved
+    if [ -z "$saved_server" ]; then
+        echo "You'll need:"
+        echo "  1. SQL Server hostname (e.g., sqlserver01.company.com)"
+        echo "  2. Database name (e.g., TestDB or AdventureWorks)"
+        echo ""
+        print_info "Ask your DBA or check your team's documentation for test servers"
+        echo ""
+
+        read -p "SQL Server hostname (or 'skip' to skip): " sql_server
+
+        if [ "$sql_server" = "skip" ] || [ -z "$sql_server" ]; then
+            print_info "Skipping SQL Server test"
+            save_state
+            return 0
+        fi
+
+        read -p "Database name: " sql_database
+
+        if [ -z "$sql_database" ]; then
+            print_warning "Database name is required for SQL Server test"
+            print_info "Skipping SQL Server test"
+            save_state
+            return 0
+        fi
+
+        # Save for future runs
+        echo ""
+        if ask_yes_no "Save these SQL Server details for future tests?" "y"; then
+            if grep -q "^TEST_SQL_SERVER=" "$SCRIPT_DIR/.env" 2>/dev/null; then
+                sed -i "s|^TEST_SQL_SERVER=.*|TEST_SQL_SERVER=$sql_server|" "$SCRIPT_DIR/.env"
+            else
+                echo "TEST_SQL_SERVER=$sql_server" >> "$SCRIPT_DIR/.env"
+            fi
+
+            if grep -q "^TEST_SQL_DATABASE=" "$SCRIPT_DIR/.env" 2>/dev/null; then
+                sed -i "s|^TEST_SQL_DATABASE=.*|TEST_SQL_DATABASE=$sql_database|" "$SCRIPT_DIR/.env"
+            else
+                echo "TEST_SQL_DATABASE=$sql_database" >> "$SCRIPT_DIR/.env"
+            fi
+
+            print_success "SQL Server details saved to .env"
+        fi
     fi
 
     echo ""
@@ -1038,7 +1119,7 @@ step_11_test_sql_server() {
 show_summary() {
     print_banner
     echo -e "${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║${NC}                    ${GREEN}Setup Complete!${NC}                            ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}                    ${GREEN}Setup Complete!${NC}                             ${GREEN}║${NC}"
     echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
@@ -1060,26 +1141,26 @@ show_summary() {
     echo -e "${CYAN}What's Next:${NC}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
-    echo "  1. ${GREEN}Create or start your Airflow project:${NC}"
+    echo -e "  1. ${GREEN}Create or start your Airflow project:${NC}"
     echo "     ${CYAN}astro dev init my-project${NC}    # New project"
-    echo "     ${CYAN}cd my-project && astro dev start${NC}"
+    echo -e "     ${CYAN}cd my-project && astro dev start${NC}"
     echo ""
-    echo "  2. ${GREEN}Your Airflow containers will automatically have access to:${NC}"
+    echo -e "  2. ${GREEN}Your Airflow containers will automatically have access to:${NC}"
     echo "     • Kerberos tickets (for SQL Server authentication)"
     echo "     • Shared network (platform_network)"
     echo ""
-    echo "  3. ${GREEN}Useful commands:${NC}"
+    echo -e "  3. ${GREEN}Useful commands:${NC}"
     echo "     ${CYAN}make platform-status${NC}       # Check service status"
     echo "     ${CYAN}make kerberos-test${NC}         # Verify Kerberos ticket"
     echo "     ${CYAN}make test-kerberos-simple${NC}  # Test ticket sharing"
     echo "     ${CYAN}docker compose logs${NC}        # View service logs"
     echo ""
-    echo "  4. ${GREEN}Managing Kerberos tickets:${NC}"
+    echo -e "  4. ${GREEN}Managing Kerberos tickets:${NC}"
     echo "     ${CYAN}klist${NC}                      # Check ticket status"
     echo "     ${CYAN}kinit $DETECTED_USERNAME@$DETECTED_DOMAIN${NC}  # Renew ticket"
     echo "     ${CYAN}./diagnose-kerberos.sh${NC}     # Troubleshoot issues"
     echo ""
-    echo "  5. ${GREEN}When done for the day:${NC}"
+    echo -e "  5. ${GREEN}When done for the day:${NC}"
     echo "     ${CYAN}make platform-stop${NC}         # Stop all services"
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

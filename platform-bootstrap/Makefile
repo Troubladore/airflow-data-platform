@@ -53,16 +53,15 @@ validate: ## Validate environment is ready
 # Platform Services
 # ==========================================
 
-platform-start: kerberos-start mock-start ## Start all platform services
+platform-start: kerberos-start ## Start all platform services
 	@echo "✓ Platform services started"
-	@echo ""
-	@echo "Access points:"
-	@echo "  Mock Delinea:  https://localhost:8443"
 	@echo ""
 	@echo "Note: Docker caches images automatically - no registry service needed"
 	@echo "Next: astro dev init my-project"
+	@echo ""
+	@echo "Optional: Start mock services with 'make mock-start' if needed"
 
-platform-stop: kerberos-stop mock-stop ## Stop all platform services
+platform-stop: kerberos-stop ## Stop all platform services
 	@echo "✓ Platform services stopped"
 
 platform-status: ## Check status of platform services
@@ -162,13 +161,23 @@ test-kerberos-full: ## Interactive test of SQL Server connection with Kerberos
 # Mock Services
 # ==========================================
 
-mock-start: ## Start mock services (Delinea, etc.)
-	@echo "Starting mock services..."
-	@$(DOCKER_COMPOSE) -f mock-services.yml up -d 2>/dev/null || true
-	@echo "✓ Mock services started"
+mock-start: ## Start optional mock services (Delinea, etc.)
+	@echo "Starting optional mock services..."
+	@echo ""
+	@echo "Note: Mock services are NOT required for Kerberos functionality"
+	@echo "      Only start if you need to test Delinea integration"
+	@echo ""
+	@if [ ! -f docker-compose.mock-services.yml ]; then \
+		echo "⚠️  docker-compose.mock-services.yml not found"; \
+		echo "   Mock services not available"; \
+	else \
+		$(DOCKER_COMPOSE) -f docker-compose.mock-services.yml up -d 2>/dev/null || \
+		echo "⚠️  Mock services failed to start (may need IMAGE_MOCKSERVER in .env)"; \
+	fi
+	@echo "✓ Mock services command completed"
 
 mock-stop: ## Stop mock services
-	@$(DOCKER_COMPOSE) -f mock-services.yml down 2>/dev/null || true
+	@$(DOCKER_COMPOSE) -f docker-compose.mock-services.yml down 2>/dev/null || true
 
 # ==========================================
 # Developer Tools

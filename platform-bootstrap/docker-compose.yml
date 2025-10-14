@@ -3,8 +3,6 @@
 # Platform-level Kerberos for developer workstations
 # (Before int/qa/prod infrastructure exists)
 
-version: '3.8'
-
 services:
   # Platform-level Kerberos sidecar for developers
   developer-kerberos-service:
@@ -53,19 +51,21 @@ services:
       timeout: 10s
       retries: 3
 
-  # Mock Delinea for development
+  # Mock Delinea for development (OPTIONAL - not needed for Kerberos)
   # (Real Delinea isn't accessible from workstations)
-  mock-delinea:
-    image: mockserver/mockserver:latest
-    container_name: mock-delinea
-    ports:
-      - "8443:1080"
-    environment:
-      MOCKSERVER_INITIALIZATION_JSON_PATH: /config/delinea-mock.json
-    volumes:
-      - ./config/delinea-mock.json:/config/delinea-mock.json:ro
-    networks:
-      - platform-net
+  # Start separately with: make mock-start
+  #
+  # mock-delinea:
+  #   image: ${IMAGE_MOCKSERVER:-mockserver/mockserver:latest}
+  #   container_name: mock-delinea
+  #   ports:
+  #     - "8443:1080"
+  #   environment:
+  #     MOCKSERVER_INITIALIZATION_JSON_PATH: /config/delinea-mock.json
+  #   volumes:
+  #     - ./config/delinea-mock.json:/config/delinea-mock.json:ro
+  #   networks:
+  #     - platform-net
 
 volumes:
   kerberos_cache:
