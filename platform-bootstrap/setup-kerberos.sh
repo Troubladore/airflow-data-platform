@@ -545,6 +545,24 @@ EOF
         echo "----------------------------------------"
         echo ""
 
+        # Check if current .env already matches detected values
+        local needs_update=false
+        local current_type=$(grep "^KERBEROS_CACHE_TYPE=" "$env_file" 2>/dev/null | cut -d= -f2)
+        local current_path=$(grep "^KERBEROS_CACHE_PATH=" "$env_file" 2>/dev/null | cut -d= -f2-)
+        local current_ticket=$(grep "^KERBEROS_CACHE_TICKET=" "$env_file" 2>/dev/null | cut -d= -f2)
+
+        if [ "$current_type" != "$DETECTED_CACHE_TYPE" ] || \
+           [ "$current_path" != "$DETECTED_CACHE_PATH" ] || \
+           [ "$current_ticket" != "$DETECTED_CACHE_TICKET" ]; then
+            needs_update=true
+        fi
+
+        if [ "$needs_update" = false ]; then
+            print_success ".env already has correct configuration - no update needed!"
+            save_state
+            return 0
+        fi
+
         if ask_yes_no "Update .env with these detected values?" "y"; then
             # Update .env file
             if [ -n "$DETECTED_DOMAIN" ]; then
@@ -634,42 +652,62 @@ step_7_corporate_environment() {
 
         # IMAGE_ALPINE (for sidecar base + testing)
         echo -e "${CYAN}1. Alpine Linux (sidecar base + diagnostic tests):${NC}"
-        echo "   Public:  alpine:latest and alpine:3.19"
-        echo "   Example: artifactory.yourcompany.com/docker-remote/library/alpine"
+        echo "   ${YELLOW}Public default:${NC} alpine:3.19 (from registry-1.docker.io)"
+        echo "   ${YELLOW}Also pulls:${NC}     alpine:latest"
         echo ""
-        read -p "   Artifactory path (or Enter for public): " image_alpine
+        echo "   Corporate example:"
+        echo "   artifactory.yourcompany.com/docker-remote/library/alpine:3.19"
+        echo ""
+        read -p "   Your Artifactory path (or Enter to use public): " image_alpine
 
         # IMAGE_PYTHON (for testing scripts)
         echo ""
-        echo -e "${CYAN}2. Python (testing scripts use python:3.11-alpine):${NC}"
-        echo "   Public:  python:3.11-alpine"
-        echo "   Example: artifactory.yourcompany.com/docker-remote/library/python:3.11-alpine"
+        echo -e "${CYAN}2. Python (for testing scripts):${NC}"
+        echo "   ${YELLOW}Public default:${NC} python:3.11-alpine (from registry-1.docker.io)"
         echo ""
-        read -p "   Artifactory path (or Enter for public): " image_python
+        echo "   ${YELLOW}Golden images:${NC} You can substitute your organization's approved image"
+        echo "                   Examples: python:3.11-slim, chainguard/python:latest, etc."
+        echo ""
+        echo "   Corporate example:"
+        echo "   artifactory.yourcompany.com/docker-remote/library/python:3.11-alpine"
+        echo "   artifactory.yourcompany.com/chainguard/python:3.11"
+        echo ""
+        read -p "   Your image path (full path including tag): " image_python
 
         # IMAGE_MOCKSERVER (mock services)
         echo ""
         echo -e "${CYAN}3. MockServer (for mock Delinea service):${NC}"
-        echo "   Public:  mockserver/mockserver:latest"
-        echo "   Example: artifactory.yourcompany.com/docker-remote/mockserver/mockserver:latest"
+        echo "   ${YELLOW}Public default:${NC} mockserver/mockserver:latest (from registry-1.docker.io)"
         echo ""
-        read -p "   Artifactory path (or Enter for public): " image_mockserver
+        echo "   Corporate example:"
+        echo "   artifactory.yourcompany.com/docker-remote/mockserver/mockserver:latest"
+        echo ""
+        read -p "   Your Artifactory path (or Enter to use public): " image_mockserver
 
         # IMAGE_ASTRONOMER (for when they create Airflow projects)
         echo ""
         echo -e "${CYAN}4. Astronomer Runtime (for your Airflow projects):${NC}"
-        echo "   Public:  quay.io/astronomer/astro-runtime:*"
-        echo "   Example: artifactory.yourcompany.com/quay-remote/astronomer/astro-runtime:11.10.0"
+        echo "   ${YELLOW}Public default:${NC} quay.io/astronomer/astro-runtime:11.10.0"
+        echo "                   (from quay.io registry)"
         echo ""
-        read -p "   Artifactory path (or Enter for public): " image_astronomer
+        echo "   Corporate example:"
+        echo "   artifactory.yourcompany.com/quay-remote/astronomer/astro-runtime:11.10.0"
+        echo ""
+        read -p "   Your Artifactory path (or Enter to use public): " image_astronomer
 
         # ODBC_DRIVER_URL (Microsoft binaries)
         echo ""
         echo -e "${CYAN}5. Microsoft ODBC Drivers (binary downloads):${NC}"
-        echo "   Public:  https://download.microsoft.com/download/..."
-        echo "   Example: https://artifactory.yourcompany.com/microsoft-binaries/odbc/v18.3"
+        echo "   ${YELLOW}Public default:${NC}"
+        echo "   https://download.microsoft.com/download/3/5/5/355d7943-a338-41a7-858d-53b259ea33f5/"
         echo ""
-        read -p "   Artifactory mirror URL (or Enter for public): " odbc_url
+        echo "   ${YELLOW}Files:${NC} msodbcsql18_18.3.2.1-1_amd64.apk"
+        echo "          mssql-tools18_18.3.1.1-1_amd64.apk"
+        echo ""
+        echo "   Corporate example:"
+        echo "   https://artifactory.yourcompany.com/microsoft-binaries/odbc/v18.3"
+        echo ""
+        read -p "   Your Artifactory mirror URL (or Enter to use public): " odbc_url
 
         # Update .env
         echo ""
@@ -869,14 +907,29 @@ step_10_test_ticket_sharing() {
         return 0
     fi
 
+    # Determine test image (use configured or default)
+    local test_image="${IMAGE_PYTHON:-python:3.11-alpine}"
+
+    # Detect package manager based on image
+    local install_cmd="apk add --no-cache krb5"  # Alpine default
+    if [[ "$test_image" == *"debian"* ]] || [[ "$test_image" == *"ubuntu"* ]] || [[ "$test_image" == *":3.11"* ]] && [[ "$test_image" != *"alpine"* ]]; then
+        install_cmd="apt-get update -qq && apt-get install -y -qq krb5-user"
+    elif [[ "$test_image" == *"chainguard"* ]] || [[ "$test_image" == *"wolfi"* ]]; then
+        install_cmd="apk add --no-cache krb5"  # Wolfi uses apk
+    fi
+
+    print_info "Using test image: ${CYAN}$test_image${NC}"
+    echo "  Package install: $install_cmd"
+    echo ""
+
     # Run the test
     if docker run --rm \
         --network platform_network \
         -v platform_kerberos_cache:/krb5/cache:ro \
         -v "$SCRIPT_DIR/test_kerberos_simple.py:/app/test.py" \
         -e KRB5CCNAME=/krb5/cache/krb5cc \
-        python:3.11-alpine \
-        sh -c "apk add --no-cache krb5 >/dev/null 2>&1 && python /app/test.py" 2>&1 | tee /tmp/kerberos-test-output.txt | grep -q "SUCCESS"; then
+        "$test_image" \
+        sh -c "$install_cmd >/dev/null 2>&1 && python /app/test.py" 2>&1 | tee /tmp/kerberos-test-output.txt | grep -q "SUCCESS"; then
 
         echo ""
         print_success "Ticket sharing test PASSED!"
