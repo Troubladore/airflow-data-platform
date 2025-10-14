@@ -73,7 +73,7 @@ if command -v klist >/dev/null 2>&1; then
         # Extract ticket cache location
         TICKET_CACHE=$(klist 2>/dev/null | grep "Ticket cache:" | sed 's/Ticket cache: //')
         echo ""
-        echo -e "${YELLOW}📍 Ticket cache location: $TICKET_CACHE${NC}"
+        echo "📍 Ticket cache location: $TICKET_CACHE"
 
         # Parse different ticket cache formats and store values
         DETECTED_CACHE_TYPE=""
@@ -103,16 +103,21 @@ if command -v klist >/dev/null 2>&1; then
             # Check if the full path is actually a file (common case)
             if [ -f "$FULL_PATH" ]; then
                 # Path includes the ticket file itself
+                # For DIR format, we want the PARENT directory that contains ticket files
+                # Not the specific ticket filename (which changes/expires)
+                TICKET_DIR=$(dirname "$FULL_PATH")
                 DETECTED_CACHE_TYPE="DIR"
-                DETECTED_CACHE_PATH=$(dirname "$FULL_PATH")
-                DETECTED_CACHE_TICKET=$(basename "$FULL_PATH")
+                DETECTED_CACHE_PATH=$(dirname "$TICKET_DIR")
+                DETECTED_CACHE_TICKET="$(basename "$TICKET_DIR")"
 
                 echo "  Type: DIR (collection)"
-                echo "  Full path: $FULL_PATH"
+                echo "  Current ticket: $FULL_PATH"
                 echo -e "  ${GREEN}✓ Ticket file exists${NC}"
-                echo "  Cache directory: $DETECTED_CACHE_PATH"
-                echo "  Ticket file: $DETECTED_CACHE_TICKET"
-                ls -la "$FULL_PATH"
+                echo ""
+                echo "  Configuration (points to directory, not specific ticket):"
+                echo "    Base directory: $DETECTED_CACHE_PATH"
+                echo "    Subdirectory with tickets: $DETECTED_CACHE_TICKET"
+                echo "    (Sidecar will find active tickets in this directory automatically)"
 
             elif [ -d "$FULL_PATH" ]; then
                 # Path is a directory, need to find ticket inside
@@ -232,36 +237,51 @@ echo -e "\n${BLUE}=== 3. DOCKER ENVIRONMENT ===${NC}"
 if docker info >/dev/null 2>&1; then
     echo -e "${GREEN}✓ Docker is running${NC}"
 
-    # Check for platform network
-    if docker network ls | grep -q "platform_network"; then
-        echo -e "${GREEN}✓ platform_network exists${NC}"
+    # Check if kerberos service exists/is running (root issue)
+    SERVICE_EXISTS=false
+    if docker ps -a --format "table {{.Names}}" | grep -q "kerberos-platform-service"; then
+        SERVICE_EXISTS=true
+        if docker ps --format "table {{.Names}}" | grep -q "kerberos-platform-service"; then
+            echo -e "${GREEN}✓ kerberos-platform-service is running${NC}"
+
+            # Check service logs
+            echo "  Recent logs:"
+            docker logs kerberos-platform-service --tail 3 2>&1 | sed 's/^/    /'
+        else
+            echo -e "${YELLOW}⚠️  kerberos-platform-service exists but is stopped${NC}"
+            echo ""
+            echo -e "${BLUE}NEXT ACTION:${NC}"
+            echo "  Start the service: make platform-start"
+        fi
     else
-        echo -e "${RED}✗ platform_network does not exist${NC}"
-        echo "  Run: docker network create platform_network"
+        echo -e "${YELLOW}⚠️  kerberos-platform-service not created yet${NC}"
+        echo ""
+        echo -e "${BLUE}NEXT ACTION:${NC}"
+        echo "  This is normal on first run. Follow the setup guide:"
+        echo "  1. Option A (Guided): make kerberos-setup"
+        echo "  2. Option B (Manual): See docs/getting-started-simple.md Step 3"
+        echo ""
+        echo "The service will create the required Docker resources automatically."
     fi
 
-    # Check for Kerberos cache volume
-    if docker volume ls | grep -q "platform_kerberos_cache"; then
-        echo -e "${GREEN}✓ platform_kerberos_cache volume exists${NC}"
+    # Only show individual resource checks if service exists (for troubleshooting)
+    if [ "$SERVICE_EXISTS" = true ]; then
+        echo ""
+        echo "Docker resources (created by service):"
 
-        # Check volume contents
-        echo "  Checking volume contents..."
-        docker run --rm -v platform_kerberos_cache:/check:ro alpine ls -la /check/ 2>/dev/null || echo "    (empty)"
-    else
-        echo -e "${RED}✗ platform_kerberos_cache volume does not exist${NC}"
-        echo "  Run: docker volume create platform_kerberos_cache"
-    fi
+        # Check for platform network
+        if docker network ls | grep -q "platform_network"; then
+            echo -e "  ${GREEN}✓ platform_network exists${NC}"
+        else
+            echo -e "  ${YELLOW}⚠️  platform_network missing${NC}"
+        fi
 
-    # Check if kerberos service is running
-    if docker ps --format "table {{.Names}}" | grep -q "kerberos-platform-service"; then
-        echo -e "${GREEN}✓ kerberos-platform-service is running${NC}"
-
-        # Check service logs
-        echo "  Recent logs:"
-        docker logs kerberos-platform-service --tail 3 2>&1 | sed 's/^/    /'
-    else
-        echo -e "${YELLOW}⚠️  kerberos-platform-service is not running${NC}"
-        echo "  Run: make platform-start"
+        # Check for Kerberos cache volume
+        if docker volume ls | grep -q "platform_kerberos_cache"; then
+            echo -e "  ${GREEN}✓ platform_kerberos_cache volume exists${NC}"
+        else
+            echo -e "  ${YELLOW}⚠️  platform_kerberos_cache volume missing${NC}"
+        fi
     fi
 else
     echo -e "${RED}✗ Docker is not running or not accessible${NC}"
@@ -369,7 +389,10 @@ fi
 # 4. Test ticket sharing
 echo -e "\n${BLUE}=== 4. TICKET SHARING TEST ===${NC}"
 
-if docker info >/dev/null 2>&1; then
+if ! docker info >/dev/null 2>&1; then
+    echo -e "${YELLOW}⚠️  Cannot test - Docker not available${NC}"
+    echo "  Start Docker and re-run diagnostic"
+elif docker ps -a --format "{{.Names}}" | grep -q "kerberos-platform-service"; then
     echo "Testing ticket visibility in container..."
 
     docker run --rm \
@@ -392,7 +415,9 @@ if docker info >/dev/null 2>&1; then
             fi
         '
 else
-    echo -e "${RED}Cannot test - Docker not available${NC}"
+    echo -e "${YELLOW}⚠️  Cannot test - Service not created yet${NC}"
+    echo "  Run setup first: make kerberos-setup"
+    echo "  Or see: docs/getting-started-simple.md"
 fi
 
 # 5. .env Configuration Values
@@ -426,12 +451,22 @@ if [ -n "$DETECTED_CACHE_TYPE" ] && [ -n "$DETECTED_CACHE_PATH" ] && [ -n "$DETE
     echo "KERBEROS_CACHE_TICKET=$DETECTED_CACHE_TICKET"
     echo "----------------------------------------"
     echo ""
+    echo -e "${BLUE}ℹ️  Note about KERBEROS_CACHE_TICKET:${NC}"
+    if [[ "$DETECTED_CACHE_TYPE" == "DIR" ]]; then
+        echo "  For DIR format, this points to the DIRECTORY containing tickets,"
+        echo "  not a specific ticket file. The sidecar will automatically find"
+        echo "  the current valid ticket in this directory."
+    else
+        echo "  This points to where tickets are stored. When tickets expire,"
+        echo "  new tickets go to the same location automatically."
+    fi
+    echo ""
     echo -e "${YELLOW}📝 Quick setup:${NC}"
     echo "1. Copy the configuration above"
     echo "2. Run: cd platform-bootstrap"
     echo "3. Run: cp .env.example .env  (if .env doesn't exist)"
-    echo "4. Edit .env and replace the KERBEROS_* values with the ones above"
-    echo "5. Run: make platform-start"
+    echo "4. Edit .env and add the KERBEROS_* values shown above"
+    echo "5. Run: make kerberos-setup (guided) OR make platform-start (manual)"
     echo ""
     echo -e "${BLUE}Or use automatic setup:${NC}"
     echo ""
