@@ -23,9 +23,7 @@ CURRENT_STEP=1
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DETECTED_DOMAIN=""
 DETECTED_USERNAME=""
-DETECTED_CACHE_TYPE=""
-DETECTED_CACHE_PATH=""
-DETECTED_CACHE_TICKET=""
+DETECTED_TICKET_DIR=""
 CORPORATE_ENV=false
 
 # ==========================================
@@ -451,25 +449,19 @@ step_5_detect_ticket_location() {
         local diag_output=$("$SCRIPT_DIR/diagnose-kerberos.sh" 2>&1)
 
         # Try to extract configuration from diagnostic output
-        DETECTED_CACHE_TYPE=$(echo "$diag_output" | grep "^KERBEROS_CACHE_TYPE=" | cut -d= -f2)
-        DETECTED_CACHE_PATH=$(echo "$diag_output" | grep "^KERBEROS_CACHE_PATH=" | cut -d= -f2)
-        DETECTED_CACHE_TICKET=$(echo "$diag_output" | grep "^KERBEROS_CACHE_TICKET=" | cut -d= -f2)
+        DETECTED_TICKET_DIR=$(echo "$diag_output" | grep "^KERBEROS_TICKET_DIR=" | cut -d= -f2)
 
         # Show relevant parts of diagnostic output
         echo "$diag_output" | sed -n '/=== 1\. HOST KERBEROS TICKETS ===/,/=== 2\. COMMON TICKET LOCATIONS ===/p' | head -n -1
 
-        if [ -n "$DETECTED_CACHE_TYPE" ] && [ -n "$DETECTED_CACHE_PATH" ] && [ -n "$DETECTED_CACHE_TICKET" ]; then
+        if [ -n "$DETECTED_TICKET_DIR" ]; then
             echo ""
             print_success "Ticket location detected successfully!"
             echo ""
-            echo -e "  ${BLUE}Configuration Values:${NC}"
-            echo -e "    Type:      ${CYAN}$DETECTED_CACHE_TYPE${NC}"
-            echo -e "    Base path: ${CYAN}$DETECTED_CACHE_PATH${NC}"
-            if [ "$DETECTED_CACHE_TYPE" = "DIR" ]; then
-                echo -e "    Subdir:    ${CYAN}$DETECTED_CACHE_TICKET${NC} (directory containing tickets)"
-            else
-                echo -e "    Filename:  ${CYAN}$DETECTED_CACHE_TICKET${NC}"
-            fi
+            echo -e "  ${BLUE}Configuration Value:${NC}"
+            echo -e "    Ticket directory: ${CYAN}$DETECTED_TICKET_DIR${NC}"
+            echo ""
+            echo -e "  The sidecar will automatically find and copy tickets from this directory."
 
             save_state
             return 0
@@ -523,9 +515,7 @@ step_6_update_env() {
             cat > "$env_file" << EOF
 # Platform Bootstrap Configuration
 COMPANY_DOMAIN=COMPANY.COM
-KERBEROS_CACHE_TYPE=FILE
-KERBEROS_CACHE_PATH=/tmp
-KERBEROS_CACHE_TICKET=krb5cc_\$(id -u)
+KERBEROS_TICKET_DIR=/tmp
 EOF
             print_success "Created minimal .env"
         fi
@@ -535,30 +525,24 @@ EOF
     # Show current configuration
     echo "Current .env configuration:"
     echo "----------------------------------------"
-    grep -E "^(COMPANY_DOMAIN|KERBEROS_CACHE_TYPE|KERBEROS_CACHE_PATH|KERBEROS_CACHE_TICKET)=" "$env_file" 2>/dev/null | sed 's/^/  /' || echo "  (no Kerberos configuration found)"
+    grep -E "^(COMPANY_DOMAIN|KERBEROS_TICKET_DIR)=" "$env_file" 2>/dev/null | sed 's/^/  /' || echo "  (no Kerberos configuration found)"
     echo "----------------------------------------"
     echo ""
 
     # Determine if we have detected values
-    if [ -n "$DETECTED_CACHE_TYPE" ] && [ -n "$DETECTED_CACHE_PATH" ] && [ -n "$DETECTED_CACHE_TICKET" ]; then
+    if [ -n "$DETECTED_TICKET_DIR" ]; then
         echo "Detected configuration:"
         echo "----------------------------------------"
         [ -n "$DETECTED_DOMAIN" ] && echo "  COMPANY_DOMAIN=$DETECTED_DOMAIN"
-        echo "  KERBEROS_CACHE_TYPE=$DETECTED_CACHE_TYPE"
-        echo "  KERBEROS_CACHE_PATH=$DETECTED_CACHE_PATH"
-        echo "  KERBEROS_CACHE_TICKET=$DETECTED_CACHE_TICKET"
+        echo "  KERBEROS_TICKET_DIR=$DETECTED_TICKET_DIR"
         echo "----------------------------------------"
         echo ""
 
         # Check if current .env already matches detected values
         local needs_update=false
-        local current_type=$(grep "^KERBEROS_CACHE_TYPE=" "$env_file" 2>/dev/null | cut -d= -f2)
-        local current_path=$(grep "^KERBEROS_CACHE_PATH=" "$env_file" 2>/dev/null | cut -d= -f2-)
-        local current_ticket=$(grep "^KERBEROS_CACHE_TICKET=" "$env_file" 2>/dev/null | cut -d= -f2)
+        local current_dir=$(grep "^KERBEROS_TICKET_DIR=" "$env_file" 2>/dev/null | cut -d= -f2-)
 
-        if [ "$current_type" != "$DETECTED_CACHE_TYPE" ] || \
-           [ "$current_path" != "$DETECTED_CACHE_PATH" ] || \
-           [ "$current_ticket" != "$DETECTED_CACHE_TICKET" ]; then
+        if [ "$current_dir" != "$DETECTED_TICKET_DIR" ]; then
             needs_update=true
         fi
 
@@ -573,9 +557,7 @@ EOF
             if [ -n "$DETECTED_DOMAIN" ]; then
                 sed -i "s|^COMPANY_DOMAIN=.*|COMPANY_DOMAIN=$DETECTED_DOMAIN|" "$env_file"
             fi
-            sed -i "s|^KERBEROS_CACHE_TYPE=.*|KERBEROS_CACHE_TYPE=$DETECTED_CACHE_TYPE|" "$env_file"
-            sed -i "s|^KERBEROS_CACHE_PATH=.*|KERBEROS_CACHE_PATH=$DETECTED_CACHE_PATH|" "$env_file"
-            sed -i "s|^KERBEROS_CACHE_TICKET=.*|KERBEROS_CACHE_TICKET=$DETECTED_CACHE_TICKET|" "$env_file"
+            sed -i "s|^KERBEROS_TICKET_DIR=.*|KERBEROS_TICKET_DIR=$DETECTED_TICKET_DIR|" "$env_file"
 
             print_success ".env file updated successfully!"
             save_state
@@ -599,9 +581,7 @@ EOF
         echo ""
         echo "  Required variables:"
         echo "    COMPANY_DOMAIN=YOUR_DOMAIN.COM"
-        echo "    KERBEROS_CACHE_TYPE=FILE  # or DIR"
-        echo "    KERBEROS_CACHE_PATH=/path/to/cache"
-        echo "    KERBEROS_CACHE_TICKET=ticket_filename"
+        echo "    KERBEROS_TICKET_DIR=/path/to/ticket/directory"
     fi
 
     save_state
@@ -986,7 +966,7 @@ step_10_test_ticket_sharing() {
                 echo "    ${CYAN}docker logs kerberos-platform-service --tail 30${NC}"
                 echo ""
                 echo "  Common causes:"
-                echo "    - Wrong ticket path in .env (KERBEROS_CACHE_PATH)"
+                echo "    - Wrong ticket path in .env (KERBEROS_TICKET_DIR)"
                 echo "    - Missing password/keytab configuration"
             fi
 
@@ -1137,7 +1117,7 @@ show_summary() {
 
     # Show configuration
     if [ -f "$SCRIPT_DIR/.env" ]; then
-        grep -E "^(COMPANY_DOMAIN|KERBEROS_CACHE_TYPE|KERBEROS_CACHE_PATH|KERBEROS_CACHE_TICKET)=" "$SCRIPT_DIR/.env" 2>/dev/null | sed 's/^/  /' || echo "  (configuration not found)"
+        grep -E "^(COMPANY_DOMAIN|KERBEROS_TICKET_DIR)=" "$SCRIPT_DIR/.env" 2>/dev/null | sed 's/^/  /' || echo "  (configuration not found)"
     fi
 
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

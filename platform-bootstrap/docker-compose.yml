@@ -36,8 +36,8 @@ services:
       # Use developer's existing krb5.conf
       - ${KRB5_CONF_PATH:-/etc/krb5.conf}:/krb5/conf/krb5.conf:ro
 
-      # Mount WSL2 ticket cache if exists
-      - ${HOME}/.krb5_cache:/host/krb5_cache:ro
+      # Mount ticket directory from .env configuration
+      - ${KERBEROS_TICKET_DIR:-${HOME}/.krb5-cache}:/host/tickets:ro
 
     secrets:
       - krb_password
