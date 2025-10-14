@@ -22,15 +22,16 @@ echo ""
 echo -e "${YELLOW}Optional removals (you choose):${NC}"
 echo ""
 
-# Ask about images
-REMOVE_IMAGES=false
-if ask_yes_no() {
+# Helper function for yes/no prompts
+ask_yes_no() {
     local prompt="$1"
     read -p "$prompt [y/N]: " -n 1 -r
     echo
     [[ $REPLY =~ ^[Yy]$ ]]
 }
 
+# Ask about images
+REMOVE_IMAGES=false
 if ask_yes_no "Remove built sidecar image? (forces rebuild next time)"; then
     REMOVE_IMAGES=true
     echo -e "  ${YELLOW}→ Will remove: platform/kerberos-sidecar:latest${NC}"
