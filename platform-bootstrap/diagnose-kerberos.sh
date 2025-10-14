@@ -75,60 +75,53 @@ if command -v klist >/dev/null 2>&1; then
         echo ""
         echo "📍 Ticket cache location: $TICKET_CACHE"
 
-        # Parse different ticket cache formats and store values
-        DETECTED_CACHE_TYPE=""
-        DETECTED_CACHE_PATH=""
-        DETECTED_CACHE_TICKET=""
+        # Parse different ticket cache formats and extract base directory
+        DETECTED_TICKET_DIR=""
 
         if [[ "$TICKET_CACHE" == FILE:* ]]; then
             CACHE_FILE=${TICKET_CACHE#FILE:}
-            echo "  Type: FILE"
-            echo "  Path: $CACHE_FILE"
+            echo -e "  Type: FILE"
+            echo -e "  Path: $CACHE_FILE"
             if [ -f "$CACHE_FILE" ]; then
                 echo -e "  ${GREEN}✓ File exists${NC}"
                 ls -la "$CACHE_FILE"
 
-                # Determine .env values
-                DETECTED_CACHE_TYPE="FILE"
-                DETECTED_CACHE_PATH=$(dirname "$CACHE_FILE")
-                DETECTED_CACHE_TICKET=$(basename "$CACHE_FILE")
+                # Extract base directory (e.g., FILE:/tmp/krb5cc_1000 -> /tmp)
+                DETECTED_TICKET_DIR=$(dirname "$CACHE_FILE")
             else
                 echo -e "  ${RED}✗ File does not exist${NC}"
             fi
         elif [[ "$TICKET_CACHE" == DIR::* ]]; then
             # DIR format: DIR::/path/to/collection/dir/ticket_file
-            # The full path includes the ticket file, need to separate directory from filename
+            # Extract base directory (e.g., DIR::/home/user/.krb5-cache/dev/tkt -> /home/user/.krb5-cache)
             FULL_PATH=${TICKET_CACHE#DIR::}
 
             # Check if the full path is actually a file (common case)
             if [ -f "$FULL_PATH" ]; then
                 # Path includes the ticket file itself
-                # For DIR format, we want the PARENT directory that contains ticket files
-                # Not the specific ticket filename (which changes/expires)
+                # Extract base directory (remove subdirectories and ticket file)
+                # Example: /home/user/.krb5-cache/dev/tkt -> /home/user/.krb5-cache
                 TICKET_DIR=$(dirname "$FULL_PATH")
-                DETECTED_CACHE_TYPE="DIR"
-                DETECTED_CACHE_PATH=$(dirname "$TICKET_DIR")
-                DETECTED_CACHE_TICKET="$(basename "$TICKET_DIR")"
+                DETECTED_TICKET_DIR=$(dirname "$TICKET_DIR")
 
-                echo "  Type: DIR (collection)"
-                echo "  Current ticket file: $FULL_PATH"
+                echo -e "  Type: DIR (collection)"
+                echo -e "  Current ticket file: $FULL_PATH"
                 echo -e "  ${GREEN}✓ Ticket exists${NC}"
                 echo ""
-                echo "  ${BLUE}Configuration for .env:${NC}"
-                echo "    KERBEROS_CACHE_PATH:   $DETECTED_CACHE_PATH  (base directory)"
-                echo "    KERBEROS_CACHE_TICKET: $DETECTED_CACHE_TICKET  (subdirectory - NOT ticket filename)"
+                echo -e "  ${BLUE}Configuration for .env:${NC}"
+                echo -e "    KERBEROS_TICKET_DIR: $DETECTED_TICKET_DIR  (base directory)"
                 echo ""
-                echo "  ${BLUE}How it works:${NC}"
-                echo "    Sidecar searches: \$CACHE_PATH/\$CACHE_TICKET/* for active tickets"
-                echo "    Current ticket 'tkt' found automatically in '$DETECTED_CACHE_TICKET/' directory"
+                echo -e "  ${BLUE}How it works:${NC}"
+                echo -e "    Sidecar searches: \$TICKET_DIR/* for active tickets"
+                echo -e "    Current ticket found automatically"
 
             elif [ -d "$FULL_PATH" ]; then
                 # Path is a directory, need to find ticket inside
                 CACHE_DIR="$FULL_PATH"
-                echo "  Type: DIR (collection)"
-                echo "  Directory: $CACHE_DIR"
+                echo -e "  Type: DIR (collection)"
+                echo -e "  Directory: $CACHE_DIR"
                 echo -e "  ${GREEN}✓ Directory exists${NC}"
-                echo "  Contents:"
+                echo -e "  Contents:"
                 ls -la "$CACHE_DIR" 2>/dev/null | head -5
 
                 # Find the actual ticket file in the directory
@@ -140,14 +133,10 @@ if command -v klist >/dev/null 2>&1; then
                         for ticket_file in "$subdir"/*; do
                             if [ -f "$ticket_file" ] && [[ "$(basename "$ticket_file")" != "primary" ]]; then
                                 # Found ticket in subdirectory
-                                DETECTED_CACHE_TYPE="DIR"
-                                DETECTED_CACHE_PATH="$CACHE_DIR"
-                                # Get relative path from cache dir
-                                SUBDIR_NAME=$(basename "$subdir")
-                                TICKET_NAME=$(basename "$ticket_file")
-                                DETECTED_CACHE_TICKET="$SUBDIR_NAME/$TICKET_NAME"
+                                # Set base directory (not including subdir)
+                                DETECTED_TICKET_DIR="$CACHE_DIR"
                                 TICKET_FOUND="yes"
-                                echo -e "  ${GREEN}✓ Found ticket: $DETECTED_CACHE_TICKET${NC}"
+                                echo -e "  ${GREEN}✓ Found ticket in subdirectory${NC}"
                                 break 2
                             fi
                         done
@@ -158,10 +147,8 @@ if command -v klist >/dev/null 2>&1; then
                 if [ -z "$TICKET_FOUND" ]; then
                     for ticket_file in "$CACHE_DIR"/*; do
                         if [ -f "$ticket_file" ] && [[ "$(basename "$ticket_file")" != "primary" ]]; then
-                            DETECTED_CACHE_TYPE="DIR"
-                            DETECTED_CACHE_PATH="$CACHE_DIR"
-                            DETECTED_CACHE_TICKET=$(basename "$ticket_file")
-                            echo -e "  ${GREEN}✓ Found ticket: $DETECTED_CACHE_TICKET${NC}"
+                            DETECTED_TICKET_DIR="$CACHE_DIR"
+                            echo -e "  ${GREEN}✓ Found ticket: $(basename "$ticket_file")${NC}"
                             break
                         fi
                     done
@@ -170,18 +157,16 @@ if command -v klist >/dev/null 2>&1; then
                 echo -e "  ${RED}✗ Directory does not exist${NC}"
             fi
         elif [[ "$TICKET_CACHE" == KCM:* ]]; then
-            echo "  Type: KCM (Kernel Credential Cache)"
+            echo -e "  Type: KCM (Kernel Credential Cache)"
             echo -e "  ${YELLOW}⚠️  KCM tickets need special handling for Docker${NC}"
         else
             # Assume it's a simple file path
-            echo "  Type: FILE (assumed)"
+            echo -e "  Type: FILE (assumed)"
             if [ -f "$TICKET_CACHE" ]; then
                 echo -e "  ${GREEN}✓ File exists at: $TICKET_CACHE${NC}"
 
-                # Determine .env values
-                DETECTED_CACHE_TYPE="FILE"
-                DETECTED_CACHE_PATH=$(dirname "$TICKET_CACHE")
-                DETECTED_CACHE_TICKET=$(basename "$TICKET_CACHE")
+                # Extract base directory
+                DETECTED_TICKET_DIR=$(dirname "$TICKET_CACHE")
             else
                 echo -e "  ${RED}✗ File not found at: $TICKET_CACHE${NC}"
             fi
@@ -426,7 +411,7 @@ fi
 # 5. .env Configuration Values
 echo -e "\n${BLUE}=== 5. EXACT .ENV CONFIGURATION ===${NC}"
 
-if [ -n "$DETECTED_CACHE_TYPE" ] && [ -n "$DETECTED_CACHE_PATH" ] && [ -n "$DETECTED_CACHE_TICKET" ]; then
+if [ -n "$DETECTED_TICKET_DIR" ]; then
     echo -e "${GREEN}✅ Copy these exact values to your .env file:${NC}"
     echo ""
     echo "----------------------------------------"
@@ -441,34 +426,25 @@ if [ -n "$DETECTED_CACHE_TYPE" ] && [ -n "$DETECTED_CACHE_PATH" ] && [ -n "$DETE
         echo "COMPANY_DOMAIN=COMPANY.COM  # Replace with your actual domain"
     fi
 
-    echo "KERBEROS_CACHE_TYPE=$DETECTED_CACHE_TYPE"
-
     # Handle home directory path for better portability
-    if [[ "$DETECTED_CACHE_PATH" == "$HOME"* ]]; then
-        RELATIVE_PATH=${DETECTED_CACHE_PATH#$HOME}
-        echo "KERBEROS_CACHE_PATH=\${HOME}$RELATIVE_PATH"
+    if [[ "$DETECTED_TICKET_DIR" == "$HOME"* ]]; then
+        RELATIVE_PATH=${DETECTED_TICKET_DIR#$HOME}
+        echo "KERBEROS_TICKET_DIR=\${HOME}$RELATIVE_PATH"
     else
-        echo "KERBEROS_CACHE_PATH=$DETECTED_CACHE_PATH"
+        echo "KERBEROS_TICKET_DIR=$DETECTED_TICKET_DIR"
     fi
 
-    echo "KERBEROS_CACHE_TICKET=$DETECTED_CACHE_TICKET"
     echo "----------------------------------------"
     echo ""
-    echo -e "${BLUE}ℹ️  Note about KERBEROS_CACHE_TICKET:${NC}"
-    if [[ "$DETECTED_CACHE_TYPE" == "DIR" ]]; then
-        echo "  For DIR format, this points to the DIRECTORY containing tickets,"
-        echo "  not a specific ticket file. The sidecar will automatically find"
-        echo "  the current valid ticket in this directory."
-    else
-        echo "  This points to where tickets are stored. When tickets expire,"
-        echo "  new tickets go to the same location automatically."
-    fi
+    echo -e "${BLUE}ℹ️  Note about KERBEROS_TICKET_DIR:${NC}"
+    echo -e "  This is the base directory where your Kerberos tickets are stored."
+    echo -e "  The sidecar will automatically find and copy tickets from this directory."
     echo ""
     echo -e "${YELLOW}📝 Quick setup:${NC}"
     echo "1. Copy the configuration above"
     echo "2. Run: cd platform-bootstrap"
     echo "3. Run: cp .env.example .env  (if .env doesn't exist)"
-    echo "4. Edit .env and add the KERBEROS_* values shown above"
+    echo "4. Edit .env and add the KERBEROS_TICKET_DIR value shown above"
     echo "5. Run: make kerberos-setup (guided) OR make platform-start (manual)"
     echo ""
     echo -e "${BLUE}Or use automatic setup:${NC}"
@@ -477,11 +453,11 @@ if [ -n "$DETECTED_CACHE_TYPE" ] && [ -n "$DETECTED_CACHE_PATH" ] && [ -n "$DETE
     echo ""
 
     # Generate the sed commands for automatic update
-    if [[ "$DETECTED_CACHE_PATH" == "$HOME"* ]]; then
-        RELATIVE_PATH=${DETECTED_CACHE_PATH#$HOME}
-        PATH_VALUE="\${HOME}$RELATIVE_PATH"
+    if [[ "$DETECTED_TICKET_DIR" == "$HOME"* ]]; then
+        RELATIVE_PATH=${DETECTED_TICKET_DIR#$HOME}
+        DIR_VALUE="\${HOME}$RELATIVE_PATH"
     else
-        PATH_VALUE="$DETECTED_CACHE_PATH"
+        DIR_VALUE="$DETECTED_TICKET_DIR"
     fi
 
     echo "cat << 'EOF' > /tmp/update_env.sh"
@@ -491,9 +467,7 @@ if [ -n "$DETECTED_CACHE_TYPE" ] && [ -n "$DETECTED_CACHE_PATH" ] && [ -n "$DETE
     if [ -n "$DETECTED_DOMAIN" ]; then
         echo "sed -i 's/^COMPANY_DOMAIN=.*/COMPANY_DOMAIN=$DETECTED_DOMAIN/' .env"
     fi
-    echo "sed -i 's/^KERBEROS_CACHE_TYPE=.*/KERBEROS_CACHE_TYPE=$DETECTED_CACHE_TYPE/' .env"
-    echo "sed -i 's|^KERBEROS_CACHE_PATH=.*|KERBEROS_CACHE_PATH=$PATH_VALUE|' .env"
-    echo "sed -i 's|^KERBEROS_CACHE_TICKET=.*|KERBEROS_CACHE_TICKET=$DETECTED_CACHE_TICKET|' .env"
+    echo "sed -i 's|^KERBEROS_TICKET_DIR=.*|KERBEROS_TICKET_DIR=$DIR_VALUE|' .env"
     echo "echo '✅ .env file updated with Kerberos configuration!'"
     echo "EOF"
     echo "bash /tmp/update_env.sh"
@@ -524,6 +498,9 @@ elif [ -n "$TICKET_CACHE" ]; then
         # Try to provide better guidance based on what we know
         if [[ "$TICKET_CACHE" == DIR::* ]]; then
             CACHE_DIR=${TICKET_CACHE#DIR::}
+            # Extract base directory (remove subdirectories and ticket file)
+            TICKET_BASE_DIR=$(dirname "$CACHE_DIR")
+
             echo "Detected DIR format at: $CACHE_DIR"
             echo ""
             echo -e "${GREEN}Suggested .env configuration:${NC}"
@@ -536,21 +513,13 @@ elif [ -n "$TICKET_CACHE" ]; then
             else
                 echo "COMPANY_DOMAIN=COMPANY.COM  # Replace with your actual domain"
             fi
-            echo "KERBEROS_CACHE_TYPE=DIR"
 
             # Handle home directory path
-            if [[ "$CACHE_DIR" == "$HOME"* ]]; then
-                RELATIVE_PATH=${CACHE_DIR#$HOME}
-                echo "KERBEROS_CACHE_PATH=\${HOME}$RELATIVE_PATH"
+            if [[ "$TICKET_BASE_DIR" == "$HOME"* ]]; then
+                RELATIVE_PATH=${TICKET_BASE_DIR#$HOME}
+                echo "KERBEROS_TICKET_DIR=\${HOME}$RELATIVE_PATH"
             else
-                echo "KERBEROS_CACHE_PATH=$CACHE_DIR"
-            fi
-
-            # Guess common ticket patterns
-            if [[ "$CACHE_DIR" == *"/.krb5-cache"* ]]; then
-                echo "KERBEROS_CACHE_TICKET=dev/tkt  # Common pattern - adjust if different"
-            else
-                echo "KERBEROS_CACHE_TICKET=tkt  # Update based on actual ticket name"
+                echo "KERBEROS_TICKET_DIR=$TICKET_BASE_DIR"
             fi
             echo "----------------------------------------"
             echo ""
@@ -565,6 +534,8 @@ elif [ -n "$TICKET_CACHE" ]; then
             fi
         elif [[ "$TICKET_CACHE" == FILE:* ]]; then
             CACHE_FILE=${TICKET_CACHE#FILE:}
+            CACHE_DIR=$(dirname "$CACHE_FILE")
+
             echo "Detected FILE format at: $CACHE_FILE"
             echo ""
             echo -e "${GREEN}Suggested .env configuration:${NC}"
@@ -577,18 +548,13 @@ elif [ -n "$TICKET_CACHE" ]; then
             else
                 echo "COMPANY_DOMAIN=COMPANY.COM  # Replace with your actual domain"
             fi
-            echo "KERBEROS_CACHE_TYPE=FILE"
-
-            CACHE_DIR=$(dirname "$CACHE_FILE")
-            CACHE_NAME=$(basename "$CACHE_FILE")
 
             if [[ "$CACHE_DIR" == "$HOME"* ]]; then
                 RELATIVE_PATH=${CACHE_DIR#$HOME}
-                echo "KERBEROS_CACHE_PATH=\${HOME}$RELATIVE_PATH"
+                echo "KERBEROS_TICKET_DIR=\${HOME}$RELATIVE_PATH"
             else
-                echo "KERBEROS_CACHE_PATH=$CACHE_DIR"
+                echo "KERBEROS_TICKET_DIR=$CACHE_DIR"
             fi
-            echo "KERBEROS_CACHE_TICKET=$CACHE_NAME"
             echo "----------------------------------------"
             echo ""
             echo "After updating .env, get a fresh ticket:"
@@ -607,9 +573,7 @@ elif [ -n "$TICKET_CACHE" ]; then
             echo "Please manually configure your .env with:"
             echo "----------------------------------------"
             echo "COMPANY_DOMAIN=YOUR_DOMAIN.COM"
-            echo "KERBEROS_CACHE_TYPE=FILE  # or DIR"
-            echo "KERBEROS_CACHE_PATH=/path/to/ticket/directory"
-            echo "KERBEROS_CACHE_TICKET=ticket_filename"
+            echo "KERBEROS_TICKET_DIR=/path/to/ticket/directory"
             echo "----------------------------------------"
         fi
     fi
@@ -632,20 +596,14 @@ fi
 # 6. Additional Information
 echo -e "\n${BLUE}=== 6. ADDITIONAL INFORMATION ===${NC}"
 
-if [ -n "$DETECTED_CACHE_TYPE" ]; then
+if [ -n "$DETECTED_TICKET_DIR" ]; then
     echo -e "${GREEN}✓ Configuration detected successfully!${NC}"
     echo ""
-    echo "Your ticket format: $DETECTED_CACHE_TYPE"
-    if [[ "$DETECTED_CACHE_TYPE" == "DIR" ]]; then
-        echo "  This is a directory-based ticket collection."
-        echo "  Multiple tickets can be stored for different services."
-    elif [[ "$DETECTED_CACHE_TYPE" == "FILE" ]]; then
-        echo "  This is a single-file ticket format."
-        echo "  Standard and widely compatible."
-    fi
+    echo -e "Ticket directory: $DETECTED_TICKET_DIR"
+    echo -e "  The sidecar will automatically find and copy tickets from this location."
     echo ""
-    echo "📖 For detailed information about ticket formats and options, see:"
-    echo "   docs/kerberos-diagnostic-guide.md"
+    echo -e "📖 For detailed information about ticket formats and options, see:"
+    echo -e "   docs/kerberos-diagnostic-guide.md"
 elif [ -n "$TICKET_CACHE" ]; then
     if [[ "$TICKET_CACHE" == DIR::* ]]; then
         echo -e "${YELLOW}⚠️  Directory collection detected but no ticket files found${NC}"
@@ -667,7 +625,7 @@ fi
 # 7. Test Commands
 echo -e "\n${BLUE}=== 7. TEST COMMANDS ===${NC}"
 
-if [ -n "$DETECTED_CACHE_TYPE" ]; then
+if [ -n "$DETECTED_TICKET_DIR" ]; then
     echo "Your Kerberos is configured! Next steps:"
     echo ""
     echo "1. Save the .env configuration shown above"
