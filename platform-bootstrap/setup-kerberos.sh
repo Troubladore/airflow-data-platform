@@ -462,9 +462,9 @@ step_5_detect_ticket_location() {
             echo ""
             print_success "Ticket location detected successfully!"
             echo ""
-            echo "  Type:   ${CYAN}$DETECTED_CACHE_TYPE${NC}"
-            echo "  Path:   ${CYAN}$DETECTED_CACHE_PATH${NC}"
-            echo "  Ticket: ${CYAN}$DETECTED_CACHE_TICKET${NC}"
+            echo -e "  Type:   ${CYAN}$DETECTED_CACHE_TYPE${NC}"
+            echo -e "  Path:   ${CYAN}$DETECTED_CACHE_PATH${NC}"
+            echo -e "  Ticket: ${CYAN}$DETECTED_CACHE_TICKET${NC}"
 
             save_state
             return 0
