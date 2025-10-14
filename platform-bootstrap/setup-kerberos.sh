@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 
 # Progress state file for resume capability
 STATE_FILE="/tmp/.kerberos-setup-state"
-TOTAL_STEPS=10
+TOTAL_STEPS=11
 CURRENT_STEP=1
 
 # Configuration variables
@@ -26,6 +26,7 @@ DETECTED_USERNAME=""
 DETECTED_CACHE_TYPE=""
 DETECTED_CACHE_PATH=""
 DETECTED_CACHE_TICKET=""
+CORPORATE_ENV=false
 
 # ==========================================
 # Utility Functions
@@ -583,8 +584,164 @@ EOF
     save_state
 }
 
-step_7_build_sidecar() {
-    print_step 7 "Building Kerberos Sidecar Image"
+step_7_corporate_environment() {
+    print_step 7 "Corporate Environment Configuration"
+
+    echo "Does your organization block access to public Docker registries"
+    echo "(Docker Hub, download.microsoft.com, etc.)?"
+    echo ""
+    print_info "Corporate environments typically require using Artifactory or internal mirrors"
+    echo ""
+
+    if ask_yes_no "Are you in a corporate environment with restricted internet access?"; then
+        CORPORATE_ENV=true
+        echo ""
+        print_info "Corporate environment detected"
+        echo ""
+        echo "This setup will need to pull several Docker images."
+        echo "Each may be in a different Artifactory repository path."
+        echo ""
+        print_warning "Ask your DevOps team for the exact paths, or reference your"
+        print_warning "organization's Artifactory documentation."
+        echo ""
+
+        # Check if .env already has corporate config
+        if [ -f "$SCRIPT_DIR/.env" ]; then
+            local has_config=false
+            if grep -q "^IMAGE_ALPINE=" "$SCRIPT_DIR/.env" && ! grep -q "^IMAGE_ALPINE=$" "$SCRIPT_DIR/.env"; then
+                has_config=true
+            fi
+
+            if [ "$has_config" = true ]; then
+                print_success ".env already has corporate configuration"
+                echo ""
+                echo "Current settings:"
+                grep -E "^(IMAGE_ALPINE|IMAGE_PYTHON|IMAGE_MOCKSERVER|ODBC_DRIVER_URL)=" "$SCRIPT_DIR/.env" 2>/dev/null | sed 's/^/  /' || echo "  (partial configuration)"
+                echo ""
+
+                if ask_yes_no "Use existing configuration?" "y"; then
+                    save_state
+                    return 0
+                fi
+            fi
+        fi
+
+        echo ""
+        print_info "Configure Artifactory paths for Docker images"
+        echo ""
+        echo "Press Enter to use public defaults (if Artifactory mirrors them automatically)"
+        echo ""
+
+        # IMAGE_ALPINE (for sidecar base + testing)
+        echo -e "${CYAN}1. Alpine Linux (sidecar base + diagnostic tests):${NC}"
+        echo "   Public:  alpine:latest and alpine:3.19"
+        echo "   Example: artifactory.yourcompany.com/docker-remote/library/alpine"
+        echo ""
+        read -p "   Artifactory path (or Enter for public): " image_alpine
+
+        # IMAGE_PYTHON (for testing scripts)
+        echo ""
+        echo -e "${CYAN}2. Python (testing scripts use python:3.11-alpine):${NC}"
+        echo "   Public:  python:3.11-alpine"
+        echo "   Example: artifactory.yourcompany.com/docker-remote/library/python:3.11-alpine"
+        echo ""
+        read -p "   Artifactory path (or Enter for public): " image_python
+
+        # IMAGE_MOCKSERVER (mock services)
+        echo ""
+        echo -e "${CYAN}3. MockServer (for mock Delinea service):${NC}"
+        echo "   Public:  mockserver/mockserver:latest"
+        echo "   Example: artifactory.yourcompany.com/docker-remote/mockserver/mockserver:latest"
+        echo ""
+        read -p "   Artifactory path (or Enter for public): " image_mockserver
+
+        # IMAGE_ASTRONOMER (for when they create Airflow projects)
+        echo ""
+        echo -e "${CYAN}4. Astronomer Runtime (for your Airflow projects):${NC}"
+        echo "   Public:  quay.io/astronomer/astro-runtime:*"
+        echo "   Example: artifactory.yourcompany.com/quay-remote/astronomer/astro-runtime:11.10.0"
+        echo ""
+        read -p "   Artifactory path (or Enter for public): " image_astronomer
+
+        # ODBC_DRIVER_URL (Microsoft binaries)
+        echo ""
+        echo -e "${CYAN}5. Microsoft ODBC Drivers (binary downloads):${NC}"
+        echo "   Public:  https://download.microsoft.com/download/..."
+        echo "   Example: https://artifactory.yourcompany.com/microsoft-binaries/odbc/v18.3"
+        echo ""
+        read -p "   Artifactory mirror URL (or Enter for public): " odbc_url
+
+        # Update .env
+        echo ""
+        print_info "Updating .env with corporate configuration..."
+        echo ""
+
+        local env_file="$SCRIPT_DIR/.env"
+        if [ ! -f "$env_file" ]; then
+            cp "$SCRIPT_DIR/.env.example" "$env_file"
+        fi
+
+        # Helper function to update .env variable
+        update_env_var() {
+            local var_name=$1
+            local var_value=$2
+            local env_file=$3
+
+            if [ -n "$var_value" ]; then
+                if grep -q "^${var_name}=" "$env_file"; then
+                    sed -i "s|^${var_name}=.*|${var_name}=${var_value}|" "$env_file"
+                elif grep -q "^# ${var_name}=" "$env_file"; then
+                    sed -i "s|^# ${var_name}=.*|${var_name}=${var_value}|" "$env_file"
+                else
+                    echo "${var_name}=${var_value}" >> "$env_file"
+                fi
+                echo "  ✓ $var_name"
+            fi
+        }
+
+        # Update all configured variables
+        update_env_var "IMAGE_ALPINE" "$image_alpine" "$env_file"
+        update_env_var "IMAGE_PYTHON" "$image_python" "$env_file"
+        update_env_var "IMAGE_MOCKSERVER" "$image_mockserver" "$env_file"
+        update_env_var "IMAGE_ASTRONOMER" "$image_astronomer" "$env_file"
+        update_env_var "ODBC_DRIVER_URL" "$odbc_url" "$env_file"
+
+        echo ""
+        print_success "Corporate configuration saved to .env"
+
+        echo ""
+        print_warning "IMPORTANT: Docker login required!"
+        echo ""
+        echo "Before building, you must authenticate to your Artifactory:"
+        echo "  ${CYAN}docker login artifactory.yourcompany.com${NC}"
+        echo ""
+
+        if ask_yes_no "Have you already run docker login for your Artifactory?" "y"; then
+            print_success "Docker login confirmed"
+        else
+            echo ""
+            print_info "Please login to Artifactory now:"
+            echo ""
+            echo "  ${CYAN}docker login ${image_alpine%%/*}${NC}"
+            echo ""
+            read -p "Press Enter after you've logged in..."
+        fi
+
+        echo ""
+        print_success "Corporate environment configured!"
+        print_info "Build will use your Artifactory paths"
+
+    else
+        print_info "Using public internet (Docker Hub, Microsoft downloads)"
+        print_warning "Ensure you have internet connectivity for image pulls"
+    fi
+
+    echo ""
+    save_state
+}
+
+step_8_build_sidecar() {
+    print_step 8 "Building Kerberos Sidecar Image"
 
     echo -n "Checking for existing image... "
     if docker image inspect platform/kerberos-sidecar:latest >/dev/null 2>&1; then
@@ -641,8 +798,8 @@ step_7_build_sidecar() {
     fi
 }
 
-step_8_start_services() {
-    print_step 8 "Starting Platform Services"
+step_9_start_services() {
+    print_step 9 "Starting Platform Services"
 
     # Ensure Docker networks and volumes exist
     echo "Setting up Docker infrastructure..."
@@ -698,8 +855,8 @@ step_8_start_services() {
     fi
 }
 
-step_9_test_ticket_sharing() {
-    print_step 9 "Testing Kerberos Ticket Sharing"
+step_10_test_ticket_sharing() {
+    print_step 10 "Testing Kerberos Ticket Sharing"
 
     print_info "Running simple ticket sharing test..."
     echo ""
@@ -752,8 +909,8 @@ step_9_test_ticket_sharing() {
     fi
 }
 
-step_10_test_sql_server() {
-    print_step 10 "Testing SQL Server Connection (Optional)"
+step_11_test_sql_server() {
+    print_step 11 "Testing SQL Server Connection (Optional)"
 
     echo "This step tests authentication to an actual SQL Server database."
     echo ""
@@ -975,10 +1132,11 @@ main() {
     [ $CURRENT_STEP -le 4 ] && { step_4_kerberos_ticket && CURRENT_STEP=5; }
     [ $CURRENT_STEP -le 5 ] && { step_5_detect_ticket_location && CURRENT_STEP=6; }
     [ $CURRENT_STEP -le 6 ] && { step_6_update_env && CURRENT_STEP=7; }
-    [ $CURRENT_STEP -le 7 ] && { step_7_build_sidecar && CURRENT_STEP=8; }
-    [ $CURRENT_STEP -le 8 ] && { step_8_start_services && CURRENT_STEP=9; }
-    [ $CURRENT_STEP -le 9 ] && { step_9_test_ticket_sharing && CURRENT_STEP=10; }
-    [ $CURRENT_STEP -le 10 ] && { step_10_test_sql_server && CURRENT_STEP=11; }
+    [ $CURRENT_STEP -le 7 ] && { step_7_corporate_environment && CURRENT_STEP=8; }
+    [ $CURRENT_STEP -le 8 ] && { step_8_build_sidecar && CURRENT_STEP=9; }
+    [ $CURRENT_STEP -le 9 ] && { step_9_start_services && CURRENT_STEP=10; }
+    [ $CURRENT_STEP -le 10 ] && { step_10_test_ticket_sharing && CURRENT_STEP=11; }
+    [ $CURRENT_STEP -le 11 ] && { step_11_test_sql_server && CURRENT_STEP=12; }
 
     # Show summary
     show_summary
