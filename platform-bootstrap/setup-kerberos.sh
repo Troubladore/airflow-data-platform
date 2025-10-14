@@ -943,16 +943,52 @@ step_10_test_ticket_sharing() {
         print_error "Ticket sharing test FAILED"
         echo ""
         echo "Test output saved to: /tmp/kerberos-test-output.txt"
-        echo ""
-        print_warning "Kerberos may not be configured correctly"
-        echo ""
-        echo -e "  ${YELLOW}Troubleshooting steps:${NC}"
-        echo -e "  1. Check service logs: ${CYAN}docker compose logs${NC}"
-        echo -e "  2. Verify .env configuration: ${CYAN}cat .env${NC}"
-        echo -e "  3. Run diagnostic: ${CYAN}./diagnose-kerberos.sh${NC}"
-        echo -e "  4. Check ticket: ${CYAN}klist${NC}"
+        # Smart failure analysis
+        local test_output=$(cat /tmp/kerberos-test-output.txt 2>/dev/null || echo "")
+
+        echo -e "${BLUE}Analyzing failure...${NC}"
         echo ""
 
+        # Check 1: Is sidecar even running?
+        if ! docker ps --format "{{.Names}}" | grep -q "kerberos-platform-service"; then
+            print_error "ROOT CAUSE: Kerberos sidecar is NOT running"
+            echo ""
+            echo -e "${BLUE}FIX:${NC}"
+            echo "  Sidecar failed to start in Step 9. Check logs:"
+            echo "    ${CYAN}docker compose logs developer-kerberos-service${NC}"
+
+        # Check 2: Sidecar running but no ticket in volume?
+        elif echo "$test_output" | grep -q "does NOT exist"; then
+            print_error "ROOT CAUSE: Sidecar running but ticket not copied to volume"
+            echo ""
+
+            # Check if sidecar itself has a ticket
+            if docker exec kerberos-platform-service klist -s 2>/dev/null; then
+                print_warning "Sidecar HAS ticket, but not sharing it"
+                echo ""
+                echo -e "${BLUE}FIX:${NC}"
+                echo "  Check what's in volume:"
+                echo "    ${CYAN}docker exec kerberos-platform-service ls -la /krb5/cache/${NC}"
+            else
+                print_error "Sidecar does NOT have ticket"
+                echo ""
+                echo -e "${BLUE}FIX:${NC}"
+                echo "  Sidecar can't obtain tickets. Check logs:"
+                echo "    ${CYAN}docker logs kerberos-platform-service --tail 30${NC}"
+                echo ""
+                echo "  Common causes:"
+                echo "    - Wrong ticket path in .env (KERBEROS_CACHE_PATH)"
+                echo "    - Missing password/keytab configuration"
+            fi
+
+        else
+            print_warning "Test failed for unknown reason"
+            echo ""
+            echo "  Output: /tmp/kerberos-test-output.txt"
+            echo "  Diagnostic: ${CYAN}./diagnose-kerberos.sh${NC}"
+        fi
+
+        echo ""
         if ask_yes_no "Continue anyway?"; then
             save_state
             return 0
