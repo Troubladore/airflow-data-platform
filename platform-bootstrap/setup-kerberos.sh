@@ -263,6 +263,19 @@ step_2_krb5_conf() {
 step_3_test_kdc() {
     print_step 3 "Testing KDC Reachability"
 
+    # If user already has a valid ticket, KDC is obviously reachable - skip test
+    if klist -s 2>/dev/null; then
+        print_info "You already have a valid Kerberos ticket"
+        klist 2>/dev/null | head -3 | sed 's/^/  /'
+        echo ""
+        print_success "KDC is reachable (you have a valid ticket!)"
+        echo ""
+        print_info "Skipping network connectivity test - ticket proves KDC works"
+        save_state
+        return 0
+    fi
+
+    # No ticket yet - test KDC connectivity
     # Extract KDC from krb5.conf if available
     local kdc=""
     if [ -f /etc/krb5.conf ]; then
@@ -271,6 +284,8 @@ step_3_test_kdc() {
 
     if [ -n "$kdc" ]; then
         print_info "Testing connection to KDC: ${CYAN}$kdc${NC}"
+        echo ""
+        print_info "Method: TCP connection test to port 88"
         echo ""
 
         # Try to reach KDC on port 88 (Kerberos)
@@ -284,9 +299,12 @@ step_3_test_kdc() {
             echo ""
             print_success "KDC is accessible"
         else
-            print_error "Not reachable"
+            print_error "TCP test failed"
             echo ""
-            print_warning "Cannot reach KDC - you may be off VPN or have network issues"
+            print_warning "TCP connectivity test failed, but this doesn't necessarily mean there's a problem"
+            print_info "The KDC may be reachable via UDP or DNS SRV records"
+            echo ""
+            print_info "We'll verify in the next step by actually obtaining a ticket"
             echo ""
             echo "  ${YELLOW}Possible solutions:${NC}"
             echo "  1. Connect to your corporate VPN"
