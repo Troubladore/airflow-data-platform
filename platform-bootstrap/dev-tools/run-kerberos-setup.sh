@@ -69,7 +69,7 @@ if [ $RESULT -ne 0 ]; then
     print_warning "Need help troubleshooting?"
     echo ""
     echo "1. Generate diagnostic context:"
-    print_msg "   ${CYAN}./generate-diagnostic-context.sh${NC}"
+    print_msg "   ${CYAN}./diagnostics/generate-diagnostic-context.sh${NC}"
     echo ""
     echo "2. Copy the generated report to ChatGPT or Claude"
     echo ""

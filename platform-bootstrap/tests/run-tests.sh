@@ -49,7 +49,7 @@ echo ""
 print_section "2. STATIC ANALYSIS"
 
 if command -v shellcheck >/dev/null 2>&1; then
-    for script in "$PROJECT_ROOT"/{test-sql-direct.sh,krb5-auth-test.sh,test-sql-container.sh} "$PROJECT_ROOT"/lib/*.sh; do
+    for script in "$PROJECT_ROOT"/diagnostics/{test-sql-direct.sh,krb5-auth-test.sh} "$PROJECT_ROOT"/dev-tools/test-sql-container.sh "$PROJECT_ROOT"/lib/*.sh; do
         if [[ -f "$script" ]]; then
             name=$(basename "$script")
             # Exclude some checks that are too strict
@@ -98,7 +98,7 @@ run_test_section "  Library loading" "$TEMP_TEST"
 rm -f "$TEMP_TEST"
 
 # Test that test-sql-direct.sh has valid syntax after fix
-run_test_section "  test-sql-direct.sh syntax" "bash -n '$PROJECT_ROOT/test-sql-direct.sh'"
+run_test_section "  test-sql-direct.sh syntax" "bash -n '$PROJECT_ROOT/diagnostics/test-sql-direct.sh'"
 
 echo ""
 

@@ -75,7 +75,7 @@ if ! docker ps | grep -q "kerberos-platform-service"; then
     echo "Start it with: make platform-start"
     echo ""
     echo "Or run direct host test instead:"
-    echo "  ./test-sql-direct.sh $SQL_SERVER $SQL_DATABASE"
+    echo "  ./diagnostics/test-sql-direct.sh $SQL_SERVER $SQL_DATABASE"
     exit 1
 fi
 
@@ -180,7 +180,7 @@ docker run --rm \
                     echo ""
                     echo "This is likely a network or SPN issue."
                     echo "Try the direct host test to isolate:"
-                    echo "  ./test-sql-direct.sh $SQL_SERVER $SQL_DATABASE"
+                    echo "  ./diagnostics/test-sql-direct.sh $SQL_SERVER $SQL_DATABASE"
                 fi
             fi
 
@@ -321,7 +321,7 @@ else
     echo ""
     echo "Troubleshooting steps:"
     echo "  1. Check sidecar: docker logs kerberos-platform-service"
-    echo "  2. Test from host: ./test-sql-direct.sh $SQL_SERVER $SQL_DATABASE"
+    echo "  2. Test from host: ./diagnostics/test-sql-direct.sh $SQL_SERVER $SQL_DATABASE"
     echo "  3. Run verbose diagnostics: $0 $SQL_SERVER $SQL_DATABASE -v"
 fi
 
