@@ -136,8 +136,8 @@ kerberos-refresh: ## Refresh Kerberos ticket
 	@echo "Refreshing Kerberos ticket..."
 	@docker exec -it kerberos-platform-service kinit $(USER)@$(COMPANY_DOMAIN)
 
-kerberos-setup: ## Interactive wizard to set up Kerberos from scratch
-	@./setup-kerberos.sh
+kerberos-setup: ## Interactive wizard to set up Kerberos from scratch (with logging)
+	@./run-kerberos-setup.sh
 
 kerberos-diagnose: ## Diagnose Kerberos configuration issues
 	@./diagnose-kerberos.sh
