@@ -188,6 +188,13 @@ test_script "diagnostics/test-sql-direct.sh" "
 test_script "diagnostics/test-sql-simple.sh" "bash -n ./diagnostics/test-sql-simple.sh" "Simple SQL test syntax"
 
 echo ""
+echo -e "${CYAN}=== MAKEFILE TARGET VALIDATION ===${NC}"
+echo ""
+
+# Test that all Makefile targets work
+test_script "Makefile targets" "./tests/test-makefile-targets.sh >/dev/null 2>&1 && echo 'All targets valid'" "All make commands work"
+
+echo ""
 echo -e "${BOLD}============================================${NC}"
 echo -e "${BOLD}                   SUMMARY                  ${NC}"
 echo -e "${BOLD}============================================${NC}"

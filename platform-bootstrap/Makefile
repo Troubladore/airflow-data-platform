@@ -35,19 +35,25 @@ help: ## Show this help message
 # Installation & Setup
 # ==========================================
 
-install: ## Install prerequisites (Docker, Astronomer CLI, etc.)
-	@echo "Installing prerequisites..."
-	@./setup-scripts/install-prereqs.sh
-	@echo "✓ Prerequisites installed"
+# TODO: These targets need implementation
+# install: ## Install prerequisites (Docker, Astronomer CLI, etc.)
+# 	@echo "Installing prerequisites..."
+# 	@./setup-scripts/install-prereqs.sh
+# 	@echo "✓ Prerequisites installed"
 
-configure: ## Configure environment (Artifactory, Kerberos, etc.)
-	@echo "Configuring environment..."
-	@./setup-scripts/configure-environment.sh
-	@echo "✓ Environment configured"
+# configure: ## Configure environment (Artifactory, Kerberos, etc.)
+# 	@echo "Configuring environment..."
+# 	@./setup-scripts/configure-environment.sh
+# 	@echo "✓ Environment configured"
 
-validate: ## Validate environment is ready
-	@echo "Validating environment..."
-	@./setup-scripts/validate-environment.sh
+# validate: ## Validate environment is ready
+# 	@echo "Validating environment..."
+# 	@./setup-scripts/validate-environment.sh
+
+# For now, use kerberos-setup for configuration:
+install: ## Run interactive setup wizard (replaces old install/configure/validate)
+	@echo "Running setup wizard..."
+	@./dev-tools/setup-kerberos.sh
 
 # ==========================================
 # Platform Services
