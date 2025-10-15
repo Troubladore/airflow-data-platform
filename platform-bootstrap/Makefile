@@ -137,10 +137,10 @@ kerberos-refresh: ## Refresh Kerberos ticket
 	@docker exec -it kerberos-platform-service kinit $(USER)@$(COMPANY_DOMAIN)
 
 kerberos-setup: ## Interactive wizard to set up Kerberos from scratch (with logging)
-	@./run-kerberos-setup.sh
+	@./dev-tools/run-kerberos-setup.sh
 
 kerberos-diagnose: ## Diagnose Kerberos configuration issues
-	@./diagnose-kerberos.sh
+	@./diagnostics/diagnose-kerberos.sh
 
 test-kerberos-simple: ## Test that Kerberos tickets are shared with containers
 	@echo "Testing Kerberos ticket sharing..."
@@ -155,7 +155,7 @@ test-kerberos-simple: ## Test that Kerberos tickets are shared with containers
 		(echo "❌ FAILED: Check that 'make platform-start' has been run" && exit 1)
 
 test-kerberos-full: ## Interactive test of SQL Server connection with Kerberos
-	@./test-kerberos.sh
+	@./dev-tools/test-kerberos.sh
 
 # ==========================================
 # Mock Services
@@ -192,7 +192,7 @@ create-project: ## Create new Astronomer project from template
 
 test-connection: ## Test SQL Server connection through Kerberos
 	@echo "Testing SQL Server connection..."
-	@./test-kerberos.sh
+	@./dev-tools/test-kerberos.sh
 
 debug-logs: ## Show logs from all platform services
 	@echo "Platform service logs:"
@@ -212,10 +212,10 @@ debug-logs: ## Show logs from all platform services
 
 clean: platform-stop ## Clean up platform services and volumes (keeps images)
 	@echo "Cleaning up platform services..."
-	@echo "1" | ./clean-slate.sh || true
+	@echo "1" | ./dev-tools/clean-slate.sh || true
 
 clean-slate: ## Interactive cleanup (option to remove built images too)
-	@./clean-slate.sh
+	@./dev-tools/clean-slate.sh
 
 reset: clean ## Reset everything to fresh state
 	@echo "Resetting platform..."
