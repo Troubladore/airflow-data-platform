@@ -104,6 +104,12 @@ if [ "$REMOVE_IMAGES" = true ]; then
     echo "Removing built images..."
 
     if docker rmi platform/kerberos-sidecar:latest 2>/dev/null; then
+
+    if docker rmi platform/kerberos-test:latest 2>/dev/null; then
+        echo -e "${GREEN}✓${NC} Removed platform/kerberos-test:latest"
+    else
+        echo "  platform/kerberos-test:latest: not found"
+    fi
         echo -e "${GREEN}✓${NC} Removed platform/kerberos-sidecar:latest"
     else
         echo "  platform/kerberos-sidecar:latest: not found"

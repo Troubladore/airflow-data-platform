@@ -37,6 +37,21 @@ build: check-requirements ## Build sidecar image for local development
 	@echo "Image ready for local development"
 	@echo "To use: docker compose -f ../docker-compose.yml up -d"
 
+build-test-image: ## Build SQL Server test image with pyodbc pre-installed
+	@echo "Building SQL Server test image..."
+	@printf "Base: %s\n" "${IMAGE_PYTHON:-python:3.11-alpine}"
+	@echo ""
+	@echo "Note: Uses pip configuration from your machine (~/.pip/pip.conf)"
+	@echo "      Ensure corporate PyPI mirror is configured if in corporate environment"
+	@echo ""
+	docker build \
+		-f Dockerfile.test-image \
+		$(if $(IMAGE_PYTHON),--build-arg IMAGE_PYTHON=$(IMAGE_PYTHON),) \
+		-t platform/kerberos-test:latest .
+	@echo "✓ Built: platform/kerberos-test:latest"
+	@echo ""
+	@echo "This image has pyodbc pre-installed (no runtime pip downloads)"
+
 test: ## Test sidecar image locally
 	@echo "Testing sidecar image..."
 	@echo "1. Checking image exists..."

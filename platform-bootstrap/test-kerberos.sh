@@ -10,14 +10,26 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Load .env for IMAGE_PYTHON configuration
+# Load .env for configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "$SCRIPT_DIR/.env" ]; then
     source "$SCRIPT_DIR/.env" 2>/dev/null || true
 fi
 
-# Use configured Python image or default
-TEST_IMAGE="${IMAGE_PYTHON:-python:3.11-alpine}"
+# Use pre-built test image if available, otherwise fall back to runtime install
+# The pre-built image has pyodbc installed (avoids corporate PyPI blocks)
+if docker image inspect platform/kerberos-test:latest >/dev/null 2>&1; then
+    TEST_IMAGE="platform/kerberos-test:latest"
+    USE_PREBUILT=true
+    echo -e "${GREEN}✓ Using pre-built test image (pyodbc already installed)${NC}"
+else
+    TEST_IMAGE="${IMAGE_PYTHON:-python:3.11-alpine}"
+    USE_PREBUILT=false
+    echo -e "${YELLOW}⚠ Using runtime image (will install pyodbc via pip)${NC}"
+    echo "  For corporate environments, build test image first:"
+    echo "  cd kerberos-sidecar && make build-test-image"
+    echo ""
+fi
 
 echo "🔍 Kerberos SQL Server Connection Tester"
 echo "========================================"
@@ -114,18 +126,32 @@ echo ""
 echo "(This may take a minute to download dependencies...)"
 echo ""
 
-# Run the actual test and capture output
-TEST_OUTPUT=$(docker run --rm \
-  --network platform_network \
-  -v platform_kerberos_cache:/krb5/cache:ro \
-  -v $(pwd)/test_kerberos.py:/app/test_kerberos.py \
-  -e KRB5CCNAME=/krb5/cache/krb5cc \
-  -e SQL_SERVER="$SQL_SERVER" \
-  -e SQL_DATABASE="$SQL_DATABASE" \
-  "$TEST_IMAGE" \
-  sh -c "apk add --no-cache krb5 gcc musl-dev unixodbc-dev >/dev/null 2>&1 && \
-         pip install --no-cache-dir pyodbc >/dev/null 2>&1 && \
-         python /app/test_kerberos.py" 2>&1)
+# Run the actual test
+if [ "$USE_PREBUILT" = true ]; then
+    # Pre-built image already has everything
+    TEST_OUTPUT=$(docker run --rm \
+      --network platform_network \
+      -v platform_kerberos_cache:/krb5/cache:ro \
+      -v $(pwd)/test_kerberos.py:/app/test_kerberos.py \
+      -e KRB5CCNAME=/krb5/cache/krb5cc \
+      -e SQL_SERVER="$SQL_SERVER" \
+      -e SQL_DATABASE="$SQL_DATABASE" \
+      "$TEST_IMAGE" \
+      python /app/test_kerberos.py 2>&1)
+else
+    # Runtime image - install dependencies first
+    TEST_OUTPUT=$(docker run --rm \
+      --network platform_network \
+      -v platform_kerberos_cache:/krb5/cache:ro \
+      -v $(pwd)/test_kerberos.py:/app/test_kerberos.py \
+      -e KRB5CCNAME=/krb5/cache/krb5cc \
+      -e SQL_SERVER="$SQL_SERVER" \
+      -e SQL_DATABASE="$SQL_DATABASE" \
+      "$TEST_IMAGE" \
+      sh -c "apk add --no-cache krb5 gcc musl-dev unixodbc-dev >/dev/null 2>&1 && \
+             pip install --no-cache-dir pyodbc >/dev/null 2>&1 && \
+             python /app/test_kerberos.py" 2>&1)
+fi
 
 TEST_EXIT_CODE=$?
 
