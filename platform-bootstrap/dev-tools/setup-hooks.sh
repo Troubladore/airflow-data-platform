@@ -24,7 +24,7 @@ echo "======================================="
 echo ""
 
 # Check if we're in a git repository
-if [ ! -d "$SCRIPT_DIR/.git" ]; then
+if [ ! -d "$PLATFORM_DIR/.git" ] && [ ! -d "$PLATFORM_DIR/../.git" ]; then
     echo -e "${YELLOW}Warning: Not in a git repository${NC}"
     echo "This script should be run from the platform-bootstrap directory"
     exit 1
@@ -32,7 +32,7 @@ fi
 
 # Configure git to use our hooks directory
 echo "Configuring git to use .githooks directory..."
-git config core.hooksPath .githooks
+git config core.hooksPath "$PLATFORM_DIR/.githooks"
 
 echo -e "${GREEN}✓${NC} Git configured to use .githooks/"
 echo ""
@@ -51,22 +51,29 @@ else
 fi
 echo ""
 
-# Test the pre-push hook
-echo "Testing pre-push hook..."
-if [ -x "$SCRIPT_DIR/.githooks/pre-push" ]; then
+# Test the hooks
+echo "Testing hooks..."
+if [ -x "$PLATFORM_DIR/.githooks/pre-commit" ]; then
+    echo -e "${GREEN}✓${NC} pre-commit hook is executable"
+else
+    echo -e "${YELLOW}⚠${NC} pre-commit hook is not executable"
+    echo "  Run: chmod +x $PLATFORM_DIR/.githooks/pre-commit"
+fi
+
+if [ -x "$PLATFORM_DIR/.githooks/pre-push" ]; then
     echo -e "${GREEN}✓${NC} pre-push hook is executable"
 
     # Run a quick validation
     echo ""
     echo "Running validation test..."
-    if "$SCRIPT_DIR/.githooks/pre-push" > /dev/null 2>&1; then
+    if "$PLATFORM_DIR/.githooks/pre-push" > /dev/null 2>&1; then
         echo -e "${GREEN}✓${NC} Validation passed - your scripts are demo-safe!"
     else
-        echo -e "${YELLOW}⚠${NC} Some scripts have issues - run ./tests/dry-run-all-scripts.sh for details"
+        echo -e "${YELLOW}⚠${NC} Some scripts have issues - run $PLATFORM_DIR/tests/dry-run-all-scripts.sh for details"
     fi
 else
     echo -e "${YELLOW}⚠${NC} pre-push hook is not executable"
-    echo "  Run: chmod +x .githooks/pre-push"
+    echo "  Run: chmod +x $PLATFORM_DIR/.githooks/pre-push"
 fi
 
 echo ""
