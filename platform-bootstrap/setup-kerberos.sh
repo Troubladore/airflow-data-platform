@@ -762,6 +762,8 @@ step_7_corporate_environment() {
         update_env_var "IMAGE_MOCKSERVER" "$image_mockserver" "$env_file"
         update_env_var "IMAGE_ASTRONOMER" "$image_astronomer" "$env_file"
         update_env_var "ODBC_DRIVER_URL" "$odbc_url" "$env_file"
+        update_env_var "PIP_INDEX_URL" "$pip_index_url" "$env_file"
+        update_env_var "PIP_TRUSTED_HOST" "$pip_trusted_host" "$env_file"
 
         echo ""
         print_success "Corporate configuration saved to .env"

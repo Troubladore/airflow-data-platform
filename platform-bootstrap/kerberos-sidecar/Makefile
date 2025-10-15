@@ -41,16 +41,36 @@ build-test-image: ## Build SQL Server test image with pyodbc pre-installed
 	@echo "Building SQL Server test image..."
 	@printf "Base: %s\n" "${IMAGE_PYTHON:-python:3.11-alpine}"
 	@echo ""
-	@echo "Note: Uses pip configuration from your machine (~/.pip/pip.conf)"
-	@echo "      Ensure corporate PyPI mirror is configured if in corporate environment"
-	@echo ""
+	@echo "Auto-detecting Python package index configuration..."
+	@# Try UV config first (preferred)
+	@AUTO_INDEX=$$(python3 -c "import tomllib; c=tomllib.load(open('${HOME}/.config/uv/uv.toml','rb')); print([i['url'] for i in c.get('index',[]) if i.get('name')=='primary'][0])" 2>/dev/null || echo ""); \
+	if [ -n "$$AUTO_INDEX" ]; then \
+		echo "  Found UV config: $$AUTO_INDEX"; \
+		AUTO_TRUSTED=$$(echo $$AUTO_INDEX | sed 's|https\?://||' | cut -d/ -f1); \
+		export PIP_INDEX_URL=$$AUTO_INDEX; \
+		export PIP_TRUSTED_HOST=$$AUTO_TRUSTED; \
+	elif [ -f "${HOME}/.pip/pip.conf" ]; then \
+		AUTO_INDEX=$$(grep "index-url" ${HOME}/.pip/pip.conf | cut -d= -f2- | tr -d ' '); \
+		if [ -n "$$AUTO_INDEX" ]; then \
+			echo "  Found pip.conf: $$AUTO_INDEX"; \
+			AUTO_TRUSTED=$$(echo $$AUTO_INDEX | sed 's|https\?://||' | cut -d/ -f1); \
+			export PIP_INDEX_URL=$$AUTO_INDEX; \
+			export PIP_TRUSTED_HOST=$$AUTO_TRUSTED; \
+		fi; \
+	else \
+		echo "  No UV/pip config found - using public PyPI"; \
+		echo "  For corporate: Configure ~/.config/uv/uv.toml or ~/.pip/pip.conf"; \
+	fi; \
+	echo ""; \
 	docker build \
 		-f Dockerfile.test-image \
 		$(if $(IMAGE_PYTHON),--build-arg IMAGE_PYTHON=$(IMAGE_PYTHON),) \
+		--build-arg PIP_INDEX_URL=$$PIP_INDEX_URL \
+		--build-arg PIP_TRUSTED_HOST=$$PIP_TRUSTED_HOST \
 		-t platform/kerberos-test:latest .
 	@echo "✓ Built: platform/kerberos-test:latest"
 	@echo ""
-	@echo "This image has pyodbc pre-installed (no runtime pip downloads)"
+	@echo "This image uses UV for fast package installation"
 
 test: ## Test sidecar image locally
 	@echo "Testing sidecar image..."
