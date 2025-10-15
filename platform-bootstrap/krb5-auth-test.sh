@@ -580,12 +580,39 @@ check_common_issues() {
 # 7. GENERATE SUMMARY REPORT
 generate_summary() {
     if [ "$JSON_OUTPUT" = true ]; then
-        # Output JSON
-        echo "{"
+        # Output JSON with full context for MCP agents
+        cat << EOF
+{
+  "version": "$VERSION",
+  "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "context": {
+    "purpose": "Kerberos authentication diagnostic",
+    "environment": "${RESULTS[environment]:-unknown}",
+    "platform": "${RESULTS[platform]:-unknown}"
+  },
+  "results": {
+EOF
         for key in "${!RESULTS[@]}"; do
-            echo "  \"$key\": \"${RESULTS[$key]}\","
+            echo "    \"$key\": \"${RESULTS[$key]}\","
         done | sed '$ s/,$//'
-        echo "}"
+        cat << EOF
+  },
+  "recommendations": [
+EOF
+        if [ "${RESULTS[ticket_valid]}" != "true" ]; then
+            echo '    {"action": "obtain_ticket", "command": "kinit username@REALM", "reason": "No valid Kerberos ticket"},'
+        fi
+        if [ "${RESULTS[time_sync]}" = "false" ]; then
+            echo '    {"action": "sync_time", "command": "sudo timedatectl set-ntp true", "reason": "Time not synchronized"},'
+        fi
+        if [ "${RESULTS[sql_error]}" = "kerberos_failed" ]; then
+            echo '    {"action": "check_spns", "command": "setspn -L <service_account>", "reason": "SQL Server SPN issue"},'
+        fi
+        echo "    {}"
+        cat << EOF
+  ]
+}
+EOF
         return
     fi
 
@@ -642,6 +669,19 @@ generate_summary() {
     echo ""
     echo "Run with -v for detailed diagnostics"
     echo "Run with -j for JSON output (automation-friendly)"
+
+    # Generate LLM-friendly report if verbose mode was used
+    if [ "$VERBOSE_MODE" = true ] && [ "$JSON_OUTPUT" = false ]; then
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "💡 Tip: To get help from ChatGPT or Claude:"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "1. Run: ./generate-diagnostic-context.sh"
+        echo "2. Copy the generated diagnostic-context.md"
+        echo "3. Paste into the LLM with your question"
+        echo ""
+        echo "The report includes all context needed for diagnosis."
+    fi
 }
 
 # Main execution
