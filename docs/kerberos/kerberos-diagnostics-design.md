@@ -255,12 +255,208 @@ Review KDC logs for:
 - Maintain detailed logging with correlation IDs
 - Document your specific environment's quirks
 
+## Diagnostic Output Design: Human vs AI Agent Consumption
+
+### The Paradigm Shift in Diagnostic Consumption
+
+Modern diagnostic tools must serve two distinct but overlapping audiences:
+
+1. **Human operators** who need readable, actionable information
+2. **AI assistants** (ChatGPT, Claude) that help humans troubleshoot
+3. **Future MCP agents** that will programmatically consume and act on diagnostics
+
+### Design Principles for AI-Ready Diagnostics
+
+#### 1. Self-Contained Context
+Every diagnostic output should contain **complete grounding information** that allows an LLM or MCP agent to understand the situation without additional context:
+
+```markdown
+# Example Structure
+## System Context
+- Environment: WSL2/Docker/Kubernetes
+- Purpose: Kerberos authentication for SQL Server
+- Architecture: Sidecar pattern for ticket sharing
+
+## Current State
+- All relevant configuration
+- Current status of all components
+- Recent actions taken
+
+## Problem Description
+- What is failing
+- When it started failing
+- What changed recently
+
+## Diagnostic Data
+- Structured test results
+- Error messages with full context
+- Network/DNS/Time sync status
+```
+
+#### 2. Structured Output Formats
+
+Provide multiple output modes to serve different consumers:
+
+```bash
+# Human-readable (default)
+./diagnostic-tool.sh
+
+# JSON for MCP agents and monitoring
+./diagnostic-tool.sh --json > diagnostic.json
+
+# Markdown for LLM consumption
+./diagnostic-tool.sh --markdown > context.md
+```
+
+#### 3. Actionable Recommendations
+
+Include specific, executable commands for remediation:
+
+```json
+{
+  "issues": [
+    {
+      "id": "no_ticket",
+      "severity": "critical",
+      "description": "No valid Kerberos ticket found",
+      "recommendation": {
+        "action": "obtain_ticket",
+        "command": "kinit username@REALM",
+        "rationale": "Kerberos requires valid ticket for authentication"
+      }
+    }
+  ]
+}
+```
+
+#### 4. Progressive Disclosure
+
+Structure output for both quick scanning and deep analysis:
+
+```
+=== SUMMARY ===
+❌ Authentication failing: No valid Kerberos ticket
+
+=== QUICK FIX ===
+Run: kinit username@DOMAIN.COM
+
+=== DETAILED ANALYSIS ===
+[Full diagnostic data for LLM consumption]
+```
+
+### Implementation Patterns
+
+#### Pattern 1: Diagnostic Context Generator
+Create standalone scripts that generate complete diagnostic contexts:
+
+```bash
+# generate-diagnostic-context.sh
+# Outputs a complete markdown file that can be pasted to ChatGPT/Claude
+# Includes all system info, configurations, test results, and recommendations
+```
+
+#### Pattern 2: Logging with Dual Output
+Setup wizards and long-running processes should:
+- Display output to screen for human monitoring
+- Save to timestamped log files for later analysis
+- Maintain "latest" symlinks for easy access
+
+```bash
+# run-setup.sh | tee logs/setup-$(date +%Y%m%d-%H%M%S).log
+# ln -sf $LOG_FILE logs/setup-latest.log
+```
+
+#### Pattern 3: Test Output Annotations
+Include metadata that helps LLMs understand test significance:
+
+```yaml
+test_result:
+  name: "SQL Server Kerberos Authentication"
+  purpose: "Verify container can authenticate to SQL Server using shared Kerberos tickets"
+  prerequisites:
+    - "Valid Kerberos ticket"
+    - "Network connectivity to SQL Server"
+    - "Correct SPNs registered"
+  result: "FAILED"
+  error: "Cannot authenticate using Kerberos"
+  likely_cause: "Missing or incorrect SPN registration"
+  suggested_action: "Contact DBA to verify SPNs with: setspn -L <service_account>"
+```
+
+### Future MCP (Model Context Protocol) Considerations
+
+As MCP adoption grows, our diagnostics should be ready:
+
+1. **Semantic Structure**: Use consistent JSON schemas that MCP servers can interpret
+2. **Tool Definitions**: Expose diagnostic functions as MCP tools
+3. **State Management**: Provide stateful diagnostic sessions that agents can iterate on
+4. **Correlation IDs**: Enable tracking across distributed systems
+
+Example MCP-ready diagnostic:
+```json
+{
+  "version": "1.0.0",
+  "protocol": "mcp",
+  "session_id": "diag-2024-10-15-001",
+  "context": {
+    "system": "kerberos-sidecar",
+    "environment": "development",
+    "correlation_id": "req-123456"
+  },
+  "capabilities": [
+    "test_ticket_validity",
+    "verify_network_connectivity",
+    "check_spn_registration"
+  ],
+  "current_state": { ... },
+  "available_actions": [ ... ]
+}
+```
+
+### Best Practices for AI-Assisted Troubleshooting
+
+1. **Always include timestamps** - LLMs need to know data freshness
+2. **Explain acronyms on first use** - Not all LLMs have domain knowledge
+3. **Include examples of working state** - Helps LLMs understand what "good" looks like
+4. **Provide file paths and locations** - Enables specific guidance
+5. **Version your diagnostic output** - Allows LLMs to handle format changes
+6. **Test with actual LLMs** - Verify output is genuinely helpful
+
+### Measuring Diagnostic Effectiveness
+
+Track whether your diagnostics are AI-friendly:
+
+- Can an LLM solve the issue with ONLY your diagnostic output?
+- Does the output avoid ambiguity that confuses LLMs?
+- Are recommendations specific and executable?
+- Is the context complete without being overwhelming?
+
+### Example: LLM-Optimized Error Message
+
+Instead of:
+```
+Error: Authentication failed
+```
+
+Provide:
+```
+Error: Kerberos authentication to SQL Server failed
+System: Container attempting to connect to sqlserver01.company.com:1433
+Method: Using Kerberos ticket from shared cache at /krb5/cache/krb5cc
+Ticket Status: Valid (expires 2024-10-15 18:00 UTC)
+Network: Port 1433 reachable
+Likely Cause: SQL Server SPN not registered or incorrect
+Next Step: Run './check-sql-spn.sh sqlserver01.company.com' to verify SPN
+If SPN missing: Ask DBA to run 'setspn -A MSSQLSvc/sqlserver01.company.com:1433 <service_account>'
+```
+
 ## Additional Resources
 
 - [MIT Kerberos Documentation](https://web.mit.edu/kerberos/krb5-latest/doc/)
 - [Kerberos Wiki Debugging Guide](https://k5wiki.kerberos.org/wiki/Debugging)
 - [Microsoft Kerberos Troubleshooting](https://docs.microsoft.com/en-us/windows-server/security/kerberos/)
+- [Model Context Protocol Specification](https://modelcontextprotocol.io/)
 
 ---
 
-*This guide is based on industry-standard practices and tools, adapted for the specific challenges of running Kerberos authentication in containerized environments.*
+*This guide is based on industry-standard practices and tools, adapted for the specific challenges of running Kerberos authentication in containerized environments, with forward-looking considerations for AI-assisted and automated troubleshooting.*
