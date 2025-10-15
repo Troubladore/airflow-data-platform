@@ -70,7 +70,19 @@ echo ""
 CLEAR_HOST_TICKETS=false
 if ask_yes_no "Clear host-side Kerberos tickets? (removes all ticket caches)"; then
     CLEAR_HOST_TICKETS=true
-    print_arrow "WARN" "Will remove: /tmp/krb5*, /dev/shm/krb5*, etc."
+
+    # Check if custom directory is configured
+    CUSTOM_TICKET_MSG=""
+    if [ -f "$PLATFORM_DIR/.env" ]; then
+        # Source the .env to check for custom directory
+        source "$PLATFORM_DIR/.env" 2>/dev/null || true
+        if [ -n "$KERBEROS_TICKET_DIR" ]; then
+            EXPANDED_DIR=$(eval echo "$KERBEROS_TICKET_DIR")
+            CUSTOM_TICKET_MSG=", $EXPANDED_DIR/*"
+        fi
+    fi
+
+    print_arrow "WARN" "Will remove: /tmp/krb5*, /dev/shm/krb5*${CUSTOM_TICKET_MSG}"
     print_arrow "WARN" "Warning: This affects ALL users on the host"
 else
     print_arrow "PASS" "Will keep: Host-side Kerberos tickets"
@@ -157,6 +169,34 @@ if [ "$CLEAR_HOST_TICKETS" = true ]; then
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         removed_count=0
+
+        # Load custom ticket directory from .env if it exists
+        if [ -f "$PLATFORM_DIR/.env" ]; then
+            # Source the .env file to get KERBEROS_TICKET_DIR
+            source "$PLATFORM_DIR/.env" 2>/dev/null || true
+
+            # Clean custom ticket directory if configured
+            if [ -n "$KERBEROS_TICKET_DIR" ]; then
+                # Expand HOME variable if present
+                EXPANDED_DIR=$(eval echo "$KERBEROS_TICKET_DIR")
+
+                if [ -d "$EXPANDED_DIR" ]; then
+                    print_status "INFO" "Checking custom ticket directory: $EXPANDED_DIR"
+
+                    # Remove ticket files in custom directory
+                    for ticket in "$EXPANDED_DIR"/krb5cc_* "$EXPANDED_DIR"/krb5_* "$EXPANDED_DIR"/tkt* "$EXPANDED_DIR"/dev/tkt*; do
+                        if [ -f "$ticket" ] || [ -d "$ticket" ]; then
+                            if rm -rf "$ticket" 2>/dev/null; then
+                                print_status "PASS" "Removed $ticket"
+                                removed_count=$((removed_count + 1))
+                            else
+                                print_status "WARN" "Could not remove $ticket (permission denied?)"
+                            fi
+                        fi
+                    done
+                fi
+            fi
+        fi
 
         # Remove file-based ticket caches in /tmp
         for ticket in /tmp/krb5cc_* /tmp/krb5_*; do
