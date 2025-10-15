@@ -228,6 +228,21 @@ exceptions:
     expires: "2026-10-12"
     review_frequency: "annual"
 
+  # Exception 18: Docker installation documentation
+  - pattern: "curl -fsSL https://get.docker.com | sh"
+    category: "dynamic_downloads"
+    justification: |
+      WHAT: Documentation showing "curl -fsSL https://get.docker.com | sh" for Docker installation
+      WHY FLAGGED: Pipe-to-shell pattern detected
+      WHY ACCEPTED: This is documentation text showing users how to install Docker if missing
+      RISK LEVEL: None - documentation text in echo statement, not executed code
+      CONTEXT: Part of build requirements check that helps users fix missing prerequisites
+      LOCATION: platform-bootstrap/kerberos-sidecar/scripts/check-build-requirements.sh line 62
+    accepted_by: "Platform Team"
+    accepted_date: "2025-10-14"
+    expires: "2026-10-14"
+    review_frequency: "annual"
+
 # Global settings
 settings:
   # Require approval for new exceptions

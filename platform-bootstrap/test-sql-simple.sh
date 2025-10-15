@@ -4,6 +4,11 @@
 
 set -e
 
+# Load .env to get corporate image sources
+if [ -f .env ]; then
+    source .env
+fi
+
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
@@ -51,9 +56,9 @@ docker run --rm \
     -e KRB5CCNAME=/krb5/cache/krb5cc \
     -e SQL_SERVER="$SQL_SERVER" \
     -e SQL_DATABASE="$SQL_DATABASE" \
-    alpine:latest \
+    ${IMAGE_ALPINE:-alpine:latest} \
     sh -c '
-        apk add --no-cache python3 py3-pip krb5 freetds >/dev/null 2>&1 || exit 1
+        apk add --no-cache krb5 freetds >/dev/null 2>&1 || exit 1
 
         # Simple test using tsql (FreeTDS - no pyodbc complexity)
         echo "Testing with FreeTDS (simpler than ODBC)..."
