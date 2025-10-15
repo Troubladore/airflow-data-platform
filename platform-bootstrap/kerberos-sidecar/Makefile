@@ -62,15 +62,29 @@ build-test-image: ## Build SQL Server test image with pyodbc pre-installed
 		echo "  For corporate: Configure ~/.config/uv/uv.toml or ~/.pip/pip.conf"; \
 	fi; \
 	echo ""; \
-	docker build \
-		-f Dockerfile.test-image \
-		$(if $(IMAGE_PYTHON),--build-arg IMAGE_PYTHON=$(IMAGE_PYTHON),) \
-		--build-arg PIP_INDEX_URL=$$PIP_INDEX_URL \
-		--build-arg PIP_TRUSTED_HOST=$$PIP_TRUSTED_HOST \
-		-t platform/kerberos-test:latest .
+	if [ -f "${HOME}/.netrc" ]; then \
+		echo "  Using credentials from ~/.netrc (via BuildKit secret)"; \
+		echo "  (Credentials NOT stored in image - only used during build)"; \
+		docker build \
+			-f Dockerfile.test-image \
+			$(if $(IMAGE_PYTHON),--build-arg IMAGE_PYTHON=$(IMAGE_PYTHON),) \
+			--build-arg PIP_INDEX_URL=$$PIP_INDEX_URL \
+			--build-arg PIP_TRUSTED_HOST=$$PIP_TRUSTED_HOST \
+			--secret id=netrc,src=${HOME}/.netrc \
+			-t platform/kerberos-test:latest .; \
+	else \
+		echo "  No ~/.netrc found - build may fail if PyPI requires auth"; \
+		docker build \
+			-f Dockerfile.test-image \
+			$(if $(IMAGE_PYTHON),--build-arg IMAGE_PYTHON=$(IMAGE_PYTHON),) \
+			--build-arg PIP_INDEX_URL=$$PIP_INDEX_URL \
+			--build-arg PIP_TRUSTED_HOST=$$PIP_TRUSTED_HOST \
+			-t platform/kerberos-test:latest .; \
+	fi
 	@echo "✓ Built: platform/kerberos-test:latest"
 	@echo ""
 	@echo "This image uses UV for fast package installation"
+	@echo "Credentials from .netrc were used during build but NOT stored in image"
 
 test: ## Test sidecar image locally
 	@echo "Testing sidecar image..."
