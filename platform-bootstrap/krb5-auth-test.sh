@@ -242,29 +242,105 @@ check_krb5_config() {
 check_ticket_cache() {
     print_section "Kerberos Ticket Cache"
 
-    # Find ticket cache
-    local ccache=""
+    # Find ALL possible ticket caches
+    local -a all_caches=()
+    local primary_cache=""
+
+    # 1. Check KRB5CCNAME environment variable
     if [ -n "$KRB5CCNAME" ]; then
-        ccache="$KRB5CCNAME"
-        print_check "INFO" "KRB5CCNAME: $ccache"
-    else
-        # Check default locations
-        if [ -f "/tmp/krb5cc_$(id -u)" ]; then
-            ccache="FILE:/tmp/krb5cc_$(id -u)"
-        elif [ -f "$HOME/.krb5/cache/krb5cc" ]; then
-            ccache="FILE:$HOME/.krb5/cache/krb5cc"
-        elif [ -f "/krb5/cache/krb5cc" ]; then
-            ccache="FILE:/krb5/cache/krb5cc"
-        else
-            print_check "FAIL" "No ticket cache found"
-            print_check "INFO" "Set KRB5CCNAME or run: kinit"
-            RESULTS["ticket_cache"]="missing"
-            return 1
-        fi
-        print_check "INFO" "Found ticket cache: $ccache"
+        primary_cache="$KRB5CCNAME"
+        all_caches+=("$KRB5CCNAME")
+        print_check "INFO" "KRB5CCNAME is set: $KRB5CCNAME"
     fi
 
-    RESULTS["ticket_cache"]="$ccache"
+    # 2. Check default locations
+    local uid=$(id -u)
+    local possible_locations=(
+        "FILE:/tmp/krb5cc_${uid}"
+        "FILE:$HOME/.krb5/cache/krb5cc"
+        "FILE:/krb5/cache/krb5cc"
+    )
+
+    # 3. Check for keyring-based caches (Linux)
+    if [ -d "/proc/keys" ]; then
+        local keyring_cache="KEYRING:persistent:${uid}"
+        possible_locations+=("$keyring_cache")
+    fi
+
+    # 4. Scan for additional ticket caches in common locations
+    for pattern in /tmp/krb5cc_* /tmp/krb5_* /dev/shm/krb5cc_*; do
+        for f in $pattern 2>/dev/null; do
+            if [ -f "$f" ]; then
+                possible_locations+=("FILE:$f")
+            fi
+        done
+    done
+
+    # Find which caches actually exist and have valid tickets
+    print_check "INFO" "Scanning for ticket caches..."
+    local found_count=0
+
+    for cache in "${possible_locations[@]}"; do
+        # Extract file path from cache spec
+        local cache_file="${cache#FILE:}"
+        local cache_type="${cache%%:*}"
+
+        # Skip if we've already added this
+        local already_added=false
+        for existing in "${all_caches[@]}"; do
+            if [ "$existing" = "$cache" ]; then
+                already_added=true
+                break
+            fi
+        done
+
+        if [ "$already_added" = true ]; then
+            continue
+        fi
+
+        # Check if cache exists and is readable
+        if [ "$cache_type" = "FILE" ]; then
+            if [ ! -f "$cache_file" ]; then
+                continue
+            fi
+        fi
+
+        # Try to read the cache
+        if command -v klist >/dev/null 2>&1; then
+            if KRB5CCNAME="$cache" klist -s 2>/dev/null; then
+                all_caches+=("$cache")
+                found_count=$((found_count + 1))
+                if [ -z "$primary_cache" ]; then
+                    primary_cache="$cache"
+                fi
+            fi
+        fi
+    done
+
+    # Report findings
+    if [ ${#all_caches[@]} -eq 0 ]; then
+        print_check "FAIL" "No ticket cache found"
+        print_check "INFO" "Set KRB5CCNAME or run: kinit"
+        RESULTS["ticket_cache"]="missing"
+        RESULTS["ticket_cache_count"]="0"
+        return 1
+    elif [ ${#all_caches[@]} -eq 1 ]; then
+        print_check "PASS" "Found 1 ticket cache: ${all_caches[0]}"
+        RESULTS["ticket_cache"]="${all_caches[0]}"
+        RESULTS["ticket_cache_count"]="1"
+    else
+        print_check "INFO" "Found ${#all_caches[@]} ticket caches:"
+        for cache in "${all_caches[@]}"; do
+            if [ "$cache" = "$primary_cache" ]; then
+                print_check "INFO" "  [PRIMARY] $cache"
+            else
+                print_check "INFO" "  $cache"
+            fi
+        done
+        RESULTS["ticket_cache"]="$primary_cache"
+        RESULTS["ticket_cache_count"]="${#all_caches[@]}"
+        print_check "WARN" "Multiple caches found - using: $primary_cache"
+    fi
 
     # Check ticket validity
     if ! command -v klist >/dev/null 2>&1; then
@@ -276,7 +352,10 @@ check_ticket_cache() {
     RESULTS["klist_available"]="true"
 
     # Set cache for klist
+    local ccache="$primary_cache"
     export KRB5CCNAME="$ccache"
+
+    print_check "INFO" "Examining ticket cache: $ccache"
 
     if klist -s 2>/dev/null; then
         print_check "PASS" "Valid Kerberos ticket found"
@@ -297,14 +376,20 @@ check_ticket_cache() {
             # Check if near expiration (within 1 hour)
             if command -v date >/dev/null 2>&1; then
                 local now=$(date +%s)
-                local exp_time=$(date -d "$expires" +%s 2>/dev/null || date +%s)
-                local diff=$((exp_time - now))
+                local exp_time=$(date -d "$expires" +%s 2>/dev/null)
 
-                if [ $diff -lt 3600 ] && [ $diff -gt 0 ]; then
-                    print_check "WARN" "Ticket expires in less than 1 hour!"
-                elif [ $diff -le 0 ]; then
-                    print_check "FAIL" "Ticket has expired!"
-                    RESULTS["ticket_valid"]="expired"
+                # Only check expiration if date parsing succeeded
+                if [ -n "$exp_time" ] && [ "$exp_time" -gt 0 ]; then
+                    local diff=$((exp_time - now))
+
+                    if [ $diff -lt 3600 ] && [ $diff -gt 0 ]; then
+                        print_check "WARN" "Ticket expires in less than 1 hour!"
+                    elif [ $diff -le 0 ]; then
+                        print_check "FAIL" "Ticket has expired!"
+                        RESULTS["ticket_valid"]="expired"
+                    fi
+                else
+                    print_check "WARN" "Could not parse expiration time - skipping expiry check"
                 fi
             fi
         fi
@@ -383,17 +468,27 @@ check_network_dns() {
     print_check "INFO" "Checking time synchronization..."
 
     if command -v timedatectl >/dev/null 2>&1; then
-        local ntp_status=$(timedatectl status 2>/dev/null | grep "NTP" | head -1)
-        if echo "$ntp_status" | grep -q "synchronized: yes\|active: yes"; then
+        local timedatectl_output=$(timedatectl status 2>/dev/null)
+
+        # Check for "System clock synchronized: yes" (primary indicator)
+        if echo "$timedatectl_output" | grep -qi "System clock synchronized: yes"; then
+            print_check "PASS" "Time synchronized (system clock)"
+            RESULTS["time_sync"]="true"
+        # Check for NTP service active (fallback for non-WSL systems)
+        elif echo "$timedatectl_output" | grep -E "NTP service:" | grep -qi "active"; then
             print_check "PASS" "Time synchronized via NTP"
             RESULTS["time_sync"]="true"
+        # WSL2 shows "n/a" for NTP service, but clock can still be synced
+        elif echo "$timedatectl_output" | grep -qi "NTP service: n/a"; then
+            print_check "INFO" "NTP service n/a (WSL2) - assuming host time sync"
+            RESULTS["time_sync"]="wsl_assumed"
         else
             print_check "WARN" "Time not synchronized (Kerberos requires <5min skew)"
             RESULTS["time_sync"]="false"
         fi
 
         if [ "$VERBOSE_MODE" = true ]; then
-            timedatectl status | grep -E '(Local time|Universal time|synchronized|NTP)' | sed 's/^/    /'
+            echo "$timedatectl_output" | grep -E '(Local time|Universal time|synchronized|NTP)' | sed 's/^/    /'
         fi
     elif command -v ntpstat >/dev/null 2>&1; then
         if ntpstat >/dev/null 2>&1; then
