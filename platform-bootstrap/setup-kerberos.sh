@@ -1122,8 +1122,8 @@ step_11_test_sql_server() {
     echo ""
 
     # Check if test script exists
-    if [ -f "$SCRIPT_DIR/test-kerberos.sh" ]; then
-        if "$SCRIPT_DIR/test-kerberos.sh" "$sql_server" "$sql_database"; then
+    if [ -f "$SCRIPT_DIR/test-sql-simple.sh" ]; then
+        if "$SCRIPT_DIR/test-sql-simple.sh" "$sql_server" "$sql_database"; then
             echo ""
             print_success "SQL Server connection test PASSED!"
             save_state
@@ -1141,7 +1141,7 @@ step_11_test_sql_server() {
             print_info "The basic ticket sharing is working, so you can still proceed"
         fi
     else
-        print_warning "test-kerberos.sh not found - skipping SQL Server test"
+        print_warning "test-sql-simple.sh not found - skipping SQL Server test"
     fi
 
     save_state
