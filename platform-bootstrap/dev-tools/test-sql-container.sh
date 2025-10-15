@@ -25,8 +25,8 @@ if [ -f .env ]; then
     source .env
 fi
 
-echo "🐳 Container-based SQL Server Test"
-echo "===================================="
+print_title "Container-based SQL Server Test" "🐳"
+print_header "Container-based SQL Server Test"
 echo ""
 echo "This test runs the Kerberos diagnostic INSIDE a container."
 echo "Useful for debugging containers that receive tickets from the sidecar."
@@ -63,13 +63,13 @@ if [ -z "$SQL_SERVER" ] || [ -z "$SQL_DATABASE" ]; then
     exit 1
 fi
 
-echo -e "Target: ${CYAN}${SQL_SERVER}${NC} / ${CYAN}${SQL_DATABASE}${NC}"
-echo -e "Mode: ${CYAN}${DIAGNOSTIC_MODE}${NC}"
+print_msg "Target: ${CYAN}${SQL_SERVER}${NC} / ${CYAN}${SQL_DATABASE}${NC}"
+print_msg "Mode: ${CYAN}${DIAGNOSTIC_MODE}${NC}"
 echo ""
 
 # Check if kerberos service is running
 if ! docker ps | grep -q "kerberos-platform-service"; then
-    echo -e "${YELLOW}⚠${NC}  Kerberos sidecar not running"
+    print_check "WARN" "Kerberos sidecar not running"
     echo ""
     echo "The sidecar provides tickets to containers."
     echo "Start it with: make platform-start"
@@ -79,12 +79,12 @@ if ! docker ps | grep -q "kerberos-platform-service"; then
     exit 1
 fi
 
-echo -e "${GREEN}✓${NC} Kerberos sidecar is running"
+print_check "PASS" "Kerberos sidecar is running"
 
 # Determine which diagnostic script to use
 DIAG_SCRIPT="krb5-auth-test.sh"
 if [ ! -f "$DIAG_SCRIPT" ]; then
-    echo -e "${YELLOW}⚠${NC}  krb5-auth-test.sh not found locally"
+    print_check "WARN" "krb5-auth-test.sh not found locally"
     echo "  Will create basic diagnostic in container"
     DIAG_SCRIPT=""
 fi
@@ -93,8 +93,8 @@ fi
 DOCKER_IMAGE="${IMAGE_ALPINE:-alpine:latest}"
 echo ""
 echo "Container configuration:"
-echo -e "  Image: ${CYAN}$DOCKER_IMAGE${NC}"
-echo -e "  Network: ${CYAN}$NETWORK${NC}"
+print_msg "  Image: ${CYAN}$DOCKER_IMAGE${NC}"
+print_msg "  Network: ${CYAN}$NETWORK${NC}"
 echo ""
 
 # Prepare the diagnostic script content if needed
@@ -310,14 +310,14 @@ docker run --rm \
 RESULT=$?
 
 echo ""
-echo "============================================"
+print_divider
 if [ $RESULT -eq 0 ]; then
-    echo -e "${GREEN}✅ Container diagnostic completed successfully${NC}"
+    print_success "Container diagnostic completed successfully"
     echo ""
     echo "The sidecar-based authentication is working correctly."
     echo "Containers can receive and use Kerberos tickets."
 else
-    echo -e "${RED}❌ Container diagnostic failed (exit code: $RESULT)${NC}"
+    print_error "Container diagnostic failed (exit code: $RESULT)"
     echo ""
     echo "Troubleshooting steps:"
     echo "  1. Check sidecar: docker logs kerberos-platform-service"

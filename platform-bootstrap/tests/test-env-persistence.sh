@@ -4,28 +4,25 @@
 
 set -e
 
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-NC='\033[0m'
+# Source formatting library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../lib/formatting.sh"
 
 TESTS_PASSED=0
 TESTS_FAILED=0
 
 test_result() {
     if [ "$1" = "pass" ]; then
-        echo -e "${GREEN}✓${NC} $2"
+        print_check "PASS" "$2"
         ((TESTS_PASSED++))
     else
-        echo -e "${RED}✗${NC} $2"
+        print_check "FAIL" "$2"
         echo "  $3"
         ((TESTS_FAILED++))
     fi
 }
 
-echo "=========================================="
-echo ".env Persistence Tests"
-echo "=========================================="
-echo ""
+print_header ".env Persistence Tests"
 
 # Create temp .env for testing
 TEST_ENV=$(mktemp)
@@ -92,17 +89,15 @@ fi
 rm "$TEST_ENV"
 
 echo ""
-echo "=========================================="
-echo "Results"
-echo "=========================================="
-echo -e "${GREEN}Passed: $TESTS_PASSED${NC}"
-echo -e "${RED}Failed: $TESTS_FAILED${NC}"
+print_section "Results"
+print_msg "${GREEN}Passed: $TESTS_PASSED${NC}"
+print_msg "${RED}Failed: $TESTS_FAILED${NC}"
 echo ""
 
 if [ $TESTS_FAILED -eq 0 ]; then
-    echo -e "${GREEN}✓ All persistence tests passed!${NC}"
+    print_success "All persistence tests passed!"
     exit 0
 else
-    echo -e "${RED}✗ Some tests failed${NC}"
+    print_error "Some tests failed"
     exit 1
 fi

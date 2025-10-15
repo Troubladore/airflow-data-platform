@@ -7,15 +7,28 @@ set -e
 
 # Find script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLATFORM_DIR="$(dirname "$SCRIPT_DIR")"
 
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+# Source the shared formatting library
+if [ -f "$PLATFORM_DIR/lib/formatting.sh" ]; then
+    source "$PLATFORM_DIR/lib/formatting.sh"
+else
+    # Fallback if library not found - basic formatting
+    echo "Warning: formatting library not found, using basic output" >&2
+    print_check() { echo "[$1] $2"; }
+    print_header() { echo "=== $1 ==="; }
+    print_msg() { echo "$@"; }
+    CHECK_MARK="[OK]"
+    CROSS_MARK="[FAIL]"
+    WARNING_SIGN="[WARN]"
+    GREEN=''
+    RED=''
+    YELLOW=''
+    CYAN=''
+    NC=''
+fi
 
-echo "🔍 Direct SQL Server Test (Host → SQL)"
-echo "========================================"
+print_header "Direct SQL Server Test (Host → SQL)"
 echo ""
 echo "This test runs DIRECTLY from your host machine."
 echo "No Docker containers, no sidecar - just pure Kerberos auth."
@@ -37,7 +50,7 @@ if [ -z "$SQL_SERVER" ] || [ -z "$SQL_DATABASE" ]; then
     exit 1
 fi
 
-echo -e "Target: ${CYAN}${SQL_SERVER}${NC} / ${CYAN}${SQL_DATABASE}${NC}"
+print_msg "Target: ${CYAN}${SQL_SERVER}${NC} / ${CYAN}${SQL_DATABASE}${NC}"
 echo ""
 
 # Shift the first two arguments to pass remaining to diagnostic tool
@@ -51,24 +64,24 @@ if [ -f "$SCRIPT_DIR/krb5-auth-test.sh" ]; then
     # Run the diagnostic with SQL test
     if "$SCRIPT_DIR/krb5-auth-test.sh" -q -s "$SQL_SERVER" -d "$SQL_DATABASE" "$@"; then
         echo ""
-        echo "========================================="
-        echo -e "${GREEN}✅ SUCCESS! Direct Kerberos auth works!${NC}"
-        echo "========================================="
+        print_divider
+        print_success "SUCCESS! Direct Kerberos auth works!"
+        print_divider
         echo ""
         echo "This confirms:"
-        echo "  ✓ Your Kerberos ticket is valid"
-        echo "  ✓ SQL Server SPNs are configured"
-        echo "  ✓ Network connectivity is working"
-        echo "  ✓ SQL Server accepts your credentials"
+        print_check "PASS" "Your Kerberos ticket is valid"
+        print_check "PASS" "SQL Server SPNs are configured"
+        print_check "PASS" "Network connectivity is working"
+        print_check "PASS" "SQL Server accepts your credentials"
         echo ""
         echo "Next: Test via sidecar (Step 11) to verify container setup"
         exit 0
     else
         EXIT_CODE=$?
         echo ""
-        echo "========================================="
-        echo -e "${RED}❌ Direct connection FAILED${NC}"
-        echo "========================================="
+        print_divider
+        print_error "Direct connection FAILED"
+        print_divider
         echo ""
 
         if [ $EXIT_CODE -eq 1 ]; then
@@ -87,16 +100,16 @@ if [ -f "$SCRIPT_DIR/krb5-auth-test.sh" ]; then
     fi
 else
     # Fallback to inline checks if diagnostic tool not available
-    echo -e "${YELLOW}⚠${NC}  krb5-auth-test.sh not found - using basic checks"
+    print_check "WARN" "krb5-auth-test.sh not found - using basic checks"
     echo ""
 
     # Basic ticket check
     echo "Checking for Kerberos ticket..."
     if klist -s 2>/dev/null; then
-        echo -e "${GREEN}✓${NC} Kerberos ticket found:"
+        print_check "PASS" "Kerberos ticket found:"
         klist 2>/dev/null | head -5 | sed 's/^/  /'
     else
-        echo -e "${RED}✗${NC} No Kerberos ticket found on host!"
+        print_check "FAIL" "No Kerberos ticket found on host!"
         echo ""
         echo "You need to authenticate first:"
         echo "  kinit YOUR_USERNAME@DOMAIN.COM"

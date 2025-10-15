@@ -25,17 +25,17 @@ TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 LOG_FILE="$LOG_DIR/kerberos-setup-$TIMESTAMP.log"
 LATEST_LOG="$LOG_DIR/kerberos-setup-latest.log"
 
-echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${CYAN}Starting Kerberos Setup Wizard with Logging${NC}"
-echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+print_divider
+print_msg "${CYAN}Starting Kerberos Setup Wizard with Logging${NC}"
+print_divider
 echo ""
-echo -e "${GREEN}✓${NC} Output will be displayed on screen"
-echo -e "${GREEN}✓${NC} Complete log saved to: ${YELLOW}$LOG_FILE${NC}"
-echo -e "${GREEN}✓${NC} Latest log symlink: ${YELLOW}$LATEST_LOG${NC}"
+print_check "PASS" "Output will be displayed on screen"
+print_msg "${GREEN}✓${NC} Complete log saved to: ${YELLOW}$LOG_FILE${NC}"
+print_msg "${GREEN}✓${NC} Latest log symlink: ${YELLOW}$LATEST_LOG${NC}"
 echo ""
-echo -e "${CYAN}💡 Tip: If you encounter issues, copy the log file to ChatGPT/Claude for help${NC}"
+print_msg "${CYAN}💡 Tip: If you encounter issues, copy the log file to ChatGPT/Claude for help${NC}"
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+print_divider
 echo ""
 
 # Run the setup with tee to both display and log
@@ -47,35 +47,35 @@ RESULT=$?
 ln -sf "$LOG_FILE" "$LATEST_LOG"
 
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+print_divider
 echo ""
 
 if [ $RESULT -eq 0 ]; then
-    echo -e "${GREEN}✅ Setup completed successfully!${NC}"
+    print_success "Setup completed successfully!"
 else
-    echo -e "${YELLOW}⚠️  Setup exited with code: $RESULT${NC}"
+    print_warning "Setup exited with code: $RESULT"
 fi
 
 echo ""
-echo -e "${CYAN}Log files:${NC}"
-echo "  • Full log: $LOG_FILE"
-echo "  • Latest log: $LATEST_LOG"
+print_msg "${CYAN}Log files:${NC}"
+print_bullet "Full log: $LOG_FILE"
+print_bullet "Latest log: $LATEST_LOG"
 echo ""
 
 # If there were errors, offer to generate diagnostic context
 if [ $RESULT -ne 0 ]; then
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    print_divider
     echo ""
-    echo -e "${YELLOW}Need help troubleshooting?${NC}"
+    print_warning "Need help troubleshooting?"
     echo ""
     echo "1. Generate diagnostic context:"
-    echo -e "   ${CYAN}./generate-diagnostic-context.sh${NC}"
+    print_msg "   ${CYAN}./generate-diagnostic-context.sh${NC}"
     echo ""
     echo "2. Copy the generated report to ChatGPT or Claude"
     echo ""
     echo "3. Or copy the setup log:"
-    echo -e "   ${CYAN}cat $LATEST_LOG | pbcopy${NC}  # macOS"
-    echo -e "   ${CYAN}cat $LATEST_LOG | xclip${NC}   # Linux"
+    print_msg "   ${CYAN}cat $LATEST_LOG | pbcopy${NC}  # macOS"
+    print_msg "   ${CYAN}cat $LATEST_LOG | xclip${NC}   # Linux"
     echo ""
 fi
 

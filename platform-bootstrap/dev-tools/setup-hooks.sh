@@ -19,58 +19,71 @@ else
     NC='\033[0m'
 fi
 
-echo "Git Hooks Setup for Platform Bootstrap"
-echo "======================================="
+print_header "Git Hooks Setup for Platform Bootstrap"
 echo ""
 
 # Check if we're in a git repository
-if [ ! -d "$SCRIPT_DIR/.git" ]; then
-    echo -e "${YELLOW}Warning: Not in a git repository${NC}"
+if [ ! -d "$PLATFORM_DIR/.git" ] && [ ! -d "$PLATFORM_DIR/../.git" ]; then
+    print_check "WARN" "Not in a git repository"
     echo "This script should be run from the platform-bootstrap directory"
     exit 1
 fi
 
 # Configure git to use our hooks directory
-echo "Configuring git to use .githooks directory..."
-git config core.hooksPath .githooks
+print_check "INFO" "Configuring git to use .githooks directory..."
+git config core.hooksPath "$PLATFORM_DIR/.githooks"
 
-echo -e "${GREEN}✓${NC} Git configured to use .githooks/"
+print_check "PASS" "Git configured to use .githooks/"
 echo ""
 
 # List available hooks
-echo "Available hooks:"
-if [ -f "$SCRIPT_DIR/.githooks/pre-push" ]; then
-    echo -e "  ${GREEN}✓${NC} pre-push - Validates all scripts before push"
+print_section "Available Hooks"
+if [ -f "$PLATFORM_DIR/.githooks/pre-commit" ]; then
+    print_check "PASS" "pre-commit - Prevents direct commits to main branch"
 else
-    echo -e "  ${YELLOW}⚠${NC} pre-push - Not found"
+    print_check "WARN" "pre-commit - Not found"
+fi
+if [ -f "$PLATFORM_DIR/.githooks/pre-push" ]; then
+    print_check "PASS" "pre-push - Validates all scripts before push"
+else
+    print_check "WARN" "pre-push - Not found"
 fi
 echo ""
 
-# Test the pre-push hook
-echo "Testing pre-push hook..."
-if [ -x "$SCRIPT_DIR/.githooks/pre-push" ]; then
-    echo -e "${GREEN}✓${NC} pre-push hook is executable"
+# Test the hooks
+print_section "Testing Hooks"
+if [ -x "$PLATFORM_DIR/.githooks/pre-commit" ]; then
+    print_check "PASS" "pre-commit hook is executable"
+else
+    print_check "FAIL" "pre-commit hook is not executable"
+    echo "  Run: chmod +x $PLATFORM_DIR/.githooks/pre-commit"
+fi
+
+if [ -x "$PLATFORM_DIR/.githooks/pre-push" ]; then
+    print_check "PASS" "pre-push hook is executable"
 
     # Run a quick validation
     echo ""
-    echo "Running validation test..."
-    if "$SCRIPT_DIR/.githooks/pre-push" > /dev/null 2>&1; then
-        echo -e "${GREEN}✓${NC} Validation passed - your scripts are demo-safe!"
+    print_check "INFO" "Running validation test..."
+    if "$PLATFORM_DIR/.githooks/pre-push" > /dev/null 2>&1; then
+        print_check "PASS" "Validation passed - your scripts are demo-safe!"
     else
-        echo -e "${YELLOW}⚠${NC} Some scripts have issues - run ./tests/dry-run-all-scripts.sh for details"
+        print_check "WARN" "Some scripts have issues - run $PLATFORM_DIR/tests/dry-run-all-scripts.sh for details"
     fi
 else
-    echo -e "${YELLOW}⚠${NC} pre-push hook is not executable"
-    echo "  Run: chmod +x .githooks/pre-push"
+    print_check "FAIL" "pre-push hook is not executable"
+    echo "  Run: chmod +x $PLATFORM_DIR/.githooks/pre-push"
 fi
 
 echo ""
-echo -e "${CYAN}Setup complete!${NC}"
+print_status "Setup complete!"
 echo ""
-echo "The pre-push hook will now run automatically before each push."
-echo "It ensures all scripts pass validation tests before deployment."
+echo "The hooks will now run automatically:"
+print_bullet "pre-commit: Blocks direct commits to main"
+print_bullet "pre-push: Validates scripts before pushing"
 echo ""
-echo "To bypass the hook (not recommended):"
+print_section "Hook Management"
+echo "To bypass hooks (not recommended):"
 echo "  git push --no-verify"
 echo ""
 echo "To disable hooks temporarily:"

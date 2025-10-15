@@ -62,19 +62,11 @@ fi
 # ==========================================
 # 1. Docker Accessibility
 # ==========================================
-if [ -t 1 ] && [ -z "${NO_COLOR}" ]; then
-    print_msg "${BLUE}=== 1. DOCKER ACCESSIBILITY ===${NC}"
-else
-    echo "=== 1. DOCKER ACCESSIBILITY ==="
-fi
+print_section "1. DOCKER ACCESSIBILITY"
 echo ""
 
 if ! command -v docker >/dev/null 2>&1; then
-    if [ -t 1 ] && [ -z "${NO_COLOR}" ]; then
-        print_msg "${CROSS_MARK} Docker command not found"
-    else
-        echo "${CROSS_MARK} Docker command not found"
-    fi
+    print_check "FAIL" "Docker command not found"
     echo ""
     echo "Docker is required to build the sidecar image."
     echo ""
@@ -84,7 +76,7 @@ if ! command -v docker >/dev/null 2>&1; then
     echo ""
     EXIT_CODE=1
 elif ! docker info >/dev/null 2>&1; then
-    print_msg "${CROSS_MARK} Docker daemon not running or not accessible"
+    print_check "FAIL" "Docker daemon not running or not accessible"
     echo ""
     echo "Docker is installed but not running or you don't have permission."
     echo ""
@@ -95,16 +87,15 @@ elif ! docker info >/dev/null 2>&1; then
     echo ""
     EXIT_CODE=1
 else
-    print_msg "${CHECK_MARK} Docker is running and accessible"
     DOCKER_VERSION=$(docker version --format '{{.Server.Version}}' 2>/dev/null)
-    echo "  Version: $DOCKER_VERSION"
+    print_check "PASS" "Docker is running and accessible" "Version: $DOCKER_VERSION"
     echo ""
 fi
 
 # ==========================================
 # 2. Disk Space
 # ==========================================
-print_msg "${BLUE}=== 2. DISK SPACE ===${NC}"
+print_section "2. DISK SPACE"
 echo ""
 
 # Check available space in /var/lib/docker (where Docker stores images)
@@ -117,7 +108,7 @@ if [ -z "$AVAILABLE_SPACE" ] || ! [[ "$AVAILABLE_SPACE" =~ ^[0-9]+$ ]]; then
 fi
 
 if [ "$AVAILABLE_SPACE" -lt 2 ] && [ "$AVAILABLE_SPACE" -ne 0 ]; then
-    print_msg "${CROSS_MARK} Insufficient disk space"
+    print_check "FAIL" "Insufficient disk space"
     echo ""
     echo "Available space at $DOCKER_ROOT: ${AVAILABLE_SPACE}GB"
     echo "Required: At least 2GB for image build"
@@ -128,32 +119,26 @@ if [ "$AVAILABLE_SPACE" -lt 2 ] && [ "$AVAILABLE_SPACE" -ne 0 ]; then
     echo ""
     EXIT_CODE=1
 elif [ "$AVAILABLE_SPACE" -lt 5 ] && [ "$AVAILABLE_SPACE" -ne 0 ]; then
-    print_msg "${WARNING} Limited disk space"
-    echo "  Available: ${AVAILABLE_SPACE}GB at $DOCKER_ROOT"
-    echo "  Recommended: 5GB or more"
+    print_check "WARN" "Limited disk space" "Available: ${AVAILABLE_SPACE}GB at $DOCKER_ROOT. Recommended: 5GB or more"
     echo ""
 elif [ "$AVAILABLE_SPACE" -eq 0 ]; then
     # Check if we're in WSL2
     if [ -f /proc/sys/fs/binfmt_misc/WSLInterop ]; then
-        print_msg "${CHECK_MARK} WSL2 detected - disk space check skipped"
-        echo "  (WSL2 uses dynamically allocated disk space)"
+        print_check "PASS" "WSL2 detected - disk space check skipped" "WSL2 uses dynamically allocated disk space"
         echo ""
     else
-        print_msg "${WARNING} Could not determine disk space"
-        echo "  Docker root: $DOCKER_ROOT"
-        echo "  (Build may fail if insufficient space)"
+        print_check "WARN" "Could not determine disk space" "Docker root: $DOCKER_ROOT. Build may fail if insufficient space"
         echo ""
     fi
 else
-    print_msg "${CHECK_MARK} Sufficient disk space"
-    echo "  Available: ${AVAILABLE_SPACE}GB at $DOCKER_ROOT"
+    print_check "PASS" "Sufficient disk space" "Available: ${AVAILABLE_SPACE}GB at $DOCKER_ROOT"
     echo ""
 fi
 
 # ==========================================
 # 3. Network Connectivity - Alpine Base
 # ==========================================
-print_msg "${BLUE}=== 3. ALPINE BASE IMAGE ACCESS ===${NC}"
+print_section "3. ALPINE BASE IMAGE ACCESS"
 echo ""
 
 # Check if custom IMAGE_ALPINE is set
@@ -165,15 +150,11 @@ if [ -n "$IMAGE_ALPINE" ]; then
     REGISTRY_HOST=$(echo "$IMAGE_ALPINE" | cut -d'/' -f1)
 
     # Try to pull (or verify access to) the custom image
-    echo -n "Testing access to custom Alpine image... "
     if docker pull "$IMAGE_ALPINE" >/dev/null 2>&1; then
-        print_msg "${CHECK_MARK}"
-        echo "  Successfully verified $IMAGE_ALPINE"
+        print_check "PASS" "Custom Alpine image verified" "$IMAGE_ALPINE"
         echo ""
     else
-        print_msg "${CROSS_MARK}"
-        echo ""
-        echo "Failed to pull custom Alpine image: $IMAGE_ALPINE"
+        print_check "FAIL" "Failed to pull custom Alpine image"
         echo ""
 
         # Check if this looks like Artifactory
@@ -205,22 +186,18 @@ else
     echo "Using public Alpine image: alpine:3.19"
     echo ""
 
-    echo -n "Testing access to docker.io... "
     # Try to reach docker.io
     if timeout 10 docker pull alpine:3.19 >/dev/null 2>&1; then
-        print_msg "${CHECK_MARK}"
-        echo "  Docker Hub is accessible"
+        print_check "PASS" "Docker Hub is accessible"
         echo ""
     else
-        print_msg "${CROSS_MARK}"
-        echo ""
-        echo "Cannot reach docker.io (Docker Hub)"
+        print_check "FAIL" "Cannot reach docker.io (Docker Hub)"
         echo ""
 
         # Try to determine if it's a proxy issue
         if env | grep -i proxy >/dev/null 2>&1; then
-            print_msg "${WARNING} Proxy environment variables detected:"
-            env | grep -i proxy | sed 's/^/  /'
+            print_check "WARN" "Proxy environment variables detected"
+            env | grep -i proxy | sed 's/^/    /'
             echo ""
             echo "Corporate proxy detected. Common issues:"
             echo ""
@@ -260,7 +237,7 @@ fi
 # ==========================================
 # 4. Network Connectivity - Microsoft ODBC Drivers
 # ==========================================
-print_msg "${BLUE}=== 4. MICROSOFT ODBC DRIVER ACCESS ===${NC}"
+print_section "4. MICROSOFT ODBC DRIVER ACCESS"
 echo ""
 
 # Check if custom ODBC_DRIVER_URL is set
@@ -271,16 +248,12 @@ if [ -n "$ODBC_DRIVER_URL" ]; then
     # Extract host from URL
     ODBC_HOST=$(echo "$ODBC_DRIVER_URL" | sed -E 's|^https?://([^/]+).*|\1|')
 
-    echo -n "Testing access to ODBC driver source... "
     # Try to reach the custom URL
     if timeout 10 curl -f -s -I "${ODBC_DRIVER_URL}/msodbcsql18_18.3.2.1-1_amd64.apk" >/dev/null 2>&1; then
-        print_msg "${CHECK_MARK}"
-        echo "  ODBC drivers accessible at custom URL"
+        print_check "PASS" "ODBC drivers accessible at custom URL"
         echo ""
     else
-        print_msg "${CROSS_MARK}"
-        echo ""
-        echo "Cannot reach custom ODBC driver URL"
+        print_check "FAIL" "Cannot reach custom ODBC driver URL"
         echo ""
 
         # Check if this looks like Artifactory
@@ -314,21 +287,17 @@ else
     echo "Using Microsoft download: https://download.microsoft.com"
     echo ""
 
-    echo -n "Testing access to download.microsoft.com... "
     # Try to reach Microsoft
     if timeout 10 curl -f -s -I "https://download.microsoft.com/download/3/5/5/355d7943-a338-41a7-858d-53b259ea33f5/msodbcsql18_18.3.2.1-1_amd64.apk" >/dev/null 2>&1; then
-        print_msg "${CHECK_MARK}"
-        echo "  Microsoft download site is accessible"
+        print_check "PASS" "Microsoft download site is accessible"
         echo ""
     else
-        print_msg "${CROSS_MARK}"
-        echo ""
-        echo "Cannot reach download.microsoft.com"
+        print_check "FAIL" "Cannot reach download.microsoft.com"
         echo ""
 
         # Check for proxy
         if env | grep -i proxy >/dev/null 2>&1; then
-            print_msg "${WARNING} Corporate proxy detected"
+            print_check "WARN" "Corporate proxy detected"
             echo ""
             echo "Microsoft downloads may be blocked by corporate firewall."
             echo ""
@@ -362,12 +331,12 @@ fi
 # ==========================================
 # 5. Corporate Proxy Guidance
 # ==========================================
-print_msg "${BLUE}=== 5. CORPORATE PROXY DETECTION ===${NC}"
+print_section "5. CORPORATE PROXY DETECTION"
 echo ""
 
 if env | grep -i proxy >/dev/null 2>&1; then
-    print_msg "${WARNING} Proxy environment variables detected:"
-    env | grep -i proxy | sed 's/^/  /'
+    print_check "WARN" "Proxy environment variables detected"
+    env | grep -i proxy | sed 's/^/    /'
     echo ""
 
     echo "Corporate proxy best practices:"
@@ -392,28 +361,26 @@ if env | grep -i proxy >/dev/null 2>&1; then
     echo "3. Contact DevOps for correct repository paths"
     echo ""
 else
-    print_msg "${CHECK_MARK} No corporate proxy detected"
-    echo "  Direct internet access available"
+    print_check "PASS" "No corporate proxy detected" "Direct internet access available"
     echo ""
 fi
 
 # ==========================================
 # 6. Build Arguments Preview
 # ==========================================
-print_msg "${BLUE}=== 6. BUILD CONFIGURATION PREVIEW ===${NC}"
+print_section "6. BUILD CONFIGURATION PREVIEW"
 echo ""
 
 echo "The following configuration will be used for build:"
 echo ""
 if [ -n "$IMAGE_ALPINE" ]; then
-    echo "  Base image: ${GREEN}$IMAGE_ALPINE${NC} (custom)"
+    print_check "INFO" "Base image: $IMAGE_ALPINE (custom)"
 else
     echo "  Base image: alpine:3.19 (public default)"
 fi
-echo ""
 
 if [ -n "$ODBC_DRIVER_URL" ]; then
-    echo "  ODBC source: ${GREEN}$ODBC_DRIVER_URL${NC} (custom)"
+    print_check "INFO" "ODBC source: $ODBC_DRIVER_URL (custom)"
 else
     echo "  ODBC source: https://download.microsoft.com (public default)"
 fi
@@ -422,17 +389,17 @@ echo ""
 # ==========================================
 # Summary
 # ==========================================
-print_msg "${BLUE}=== SUMMARY ===${NC}"
+print_section "SUMMARY"
 echo ""
 
 if [ $EXIT_CODE -eq 0 ]; then
-    print_msg "${CHECK_MARK} ${GREEN}All build requirements satisfied${NC}"
+    print_success "All build requirements satisfied"
     echo ""
     echo "Ready to build! Run:"
     echo "  make build"
     echo ""
 else
-    print_msg "${CROSS_MARK} ${RED}Build requirements not satisfied${NC}"
+    print_error "Build requirements not satisfied"
     echo ""
     echo "Please fix the issues above before building."
     echo ""
