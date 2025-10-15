@@ -1,0 +1,24 @@
+# Kerberos SQL Server Test Image
+# Pre-built with all dependencies to avoid runtime pip installs
+# Uses corporate Artifactory for all packages
+
+ARG IMAGE_PYTHON
+FROM ${IMAGE_PYTHON:-python:3.11-alpine}
+
+# Install Kerberos and ODBC dependencies (from Alpine repos or corporate mirror)
+RUN apk add --no-cache \
+    krb5 \
+    gcc \
+    musl-dev \
+    unixodbc-dev
+
+# Install Python packages
+# If corporate environment: pip.conf should be configured on build machine
+# pointing to corporate PyPI mirror
+RUN pip install --no-cache-dir pyodbc
+
+# Set working directory
+WORKDIR /app
+
+# Default command (overridden at runtime)
+CMD ["python"]
