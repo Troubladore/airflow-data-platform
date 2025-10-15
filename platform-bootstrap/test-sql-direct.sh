@@ -266,3 +266,4 @@ else
     echo "  ./diagnose-kerberos.sh"
     exit 1
 fi
+fi  # This closes the main if statement that starts on line 47
