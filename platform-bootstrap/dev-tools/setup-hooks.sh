@@ -39,7 +39,12 @@ echo ""
 
 # List available hooks
 echo "Available hooks:"
-if [ -f "$SCRIPT_DIR/.githooks/pre-push" ]; then
+if [ -f "$PLATFORM_DIR/.githooks/pre-commit" ]; then
+    echo -e "  ${GREEN}✓${NC} pre-commit - Prevents direct commits to main branch"
+else
+    echo -e "  ${YELLOW}⚠${NC} pre-commit - Not found"
+fi
+if [ -f "$PLATFORM_DIR/.githooks/pre-push" ]; then
     echo -e "  ${GREEN}✓${NC} pre-push - Validates all scripts before push"
 else
     echo -e "  ${YELLOW}⚠${NC} pre-push - Not found"
