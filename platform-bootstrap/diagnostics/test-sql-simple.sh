@@ -5,19 +5,31 @@
 
 set -e
 
+# Source the shared formatting library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLATFORM_DIR="$(dirname "$SCRIPT_DIR")"
+if [ -f "$PLATFORM_DIR/lib/formatting.sh" ]; then
+    source "$PLATFORM_DIR/lib/formatting.sh"
+else
+    # Fallback if library not found - basic formatting
+    echo "Warning: formatting library not found, using basic output" >&2
+    print_check() { echo "[$1] $2"; }
+    print_header() { echo "=== $1 ==="; }
+    CHECK_MARK="[OK]"
+    CROSS_MARK="[FAIL]"
+    WARNING_SIGN="[WARN]"
+    GREEN=''
+    RED=''
+    YELLOW=''
+    NC=''
+fi
+
 # Load .env to get corporate image sources and ODBC URL
 if [ -f .env ]; then
     source .env
 fi
 
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
-echo "🔍 SQL Server Kerberos Authentication Test"
-echo "=========================================="
-echo ""
+print_header "SQL Server Kerberos Authentication Test"
 
 # Get SQL Server details
 SQL_SERVER="${1:-}"
@@ -36,29 +48,29 @@ echo ""
 
 # Check if kerberos service is running
 if ! docker ps | grep -q "kerberos-platform-service"; then
-    echo -e "${RED}✗ Kerberos service not running${NC}"
+    print_check "FAIL" "Kerberos service not running"
     echo ""
     echo "Start it first:"
     echo "  make platform-start"
     exit 1
 fi
 
-echo -e "${GREEN}✓ Kerberos service running${NC}"
+print_check "PASS" "Kerberos service running"
 echo ""
 
 # Determine ODBC driver URL (Microsoft or corporate mirror)
 echo "Package Source Configuration:"
 echo "------------------------------"
 if [ -n "$MSSQL_TOOLS_URL" ]; then
-    echo -e "${GREEN}✓${NC} MSSQL_TOOLS_URL is set in .env"
+    print_check "PASS" "MSSQL_TOOLS_URL is set in .env"
     echo "  Using corporate mirror:"
-    echo -e "  ${YELLOW}$MSSQL_TOOLS_URL${NC}"
+    print_msg "  ${YELLOW}$MSSQL_TOOLS_URL${NC}"
     ODBC_BASE_URL="$MSSQL_TOOLS_URL"
     IS_CORPORATE="true"
 else
-    echo -e "${YELLOW}⚠${NC}  MSSQL_TOOLS_URL not set in .env"
+    print_check "WARN" "MSSQL_TOOLS_URL not set in .env"
     echo "  Using Microsoft public downloads:"
-    echo -e "  ${YELLOW}https://download.microsoft.com${NC}"
+    print_msg "  ${YELLOW}https://download.microsoft.com${NC}"
     ODBC_BASE_URL="https://download.microsoft.com/download/7/6/d/76de322a-d860-4894-9945-f0cc5d6a45f8"
     IS_CORPORATE="false"
 fi
@@ -67,17 +79,17 @@ fi
 NETRC_MOUNT=""
 if [ -f "${HOME}/.netrc" ]; then
     if [ "$IS_CORPORATE" = "true" ]; then
-        echo -e "${GREEN}✓${NC} Found .netrc - will mount for Artifactory auth"
+        print_check "PASS" "Found .netrc - will mount for Artifactory auth"
         NETRC_MOUNT="-v ${HOME}/.netrc:/root/.netrc:ro"
     else
-        echo -e "${YELLOW}ℹ${NC}  Found .netrc (not needed for public downloads)"
+        print_check "INFO" "Found .netrc (not needed for public downloads)"
     fi
 else
     if [ "$IS_CORPORATE" = "true" ]; then
-        echo -e "${RED}✗${NC} No .netrc found - corporate download may fail!"
+        print_check "FAIL" "No .netrc found - corporate download may fail!"
         echo "  Create .netrc with Artifactory credentials"
     else
-        echo -e "${GREEN}✓${NC} No .netrc needed for public downloads"
+        print_check "PASS" "No .netrc needed for public downloads"
     fi
 fi
 echo "------------------------------"
@@ -90,7 +102,7 @@ echo ""
 # Show the actual Docker image being used
 DOCKER_IMAGE="${IMAGE_ALPINE:-alpine:latest}"
 echo "Docker image configuration:"
-echo -e "  Using: ${YELLOW}$DOCKER_IMAGE${NC}"
+print_msg "  Using: ${YELLOW}$DOCKER_IMAGE${NC}"
 if [[ "$DOCKER_IMAGE" == *"artifactory"* ]] || [[ "$DOCKER_IMAGE" == *"company"* ]]; then
     echo "  Source: Corporate registry"
 else

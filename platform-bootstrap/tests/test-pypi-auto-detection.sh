@@ -1,33 +1,29 @@
 #!/bin/bash
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLATFORM_DIR="$(dirname "$SCRIPT_DIR")"
 # Tests for PyPI auto-detection from uv.toml and pip.conf
 
 set -e
 
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+# Source formatting library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../lib/formatting.sh"
+
+PLATFORM_DIR="$(dirname "$SCRIPT_DIR")"
 
 TESTS_PASSED=0
 TESTS_FAILED=0
 
 test_result() {
     if [ "$1" = "pass" ]; then
-        echo -e "${GREEN}✓${NC} $2"
+        print_check "PASS" "$2"
         ((TESTS_PASSED++))
     else
-        echo -e "${RED}✗${NC} $2"
+        print_check "FAIL" "$2"
         echo "  $3"
         ((TESTS_FAILED++))
     fi
 }
 
-echo "=========================================="
-echo "PyPI Auto-Detection Tests"
-echo "=========================================="
-echo ""
+print_header "PyPI Auto-Detection Tests"
 
 # Test 1: Dockerfile uses UV
 echo "Test 1: Dockerfile.test-image uses UV"
@@ -111,17 +107,15 @@ else
 fi
 echo ""
 
-echo "=========================================="
-echo "Results"
-echo "=========================================="
-echo -e "${GREEN}Passed: $TESTS_PASSED${NC}"
-echo -e "${RED}Failed: $TESTS_FAILED${NC}"
+print_section "Results"
+print_msg "${GREEN}Passed: $TESTS_PASSED${NC}"
+print_msg "${RED}Failed: $TESTS_FAILED${NC}"
 echo ""
 
 if [ $TESTS_FAILED -eq 0 ]; then
-    echo -e "${GREEN}✓ All PyPI auto-detection tests passed!${NC}"
+    print_success "All PyPI auto-detection tests passed!"
     exit 0
 else
-    echo -e "${RED}✗ Some tests failed${NC}"
+    print_error "Some tests failed"
     exit 1
 fi

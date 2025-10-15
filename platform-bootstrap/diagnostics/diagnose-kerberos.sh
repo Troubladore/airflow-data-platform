@@ -4,16 +4,27 @@
 
 set -e
 
-# Colors for output
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Source the shared formatting library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLATFORM_DIR="$(dirname "$SCRIPT_DIR")"
+if [ -f "$PLATFORM_DIR/lib/formatting.sh" ]; then
+    source "$PLATFORM_DIR/lib/formatting.sh"
+else
+    # Fallback if library not found - basic formatting
+    echo "Warning: formatting library not found, using basic output" >&2
+    print_check() { echo "[$1] $2"; }
+    print_msg() { echo "$@"; }
+    CHECK_MARK="[OK]"
+    CROSS_MARK="[FAIL]"
+    WARNING_SIGN="[WARN]"
+    GREEN=''
+    YELLOW=''
+    RED=''
+    BLUE=''
+    NC=''
+fi
 
-echo "🔍 Kerberos Diagnostic Tool for Docker Integration"
-echo "=================================================="
-echo ""
+print_header "Kerberos Diagnostic Tool for Docker Integration"
 
 # Try to detect Windows domain and username if in WSL2
 WINDOWS_DOMAIN=""
@@ -23,12 +34,12 @@ if [ -f /proc/sys/fs/binfmt_misc/WSLInterop ]; then
     if command -v powershell.exe >/dev/null 2>&1; then
         WINDOWS_DOMAIN=$(powershell.exe -Command "([System.DirectoryServices.ActiveDirectory.Domain]::GetComputerDomain()).Name" 2>/dev/null | tr -d '\r' | tr '[:lower:]' '[:upper:]')
         if [ -n "$WINDOWS_DOMAIN" ] && [[ "$WINDOWS_DOMAIN" != *"Exception"* ]]; then
-            echo -e "${GREEN}✓ Detected Windows domain: $WINDOWS_DOMAIN${NC}"
+            print_check "PASS" "Detected Windows domain: $WINDOWS_DOMAIN"
         fi
 
         WINDOWS_USERNAME=$(powershell.exe -Command "\$env:USERNAME" 2>/dev/null | tr -d '\r')
         if [ -n "$WINDOWS_USERNAME" ]; then
-            echo -e "${GREEN}✓ Detected Windows username: $WINDOWS_USERNAME${NC}"
+            print_check "PASS" "Detected Windows username: $WINDOWS_USERNAME"
         fi
     fi
 fi
@@ -41,23 +52,23 @@ check_condition() {
 
     echo -n "Checking: $description... "
     if eval "$command" >/dev/null 2>&1; then
-        echo -e "${GREEN}✓${NC}"
+        print_msg "${GREEN}${CHECK_MARK}${NC}"
         return 0
     else
-        echo -e "${RED}✗${NC}"
+        print_msg "${RED}${CROSS_MARK}${NC}"
         return 1
     fi
 }
 
 # 1. Check host Kerberos tickets
-echo -e "\n${BLUE}=== 1. HOST KERBEROS TICKETS ===${NC}"
+print_section "1. HOST KERBEROS TICKETS"
 
 if command -v klist >/dev/null 2>&1; then
-    echo -e "${GREEN}✓ klist command found${NC}"
+    print_check "PASS" "klist command found"
 
     # Run klist and capture output
     if klist 2>/dev/null | grep -q "Default principal"; then
-        echo -e "${GREEN}✓ Kerberos tickets found!${NC}"
+        print_check "PASS" "Kerberos tickets found!"
         echo ""
         echo "Ticket details:"
         klist | head -5

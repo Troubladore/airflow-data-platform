@@ -4,14 +4,10 @@
 
 set -e
 
-# Colors for output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
+# Source formatting library
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../lib/formatting.sh"
+
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 TESTS_PASSED=0
@@ -19,26 +15,22 @@ TESTS_FAILED=0
 
 # Test helper functions
 pass_test() {
-    echo -e "${GREEN}✓${NC} $1"
+    print_check "PASS" "$1"
     TESTS_PASSED=$((TESTS_PASSED + 1))
 }
 
 fail_test() {
-    echo -e "${RED}✗${NC} $1"
-    echo -e "  ${RED}$2${NC}"
+    print_check "FAIL" "$1"
+    print_msg "  ${RED}$2${NC}"
     TESTS_FAILED=$((TESTS_FAILED + 1))
 }
 
 info() {
-    echo -e "${BLUE}ℹ${NC}  $1"
+    print_check "INFO" "$1"
 }
 
 section() {
-    echo ""
-    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-    echo -e "${BLUE}$1${NC}"
-    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-    echo ""
+    print_section "$1"
 }
 
 # Test 1: Parse FILE:/tmp/krb5cc_1000 → TICKET_DIR=/tmp
@@ -260,11 +252,7 @@ test_output_format() {
 
 # Main execution
 main() {
-    echo ""
-    echo -e "${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║${NC}     Kerberos Configuration Refactoring Test Suite           ${BLUE}║${NC}"
-    echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
-    echo ""
+    print_header "Kerberos Configuration Refactoring Test Suite"
 
     info "Testing 3-variable to 1-variable refactoring"
     info "Project root: $PROJECT_ROOT"
@@ -283,22 +271,18 @@ main() {
     test_output_format
 
     # Summary
-    echo ""
-    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-    echo -e "${BLUE}Test Summary${NC}"
-    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-    echo ""
-    echo -e "  ${GREEN}Passed:${NC} $TESTS_PASSED"
-    echo -e "  ${RED}Failed:${NC} $TESTS_FAILED"
-    echo -e "  ${BLUE}Total:${NC}  $((TESTS_PASSED + TESTS_FAILED))"
+    print_section "Test Summary"
+    print_msg "  ${GREEN}Passed:${NC} $TESTS_PASSED"
+    print_msg "  ${RED}Failed:${NC} $TESTS_FAILED"
+    print_msg "  ${BLUE}Total:${NC}  $((TESTS_PASSED + TESTS_FAILED))"
     echo ""
 
     if [ $TESTS_FAILED -eq 0 ]; then
-        echo -e "${GREEN}✓ All tests passed!${NC}"
+        print_success "All tests passed!"
         echo ""
         return 0
     else
-        echo -e "${RED}✗ Some tests failed${NC}"
+        print_error "Some tests failed"
         echo ""
         return 1
     fi

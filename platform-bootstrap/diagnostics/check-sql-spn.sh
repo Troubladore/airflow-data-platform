@@ -4,16 +4,31 @@
 
 set -e
 
-# Colors for output
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Source the shared formatting library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLATFORM_DIR="$(dirname "$SCRIPT_DIR")"
+if [ -f "$PLATFORM_DIR/lib/formatting.sh" ]; then
+    source "$PLATFORM_DIR/lib/formatting.sh"
+else
+    # Fallback if library not found - basic formatting
+    echo "Warning: formatting library not found, using basic output" >&2
+    print_check() { echo "[$1] $2"; }
+    print_header() { echo "=== $1 ==="; }
+    print_divider() { echo "========================================"; }
+    print_msg() { echo "$@"; }
+    CHECK_MARK="[OK]"
+    CROSS_MARK="[FAIL]"
+    WARNING_SIGN="[WARN]"
+    GREEN=''
+    YELLOW=''
+    RED=''
+    BLUE=''
+    NC=''
+fi
 
-echo "========================================================================="
+print_divider
 echo "SQL Server SPN (Service Principal Name) Checker"
-echo "========================================================================="
+print_divider
 echo ""
 echo "This tool helps you communicate with your DBA about Kerberos SPN issues."
 echo ""
@@ -27,7 +42,7 @@ else
 fi
 
 if [ -z "$SQL_SERVER" ]; then
-    echo -e "${RED}Error: SQL Server hostname is required${NC}"
+    print_error "SQL Server hostname is required"
     exit 1
 fi
 
@@ -37,7 +52,7 @@ if command -v klist >/dev/null 2>&1; then
     if klist 2>/dev/null | grep -q "Default principal"; then
         PRINCIPAL=$(klist 2>/dev/null | grep "Default principal:" | sed 's/Default principal: //')
         DOMAIN=$(echo "$PRINCIPAL" | sed 's/.*@//')
-        echo -e "${GREEN}✓ Detected domain from your Kerberos ticket: $DOMAIN${NC}"
+        print_check "PASS" "Detected domain from your Kerberos ticket: $DOMAIN"
     fi
 fi
 
@@ -49,7 +64,7 @@ if [ -z "$DOMAIN" ]; then
 fi
 
 if [ -z "$DOMAIN" ]; then
-    echo -e "${RED}Error: Domain is required${NC}"
+    print_error "Domain is required"
     exit 1
 fi
 
@@ -70,7 +85,7 @@ echo "Domain: $DOMAIN"
 echo ""
 
 # Show expected SPNs
-echo -e "${YELLOW}EXPECTED SPNs (Service Principal Names):${NC}"
+print_list_header "EXPECTED SPNs (Service Principal Names):"
 echo ""
 echo "The SQL Server should have these SPNs registered in Active Directory:"
 echo ""
@@ -85,24 +100,24 @@ if [ "$HOSTNAME" != "$FQDN" ]; then
 fi
 
 # Show current Kerberos ticket info
-echo "========================================================================="
+print_divider
 echo "YOUR CURRENT KERBEROS TICKET"
-echo "========================================================================="
+print_divider
 echo ""
 
 if command -v klist >/dev/null 2>&1; then
     if klist -s 2>/dev/null; then
-        echo -e "${GREEN}✓ You have a valid Kerberos ticket${NC}"
+        print_check "PASS" "You have a valid Kerberos ticket"
         echo ""
         klist 2>/dev/null | head -8
     else
-        echo -e "${RED}✗ No valid Kerberos ticket found${NC}"
+        print_check "FAIL" "No valid Kerberos ticket found"
         echo ""
         echo "Get a ticket first:"
         echo "  kinit your_username@$DOMAIN"
     fi
 else
-    echo -e "${YELLOW}⚠ klist command not available${NC}"
+    print_check "WARN" "klist command not available"
     echo "Cannot verify your Kerberos ticket status"
 fi
 
@@ -166,7 +181,7 @@ echo ""
 echo "Thank you!"
 echo "-------------------------------------------------------------------------"
 echo ""
-echo -e "${BLUE}WHAT TO DO NEXT:${NC}"
+print_section "WHAT TO DO NEXT"
 echo ""
 echo "1. Copy the message above (scroll up if needed)"
 echo "2. Send it to your DBA or Domain Administrator"
@@ -174,9 +189,9 @@ echo "3. Include any specific error messages from your connection attempts"
 echo "4. Wait for confirmation that SPNs are registered"
 echo "5. Test again with: ./test-kerberos.sh $SQL_SERVER <database_name>"
 echo ""
-echo "========================================================================="
+print_divider
 echo "ADVANCED: CHECKING SPNs YOURSELF (if you have domain access)"
-echo "========================================================================="
+print_divider
 echo ""
 echo "If you have access to a Windows machine with domain admin rights,"
 echo "you can check and register SPNs yourself:"
@@ -194,4 +209,4 @@ echo "Register missing SPNs (as Domain Admin):"
 echo "  setspn -A MSSQLSvc/$FQDN:1433 <SQL_SERVICE_ACCOUNT>"
 echo "  setspn -A MSSQLSvc/$FQDN <SQL_SERVICE_ACCOUNT>"
 echo ""
-echo -e "${GREEN}Tool complete!${NC}"
+print_success "Tool complete!"

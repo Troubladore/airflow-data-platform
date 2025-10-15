@@ -28,22 +28,22 @@ fi
 if docker image inspect platform/kerberos-test:latest >/dev/null 2>&1; then
     TEST_IMAGE="platform/kerberos-test:latest"
     USE_PREBUILT=true
-    echo -e "${GREEN}✓ Using pre-built test image (pyodbc already installed)${NC}"
+    print_check "PASS" "Using pre-built test image (pyodbc already installed)"
 else
     TEST_IMAGE="${IMAGE_PYTHON:-python:3.11-alpine}"
     USE_PREBUILT=false
-    echo -e "${YELLOW}⚠ Using runtime image (will install pyodbc via pip)${NC}"
+    print_check "WARN" "Using runtime image (will install pyodbc via pip)"
     echo "  For corporate environments, build test image first:"
     echo "  cd kerberos-sidecar && make build-test-image"
     echo ""
 fi
 
-echo "🔍 Kerberos SQL Server Connection Tester"
-echo "========================================"
+print_title "Kerberos SQL Server Connection Tester" "🔍"
+print_header "Kerberos SQL Server Connection Tester"
 
 # Check if we're in the right directory
 if [ ! -f "test_kerberos.py" ]; then
-    echo -e "${RED}❌ Error: Run this from the platform-bootstrap directory${NC}"
+    print_error "Run this from the platform-bootstrap directory"
     echo "   cd airflow-data-platform/platform-bootstrap"
     exit 1
 fi
@@ -51,7 +51,7 @@ fi
 # Try to get configuration from running Kerberos service
 DETECTED_DOMAIN=""
 if docker exec kerberos-platform-service klist 2>/dev/null | grep -q "Default principal"; then
-    echo -e "${GREEN}✓ Found running Kerberos service with active ticket${NC}"
+    print_check "PASS" "Found running Kerberos service with active ticket"
     # Extract domain from the running service
     PRINCIPAL=$(docker exec kerberos-platform-service klist 2>/dev/null | grep "Default principal:" | sed 's/Default principal: //')
     if [ -n "$PRINCIPAL" ]; then
@@ -63,7 +63,8 @@ if docker exec kerberos-platform-service klist 2>/dev/null | grep -q "Default pr
 fi
 
 # Step 1: Test basic ticket sharing
-echo -e "\n${YELLOW}Step 1: Testing ticket sharing...${NC}"
+echo ""
+print_step "1" "Testing ticket sharing..."
 echo "  Using image: $TEST_IMAGE"
 docker run --rm \
   --network platform_network \
@@ -72,16 +73,18 @@ docker run --rm \
   -e KRB5CCNAME=/krb5/cache/krb5cc \
   "$TEST_IMAGE" \
   sh -c "apk add --no-cache krb5 >/dev/null 2>&1 && python /app/test.py" | grep -q "SUCCESS" && \
-  echo -e "${GREEN}✓ Ticket sharing is working!${NC}" || \
-  (echo -e "${RED}✗ Ticket sharing failed. Run 'make platform-start' first.${NC}" && exit 1)
+  print_check "PASS" "Ticket sharing is working!" || \
+  (print_check "FAIL" "Ticket sharing failed. Run 'make platform-start' first." && exit 1)
 
 # Step 2: Get SQL Server details
 if [ -n "$1" ] && [ -n "$2" ]; then
     SQL_SERVER="$1"
     SQL_DATABASE="$2"
-    echo -e "\n${GREEN}Using provided values:${NC}"
+    echo ""
+    print_success "Using provided values:"
 else
-    echo -e "\n${YELLOW}Step 2: Enter SQL Server details${NC}"
+    echo ""
+    print_step "2" "Enter SQL Server details"
     echo ""
     echo "Where to find these values:"
     echo "  1. Ask your DBA: 'What SQL Server can I use for testing?'"
@@ -98,7 +101,8 @@ else
 
     # Validate input
     if [ -z "$SQL_SERVER" ] || [ -z "$SQL_DATABASE" ]; then
-        echo -e "\n${RED}❌ Both server and database are required${NC}"
+        echo ""
+        print_error "Both server and database are required"
         echo "Please run the script again with valid values."
         exit 1
     fi
@@ -110,7 +114,8 @@ echo "  Server: $SQL_SERVER"
 echo "  Database: $SQL_DATABASE"
 
 # Step 3: Show the exact command
-echo -e "\n${YELLOW}Step 3: Running SQL Server connection test...${NC}"
+echo ""
+print_step "3" "Running SQL Server connection test..."
 echo ""
 echo "The exact command being run:"
 echo "----------------------------------------"
@@ -167,32 +172,33 @@ echo "$TEST_OUTPUT"
 
 # Parse the output and provide specific next steps
 if [ $TEST_EXIT_CODE -eq 0 ]; then
-    echo -e "\n${GREEN}=========================================================================${NC}"
-    echo -e "${GREEN}🎉 SUCCESS! Your Kerberos authentication is working!${NC}"
-    echo -e "${GREEN}=========================================================================${NC}"
+    echo ""
+    print_divider
+    print_success "SUCCESS! Your Kerberos authentication is working!"
+    print_divider
 else
     echo ""
-    echo -e "${RED}=========================================================================${NC}"
-    echo -e "${RED}Test Failed - Parsing Error for Specific Guidance${NC}"
-    echo -e "${RED}=========================================================================${NC}"
+    print_divider
+    print_error "Test Failed - Parsing Error for Specific Guidance"
+    print_divider
     echo ""
 
     # Parse error type from output
     if echo "$TEST_OUTPUT" | grep -qi "SPN (Service Principal Name)"; then
-        echo -e "${YELLOW}QUICK ACTION:${NC}"
+        print_warning "QUICK ACTION:"
         echo ""
         echo "This is an SPN issue that requires DBA help."
         echo ""
         echo "Run this command to generate a message for your DBA:"
-        echo -e "  ${GREEN}./check-sql-spn.sh $SQL_SERVER${NC}"
+        print_msg "  ${GREEN}./check-sql-spn.sh $SQL_SERVER${NC}"
         echo ""
         echo "This will create a ready-to-send email with exact commands."
 
     elif echo "$TEST_OUTPUT" | grep -qi "Network Connectivity"; then
-        echo -e "${YELLOW}QUICK ACTION:${NC}"
+        print_warning "QUICK ACTION:"
         echo ""
         echo "Test network connectivity:"
-        echo -e "  ${GREEN}nc -zv $SQL_SERVER 1433${NC}"
+        print_msg "  ${GREEN}nc -zv $SQL_SERVER 1433${NC}"
         echo ""
         echo "If connection fails:"
         echo "  1. Check you're on corporate VPN (if remote)"
@@ -200,7 +206,7 @@ else
         echo "  3. Ask DBA: 'Is $SQL_SERVER reachable from my network?'"
 
     elif echo "$TEST_OUTPUT" | grep -qi "ODBC Driver"; then
-        echo -e "${YELLOW}QUICK ACTION:${NC}"
+        print_warning "QUICK ACTION:"
         echo ""
         echo "The ODBC driver issue is in the test container."
         echo "This should not happen with the standard test setup."
@@ -208,17 +214,17 @@ else
         echo "Try rebuilding the test environment or contact platform support."
 
     elif echo "$TEST_OUTPUT" | grep -qi "Kerberos Ticket Issue"; then
-        echo -e "${YELLOW}QUICK ACTION:${NC}"
+        print_warning "QUICK ACTION:"
         echo ""
         echo "Your Kerberos ticket needs attention."
         echo ""
         echo "Run the diagnostic tool:"
-        echo -e "  ${GREEN}./diagnose-kerberos.sh${NC}"
+        print_msg "  ${GREEN}./diagnose-kerberos.sh${NC}"
         echo ""
         echo "This will check your ticket and provide specific fixes."
 
     elif echo "$TEST_OUTPUT" | grep -qi "Database Access Issue"; then
-        echo -e "${YELLOW}QUICK ACTION:${NC}"
+        print_warning "QUICK ACTION:"
         echo ""
         echo "Connected to server but cannot access the database."
         echo ""
@@ -229,16 +235,16 @@ else
         echo "Or try a different database you know you have access to."
 
     else
-        echo -e "${YELLOW}GENERAL TROUBLESHOOTING:${NC}"
+        print_warning "GENERAL TROUBLESHOOTING:"
         echo ""
         echo "1. Check Kerberos setup:"
-        echo -e "   ${GREEN}./diagnose-kerberos.sh${NC}"
+        print_msg "   ${GREEN}./diagnose-kerberos.sh${NC}"
         echo ""
         echo "2. Check for SPN issues:"
-        echo -e "   ${GREEN}./check-sql-spn.sh $SQL_SERVER${NC}"
+        print_msg "   ${GREEN}./check-sql-spn.sh $SQL_SERVER${NC}"
         echo ""
         echo "3. Test network connectivity:"
-        echo -e "   ${GREEN}nc -zv $SQL_SERVER 1433${NC}"
+        print_msg "   ${GREEN}nc -zv $SQL_SERVER 1433${NC}"
         echo ""
         echo "4. Review the error message above for specific details"
     fi

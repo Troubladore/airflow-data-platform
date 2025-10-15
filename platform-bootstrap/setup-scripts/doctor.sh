@@ -4,14 +4,32 @@
 
 set -euo pipefail
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Source the shared formatting library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLATFORM_DIR="$(dirname "$SCRIPT_DIR")"
+if [ -f "$PLATFORM_DIR/lib/formatting.sh" ]; then
+    source "$PLATFORM_DIR/lib/formatting.sh"
+else
+    # Fallback if library not found
+    echo "Warning: formatting library not found, using basic output" >&2
+    print_check() { echo "[$1] $2"; }
+    print_section() { echo "=== $1 ==="; }
+    print_header() { echo "=== $1 ==="; }
+    print_success() { echo "$@"; }
+    print_error() { echo "Error: $@"; }
+    print_warning() { echo "Warning: $@"; }
+    CHECK_MARK="[OK]"
+    CROSS_MARK="[FAIL]"
+    WARNING_SIGN="[WARN]"
+    INFO_SIGN="[INFO]"
+    GREEN=''
+    YELLOW=''
+    RED=''
+    NC=''
+fi
 
-echo "🔍 Running Platform Diagnostics"
-echo "==============================="
+print_title "Running Platform Diagnostics" "🔍"
+print_divider 56
 echo ""
 
 # Track overall health
@@ -23,22 +41,18 @@ check() {
     local command=$2
     local fix=$3
 
-    echo -n "Checking $name... "
-
     if eval "$command" >/dev/null 2>&1; then
-        echo -e "${GREEN}✓${NC}"
+        print_check "PASS" "$name"
         return 0
     else
-        echo -e "${RED}✗${NC}"
-        echo "  Fix: $fix"
+        print_check "FAIL" "$name" "Fix: $fix"
         HEALTHY=false
         return 1
     fi
 }
 
 # System checks
-echo "System Requirements:"
-echo "-------------------"
+print_section "System Requirements"
 
 check "Docker" \
     "docker --version" \
@@ -65,8 +79,7 @@ check "Git" \
     "Install Git"
 
 echo ""
-echo "Network Configuration:"
-echo "---------------------"
+print_section "Network Configuration"
 
 check "Docker network" \
     "docker network inspect platform_network" \
@@ -77,16 +90,14 @@ check "Port 8080 available" \
     "Stop service using port 8080 (usually another Airflow)"
 
 echo ""
-echo "Platform Services:"
-echo "-----------------"
+print_section "Platform Services"
 
 check "Kerberos service" \
     "docker ps | grep kerberos-platform-service" \
     "Run: make kerberos-start"
 
 echo ""
-echo "Environment Configuration:"
-echo "-------------------------"
+print_section "Environment Configuration"
 
 check "HOME variable" \
     "[ -n \"\$HOME\" ]" \
@@ -101,15 +112,11 @@ check "WSL2 (if Windows)" \
     "Enable WSL2 in Windows Features"
 
 echo ""
-echo "Note: Docker Image Caching:"
-echo "---------------------------"
-echo -e "${GREEN}ℹ${NC} Docker automatically caches all pulled images"
-echo "  No local registry service needed for development"
-echo "  Custom images: docker build -t myimage:latest . (cached automatically)"
+print_section "Note: Docker Image Caching"
+print_check "INFO" "Docker automatically caches all pulled images" "No local registry service needed for development. Custom images: docker build -t myimage:latest . (cached automatically)"
 
 echo ""
-echo "Kerberos Configuration:"
-echo "----------------------"
+print_section "Kerberos Configuration"
 
 check "krb5.conf exists" \
     "[ -f /etc/krb5.conf ] || [ -f \"\$HOME/.krb5/krb5.conf\" ]" \
@@ -120,48 +127,44 @@ check "Kerberos ticket (optional)" \
     "Run: kinit USERNAME@DOMAIN (optional for development)"
 
 echo ""
-echo "Disk Space:"
-echo "----------"
+print_section "Disk Space"
 
 DOCKER_ROOT=$(docker info 2>/dev/null | grep "Docker Root Dir" | awk '{print $NF}')
 if [ -n "$DOCKER_ROOT" ]; then
     DISK_USAGE=$(df -h "$DOCKER_ROOT" | tail -1 | awk '{print $5}' | sed 's/%//')
     if [ "$DISK_USAGE" -gt 80 ]; then
-        echo -e "${YELLOW}⚠${NC} Docker disk usage high: ${DISK_USAGE}%"
-        echo "  Fix: Run 'docker system prune -a' to free space"
+        print_check "WARN" "Docker disk usage high: ${DISK_USAGE}%" "Fix: Run 'docker system prune -a' to free space"
         HEALTHY=false
     else
-        echo -e "${GREEN}✓${NC} Docker disk usage: ${DISK_USAGE}%"
+        print_check "PASS" "Docker disk usage: ${DISK_USAGE}%"
     fi
 fi
 
 echo ""
-echo "Memory:"
-echo "-------"
+print_section "Memory"
 
 if command -v free >/dev/null 2>&1; then
     TOTAL_MEM=$(free -m | grep "^Mem:" | awk '{print $2}')
     AVAIL_MEM=$(free -m | grep "^Mem:" | awk '{print $7}')
 
     if [ "$AVAIL_MEM" -lt 2048 ]; then
-        echo -e "${YELLOW}⚠${NC} Low available memory: ${AVAIL_MEM}MB"
-        echo "  Fix: Close unnecessary applications"
+        print_check "WARN" "Low available memory: ${AVAIL_MEM}MB" "Fix: Close unnecessary applications"
         HEALTHY=false
     else
-        echo -e "${GREEN}✓${NC} Available memory: ${AVAIL_MEM}MB"
+        print_check "PASS" "Available memory: ${AVAIL_MEM}MB"
     fi
 fi
 
 echo ""
-echo "================================"
+print_divider 56
 if [ "$HEALTHY" = true ]; then
-    echo -e "${GREEN}✓ Platform is healthy!${NC}"
+    print_success "Platform is healthy!"
     echo ""
     echo "Ready to start development:"
     echo "  make platform-start"
     echo "  astro dev init my-project"
 else
-    echo -e "${RED}✗ Some issues found${NC}"
+    print_error "Some issues found"
     echo ""
     echo "Fix the issues above, then run:"
     echo "  $0"

@@ -33,8 +33,8 @@ if [ -f .env ]; then
     source .env
 fi
 
-echo "🔍 SQL Server Kerberos Authentication Test (Pre-built Image)"
-echo "============================================================="
+print_title "SQL Server Kerberos Authentication Test (Pre-built Image)" "🔍"
+print_header "SQL Server Kerberos Authentication Test"
 echo ""
 
 # Get SQL Server details
@@ -58,7 +58,7 @@ echo ""
 
 # Check if test image exists
 if ! docker image inspect platform/sqlcmd-test:latest >/dev/null 2>&1; then
-    echo -e "${RED}✗ Test image not found${NC}"
+    print_check "FAIL" "Test image not found"
     echo ""
     echo "Build it first:"
     echo "  cd kerberos-sidecar"
@@ -69,19 +69,19 @@ if ! docker image inspect platform/sqlcmd-test:latest >/dev/null 2>&1; then
     exit 1
 fi
 
-echo -e "${GREEN}✓ Test image found${NC}"
+print_check "PASS" "Test image found"
 echo ""
 
 # Check if kerberos service is running
 if ! docker ps | grep -q "kerberos-platform-service"; then
-    echo -e "${RED}✗ Kerberos service not running${NC}"
+    print_check "FAIL" "Kerberos service not running"
     echo ""
     echo "Start it first:"
     echo "  make platform-start"
     exit 1
 fi
 
-echo -e "${GREEN}✓ Kerberos service running${NC}"
+print_check "PASS" "Kerberos service running"
 echo ""
 
 echo "Running SQL Server connection test..."

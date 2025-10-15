@@ -4,11 +4,9 @@
 
 set -e
 
-# Colors
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+# Source formatting library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../lib/formatting.sh"
 
 TESTS_PASSED=0
 TESTS_FAILED=0
@@ -20,11 +18,11 @@ assert_equals() {
     local actual="$3"
 
     if [ "$expected" = "$actual" ]; then
-        echo -e "${GREEN}✓${NC} $test_name"
+        print_check "PASS" "$test_name"
         ((TESTS_PASSED++))
         return 0
     else
-        echo -e "${RED}✗${NC} $test_name"
+        print_check "FAIL" "$test_name"
         echo "  Expected: '$expected'"
         echo "  Got:      '$actual'"
         ((TESTS_FAILED++))
@@ -32,10 +30,7 @@ assert_equals() {
     fi
 }
 
-echo "=========================================="
-echo "Kerberos Ticket Parsing Unit Tests"
-echo "=========================================="
-echo ""
+print_header "Kerberos Ticket Parsing Unit Tests"
 
 # ====================
 # TEST CASE 1: DIR format with file path
@@ -159,25 +154,23 @@ echo "  cut -d= -f2:  '$WRONG'  (WRONG - stops at first =)"
 echo "  cut -d= -f2-: '$RIGHT'  (RIGHT - gets everything)"
 
 if [ "$RIGHT" = "\${HOME}/weird=path/.krb5" ]; then
-    echo -e "${GREEN}✓${NC} Extraction handles = in paths"
+    print_check "PASS" "Extraction handles = in paths"
     ((TESTS_PASSED++))
 else
-    echo -e "${RED}✗${NC} Extraction fails with = in paths"
+    print_check "FAIL" "Extraction fails with = in paths"
     ((TESTS_FAILED++))
 fi
 
 echo ""
-echo "=========================================="
-echo "Test Results"
-echo "=========================================="
-echo -e "${GREEN}Passed: $TESTS_PASSED${NC}"
-echo -e "${RED}Failed: $TESTS_FAILED${NC}"
+print_section "Test Results"
+print_msg "${GREEN}Passed: $TESTS_PASSED${NC}"
+print_msg "${RED}Failed: $TESTS_FAILED${NC}"
 echo ""
 
 if [ $TESTS_FAILED -eq 0 ]; then
-    echo -e "${GREEN}All tests passed!${NC}"
+    print_success "All tests passed!"
     exit 0
 else
-    echo -e "${RED}Some tests failed - fix needed${NC}"
+    print_error "Some tests failed - fix needed"
     exit 1
 fi

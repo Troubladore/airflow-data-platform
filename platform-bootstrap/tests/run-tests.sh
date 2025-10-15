@@ -7,16 +7,10 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Colors for output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+# Source formatting library
+source "$SCRIPT_DIR/../lib/formatting.sh"
 
-echo "==================================="
-echo "Kerberos Diagnostics Test Suite"
-echo "==================================="
-echo ""
+print_header "Kerberos Diagnostics Test Suite"
 
 # Track overall status
 ALL_PASSED=true
@@ -29,18 +23,17 @@ run_test_section() {
     echo -n "Running $name... "
 
     if eval "$command" >/dev/null 2>&1; then
-        echo -e "${GREEN}✓ PASSED${NC}"
+        print_success "PASSED"
         return 0
     else
-        echo -e "${RED}✗ FAILED${NC}"
+        print_error "FAILED"
         ALL_PASSED=false
         return 1
     fi
 }
 
 # 1. Syntax checks
-echo "1. SYNTAX VALIDATION"
-echo "--------------------"
+print_section "1. SYNTAX VALIDATION"
 
 # Check all shell scripts for syntax errors
 for script in "$PROJECT_ROOT"/*.sh "$PROJECT_ROOT"/lib/*.sh "$PROJECT_ROOT"/tests/*.sh; do
@@ -53,8 +46,7 @@ done
 echo ""
 
 # 2. ShellCheck static analysis (if available)
-echo "2. STATIC ANALYSIS"
-echo "------------------"
+print_section "2. STATIC ANALYSIS"
 
 if command -v shellcheck >/dev/null 2>&1; then
     for script in "$PROJECT_ROOT"/{test-sql-direct.sh,krb5-auth-test.sh,test-sql-container.sh} "$PROJECT_ROOT"/lib/*.sh; do
@@ -67,21 +59,20 @@ if command -v shellcheck >/dev/null 2>&1; then
         fi
     done
 else
-    echo -e "${YELLOW}  ⚠ shellcheck not installed - skipping${NC}"
+    print_check "WARN" "shellcheck not installed - skipping"
     echo "  Install with: apt-get install shellcheck"
 fi
 
 echo ""
 
 # 3. Unit tests with BATS
-echo "3. UNIT TESTS"
-echo "-------------"
+print_section "3. UNIT TESTS"
 
 if command -v bats >/dev/null 2>&1; then
     # Run BATS tests
     run_test_section "  kerberos-diagnostics library" "bats '$PROJECT_ROOT/tests/test-kerberos-diagnostics.bats'"
 else
-    echo -e "${YELLOW}  ⚠ BATS not installed - skipping unit tests${NC}"
+    print_check "WARN" "BATS not installed - skipping unit tests"
     echo "  Install BATS:"
     echo "    git clone https://github.com/bats-core/bats-core.git"
     echo "    cd bats-core && ./install.sh /usr/local"
@@ -90,8 +81,7 @@ fi
 echo ""
 
 # 4. Library loading test
-echo "4. INTEGRATION TESTS"
-echo "-------------------"
+print_section "4. INTEGRATION TESTS"
 
 # Test that library can be sourced
 TEMP_TEST=$(mktemp)
@@ -113,8 +103,7 @@ run_test_section "  test-sql-direct.sh syntax" "bash -n '$PROJECT_ROOT/test-sql-
 echo ""
 
 # 5. Documentation tests
-echo "5. DOCUMENTATION"
-echo "----------------"
+print_section "5. DOCUMENTATION"
 
 # Check that key files have documentation
 check_file_has_content() {
@@ -124,21 +113,21 @@ check_file_has_content() {
 }
 
 if check_file_has_content "$PROJECT_ROOT/lib/kerberos-diagnostics.sh" "^# Kerberos Diagnostics Library"; then
-    echo -e "  Library documentation ${GREEN}✓${NC}"
+    print_check "PASS" "Library documentation"
 else
-    echo -e "  Library documentation ${RED}✗${NC}"
+    print_check "FAIL" "Library documentation"
     ALL_PASSED=false
 fi
 
 echo ""
 
 # Summary
-echo "==================================="
+print_divider
 if [[ "$ALL_PASSED" == true ]]; then
-    echo -e "${GREEN}ALL TESTS PASSED${NC}"
+    print_success "ALL TESTS PASSED"
     exit 0
 else
-    echo -e "${RED}SOME TESTS FAILED${NC}"
+    print_error "SOME TESTS FAILED"
     echo ""
     echo "To debug failures, run individual test commands:"
     echo "  bash -n <script>                    # Syntax check"
