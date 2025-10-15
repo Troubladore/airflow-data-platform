@@ -1,0 +1,62 @@
+#!/bin/bash
+# Git Pre-Push Hook - Prevent Pushing Broken Scripts
+# ====================================================
+# Runs dry-run tests before allowing push to remote
+# Ensures all scripts can execute without syntax errors
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo "🔍 Running pre-push validation..."
+echo ""
+
+# Find the platform-bootstrap directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLATFORM_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Check if dry-run test script exists
+if [ ! -f "$PLATFORM_DIR/tests/dry-run-all-scripts.sh" ]; then
+    echo -e "${YELLOW}⚠ Warning: Dry-run test script not found${NC}"
+    echo "  Expected: $PLATFORM_DIR/tests/dry-run-all-scripts.sh"
+    echo "  Skipping pre-push validation"
+    exit 0
+fi
+
+# Run the dry-run tests
+echo "Running script validation tests..."
+if "$PLATFORM_DIR/tests/dry-run-all-scripts.sh" > /tmp/pre-push-test.log 2>&1; then
+    echo -e "${GREEN}✅ All validation tests passed!${NC}"
+    echo ""
+    echo "Push approved - all scripts are demo-safe."
+    rm -f /tmp/pre-push-test.log
+    exit 0
+else
+    echo -e "${RED}❌ VALIDATION FAILED - PUSH BLOCKED${NC}"
+    echo ""
+    echo "Some scripts have errors that would break during demos."
+    echo ""
+    echo "Test output:"
+    echo "----------------------------------------"
+    tail -30 /tmp/pre-push-test.log
+    echo "----------------------------------------"
+    echo ""
+    echo "Full test log: /tmp/pre-push-test.log"
+    echo ""
+    echo -e "${YELLOW}To bypass (NOT RECOMMENDED):${NC}"
+    echo "  git push --no-verify"
+    echo ""
+    echo -e "${GREEN}To fix:${NC}"
+    echo "  1. Run: ./tests/dry-run-all-scripts.sh"
+    echo "  2. Fix any failing tests"
+    echo "  3. Commit the fixes"
+    echo "  4. Try pushing again"
+
+    # Keep the log file for debugging
+    echo ""
+    echo "Test log saved to: /tmp/pre-push-test.log"
+
+    exit 1
+fi

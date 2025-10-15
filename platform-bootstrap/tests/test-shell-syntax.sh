@@ -184,6 +184,49 @@ fi
 
 echo ""
 echo "================================"
+echo "Execution Tests"
+echo "================================"
+echo ""
+
+echo "Testing that scripts can execute without immediate syntax errors..."
+echo "(Running with --help or bash -n to verify basic functionality)"
+echo ""
+
+# Test critical scripts can at least show help or pass syntax check
+for script in "${CRITICAL_SCRIPTS[@]}"; do
+    script_path="$PLATFORM_DIR/$script"
+
+    if [ ! -f "$script_path" ]; then
+        continue
+    fi
+
+    echo -n "Execution test: $script... "
+
+    # Different scripts need different test approaches
+    case "$script" in
+        krb5-auth-test.sh)
+            # This script supports --help
+            if "$script_path" --help >/dev/null 2>&1; then
+                echo -e "${GREEN}PASS${NC} (--help works)"
+            else
+                echo -e "${RED}FAIL${NC} (cannot run --help)"
+                FAILED_SCRIPTS=$((FAILED_SCRIPTS + 1))
+            fi
+            ;;
+        *)
+            # Just verify syntax for other scripts
+            if bash -n "$script_path" 2>/dev/null; then
+                echo -e "${GREEN}PASS${NC} (syntax OK)"
+            else
+                echo -e "${RED}FAIL${NC} (syntax error prevents execution)"
+                FAILED_SCRIPTS=$((FAILED_SCRIPTS + 1))
+            fi
+            ;;
+    esac
+done
+
+echo ""
+echo "================================"
 echo "Summary"
 echo "================================"
 echo ""
