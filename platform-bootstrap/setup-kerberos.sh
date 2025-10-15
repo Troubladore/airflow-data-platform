@@ -489,6 +489,21 @@ EOF
             if [ "$ticket_count" -gt 0 ]; then
                 print_success "Configuration is valid - ticket directory contains $ticket_count ticket(s)"
 
+                # Check if sidecar exists but is stopped, and auto-start it
+                if docker ps -a --format "{{.Names}}" | grep -q "kerberos-platform-service"; then
+                    if ! docker ps --format "{{.Names}}" | grep -q "kerberos-platform-service"; then
+                        echo ""
+                        print_warning "Kerberos sidecar exists but is stopped"
+                        echo -n "Starting kerberos-platform-service... "
+                        if docker start kerberos-platform-service >/dev/null 2>&1; then
+                            print_success "Started"
+                            sleep 2  # Give it time to initialize
+                        else
+                            print_error "Failed to start"
+                        fi
+                    fi
+                fi
+
                 # Test if sidecar can access it (if running)
                 if docker ps --format "{{.Names}}" | grep -q "kerberos-platform-service"; then
                     echo ""
