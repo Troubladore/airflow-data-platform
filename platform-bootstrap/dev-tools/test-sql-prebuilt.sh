@@ -142,7 +142,7 @@ docker run --rm \
             echo "3. Database name wrong or no permissions"
             echo "4. Kerberos ticket not valid for SQL Server"
             echo ""
-            echo "Debug with: ./diagnose-kerberos.sh"
+            echo "Debug with: ./diagnostics/diagnose-kerberos.sh"
             exit 1
         fi
     '
