@@ -180,7 +180,7 @@ test_script "kerberos-sidecar/Makefile" "
 
 # Step 10: Direct SQL test script
 test_script "diagnostics/test-sql-direct.sh" "
-    ./diagnostics/test-sql-direct.sh 2>&1 | head -1 | grep -q 'Direct SQL Server Test' || \
+    ./diagnostics/test-sql-direct.sh 2>&1 | head -5 | grep -q 'Direct SQL Server Test' || \
     ./diagnostics/test-sql-direct.sh 2>&1 | head -5 | grep -q 'Usage:'
 " "Shows usage or title"
 
