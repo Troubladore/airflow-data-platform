@@ -437,72 +437,19 @@ step_4_kerberos_ticket() {
     fi
 }
 
-step_5_detect_ticket_location() {
-    print_step 5 "Detecting Ticket Location"
+step_5_configure_ticket_location() {
+    print_step 5 "Configure Ticket Location"
 
-    print_info "Running Kerberos diagnostic tool..."
-    echo ""
-
-    # Run diagnose-kerberos.sh and capture output
-    if [ -f "$SCRIPT_DIR/diagnose-kerberos.sh" ]; then
-        # Run diagnostic and parse output
-        local diag_output=$("$SCRIPT_DIR/diagnose-kerberos.sh" 2>&1)
-
-        # Try to extract configuration from diagnostic output
-        DETECTED_TICKET_DIR=$(echo "$diag_output" | grep "^KERBEROS_TICKET_DIR=" | cut -d= -f2)
-
-        # Show relevant parts of diagnostic output
-        echo "$diag_output" | sed -n '/=== 1\. HOST KERBEROS TICKETS ===/,/=== 2\. COMMON TICKET LOCATIONS ===/p' | head -n -1
-
-        if [ -n "$DETECTED_TICKET_DIR" ]; then
-            echo ""
-            print_success "Ticket location detected successfully!"
-            echo ""
-            echo -e "  ${BLUE}Configuration Value:${NC}"
-            echo -e "    Ticket directory: ${CYAN}$DETECTED_TICKET_DIR${NC}"
-            echo ""
-            echo -e "  The sidecar will automatically find and copy tickets from this directory."
-
-            save_state
-            return 0
-        else
-            echo ""
-            print_warning "Could not auto-detect ticket location"
-
-            # Show where to look in the diagnostic output
-            echo ""
-            echo "Full diagnostic output saved to /tmp/kerberos-diagnostic.log"
-            echo "$diag_output" > /tmp/kerberos-diagnostic.log
-
-            echo ""
-            print_info "You can:"
-            echo "  1. Review the diagnostic log: less /tmp/kerberos-diagnostic.log"
-            echo "  2. Manually configure values in the next step"
-            echo "  3. Exit and run: ${CYAN}./diagnose-kerberos.sh${NC} for detailed guidance"
-            echo ""
-
-            if ask_yes_no "Continue with manual configuration?"; then
-                save_state
-                return 0
-            else
-                exit 1
-            fi
-        fi
-    else
-        print_error "diagnose-kerberos.sh not found"
-        echo ""
-        print_info "Manual configuration will be required in the next step"
-        save_state
-    fi
-}
-
-step_6_update_env() {
-    print_step 6 "Updating .env Configuration"
+    # This merged step handles everything:
+    # 1. Create .env if needed
+    # 2. Run diagnostic to detect ticket location
+    # 3. Validate existing or detected configuration
+    # 4. Update .env with working values
 
     local env_file="$SCRIPT_DIR/.env"
     local env_example="$SCRIPT_DIR/.env.example"
 
-    # Check if .env exists
+    # Step 5a: Ensure .env exists
     if [ ! -f "$env_file" ]; then
         echo -n "Creating .env from .env.example... "
         if [ -f "$env_example" ]; then
@@ -522,62 +469,119 @@ EOF
         echo ""
     fi
 
-    # Show current configuration
-    echo "Current .env configuration:"
-    echo "----------------------------------------"
-
-    # Check for both old and new variables
-    local has_old_config=false
-    if grep -qE "^KERBEROS_CACHE_(TYPE|PATH|TICKET)=" "$env_file" 2>/dev/null; then
-        has_old_config=true
-        echo -e "  ${YELLOW}Found old 3-variable configuration (needs migration):${NC}"
-        grep -E "^KERBEROS_CACHE_(TYPE|PATH|TICKET)=" "$env_file" | sed 's/^/    OLD: /'
-        echo ""
-    fi
-
-    grep -E "^(COMPANY_DOMAIN|KERBEROS_TICKET_DIR)=" "$env_file" 2>/dev/null | sed 's/^/  /' || echo "  (no Kerberos configuration found)"
-    echo "----------------------------------------"
-
-    if [ "$has_old_config" = true ]; then
-        echo ""
-        print_warning "Old configuration format detected"
-        echo ""
-        if ask_yes_no "Replace old 3-variable config with new single variable?" "y"; then
-            # Remove old variables
-            sed -i '/^KERBEROS_CACHE_TYPE=/d' "$env_file"
-            sed -i '/^KERBEROS_CACHE_PATH=/d' "$env_file"
-            sed -i '/^KERBEROS_CACHE_TICKET=/d' "$env_file"
-            print_success "Old configuration removed"
-        fi
-    fi
-
+    # Step 5b: Check current configuration
+    echo "Checking current configuration..."
     echo ""
 
-    # Determine if we have detected values
-    if [ -n "$DETECTED_TICKET_DIR" ]; then
-        echo "Detected configuration:"
-        echo "----------------------------------------"
-        [ -n "$DETECTED_DOMAIN" ] && echo "  COMPANY_DOMAIN=$DETECTED_DOMAIN"
-        echo "  KERBEROS_TICKET_DIR=$DETECTED_TICKET_DIR"
-        echo "----------------------------------------"
+    local current_ticket_dir=$(grep "^KERBEROS_TICKET_DIR=" "$env_file" 2>/dev/null | cut -d= -f2-)
+    local current_domain=$(grep "^COMPANY_DOMAIN=" "$env_file" 2>/dev/null | cut -d= -f2-)
+
+    # If we have valid config already, test it
+    if [ -n "$current_ticket_dir" ] && [ "$current_ticket_dir" != "/tmp" ]; then
+        echo "Found existing configuration:"
+        echo "  KERBEROS_TICKET_DIR=$current_ticket_dir"
+        [ -n "$current_domain" ] && echo "  COMPANY_DOMAIN=$current_domain"
         echo ""
 
-        # Check if current .env already matches detected values
-        local needs_update=false
-        local current_dir=$(grep "^KERBEROS_TICKET_DIR=" "$env_file" 2>/dev/null | cut -d= -f2-)
+        # Quick validation - does the directory exist and contain tickets?
+        if [ -d "$current_ticket_dir" ]; then
+            local ticket_count=$(find "$current_ticket_dir" -maxdepth 1 -name "krb5cc*" 2>/dev/null | wc -l)
+            if [ "$ticket_count" -gt 0 ]; then
+                print_success "Configuration is valid - ticket directory contains $ticket_count ticket(s)"
 
-        if [ "$current_dir" != "$DETECTED_TICKET_DIR" ]; then
-            needs_update=true
+                # Check if sidecar exists but is stopped, and auto-start it
+                if docker ps -a --format "{{.Names}}" | grep -q "kerberos-platform-service"; then
+                    if ! docker ps --format "{{.Names}}" | grep -q "kerberos-platform-service"; then
+                        echo ""
+                        print_warning "Kerberos sidecar exists but is stopped"
+                        echo -n "Starting kerberos-platform-service... "
+                        if docker start kerberos-platform-service >/dev/null 2>&1; then
+                            print_success "Started"
+                            sleep 2  # Give it time to initialize
+                        else
+                            print_error "Failed to start"
+                        fi
+                    fi
+                fi
+
+                # Test if sidecar can access it (if running)
+                if docker ps --format "{{.Names}}" | grep -q "kerberos-platform-service"; then
+                    echo ""
+                    echo -n "Testing sidecar access to tickets... "
+                    if docker exec kerberos-platform-service ls "$current_ticket_dir" >/dev/null 2>&1; then
+                        print_success "Sidecar can access ticket directory"
+                        save_state
+                        return 0
+                    else
+                        print_warning "Sidecar cannot access directory (may need restart)"
+                    fi
+                else
+                    # Sidecar not running yet, config is good
+                    save_state
+                    return 0
+                fi
+            else
+                print_warning "Directory exists but contains no tickets"
+            fi
+        else
+            print_warning "Configured directory does not exist: $current_ticket_dir"
         fi
+        echo ""
+    fi
 
-        if [ "$needs_update" = false ]; then
-            print_success ".env already has correct configuration - no update needed!"
-            save_state
-            return 0
+    # Step 5c: Run diagnostic to detect ticket location
+    print_info "Running diagnostic to detect ticket location..."
+    echo ""
+
+    if [ -f "$SCRIPT_DIR/diagnose-kerberos.sh" ]; then
+        # Run diagnostic and capture output
+        local diag_output=$("$SCRIPT_DIR/diagnose-kerberos.sh" 2>&1)
+
+        # Try to extract configuration from diagnostic output
+        DETECTED_TICKET_DIR=$(echo "$diag_output" | grep "^KERBEROS_TICKET_DIR=" | cut -d= -f2)
+
+        # Show relevant parts of diagnostic output
+        echo "$diag_output" | sed -n '/=== 1\. HOST KERBEROS TICKETS ===/,/=== 2\. COMMON TICKET LOCATIONS ===/p' | head -n -1
+
+        if [ -n "$DETECTED_TICKET_DIR" ]; then
+            echo ""
+            print_success "Ticket location detected: ${CYAN}$DETECTED_TICKET_DIR${NC}"
+
+            # Update detected domain if we found one
+            if [ -z "$DETECTED_DOMAIN" ] && [ -n "$current_domain" ]; then
+                DETECTED_DOMAIN="$current_domain"
+            fi
+        else
+            echo ""
+            print_warning "Could not auto-detect ticket location"
+            echo "Full diagnostic output saved to /tmp/kerberos-diagnostic.log"
+            echo "$diag_output" > /tmp/kerberos-diagnostic.log
         fi
+    else
+        print_error "diagnose-kerberos.sh not found"
+    fi
 
-        if ask_yes_no "Update .env with these detected values?" "y"; then
-            # Update .env file
+    # Step 5d: Update .env with detected or manual values
+    echo ""
+    local needs_update=false
+
+    # Determine what to update
+    if [ -n "$DETECTED_TICKET_DIR" ] && [ "$current_ticket_dir" != "$DETECTED_TICKET_DIR" ]; then
+        needs_update=true
+        echo "Configuration update needed:"
+        echo "  Current: KERBEROS_TICKET_DIR=${current_ticket_dir:-'(not set)'}"
+        echo "  Detected: KERBEROS_TICKET_DIR=$DETECTED_TICKET_DIR"
+        echo ""
+
+        if ask_yes_no "Update .env with detected value?" "y"; then
+            # Update KERBEROS_TICKET_DIR
+            if grep -q "^KERBEROS_TICKET_DIR=" "$env_file"; then
+                sed -i "s|^KERBEROS_TICKET_DIR=.*|KERBEROS_TICKET_DIR=$DETECTED_TICKET_DIR|" "$env_file"
+            else
+                echo "KERBEROS_TICKET_DIR=$DETECTED_TICKET_DIR" >> "$env_file"
+            fi
+
+            # Update COMPANY_DOMAIN if detected
             if [ -n "$DETECTED_DOMAIN" ]; then
                 if grep -q "^COMPANY_DOMAIN=" "$env_file"; then
                     sed -i "s|^COMPANY_DOMAIN=.*|COMPANY_DOMAIN=$DETECTED_DOMAIN|" "$env_file"
@@ -586,43 +590,46 @@ EOF
                 fi
             fi
 
-            # Update or add KERBEROS_TICKET_DIR
-            if grep -q "^KERBEROS_TICKET_DIR=" "$env_file"; then
-                sed -i "s|^KERBEROS_TICKET_DIR=.*|KERBEROS_TICKET_DIR=$DETECTED_TICKET_DIR|" "$env_file"
-            else
-                echo "KERBEROS_TICKET_DIR=$DETECTED_TICKET_DIR" >> "$env_file"
-            fi
-
-            print_success ".env file updated successfully!"
+            print_success ".env updated with detected values"
             save_state
             return 0
         fi
+    elif [ -z "$current_ticket_dir" ] || [ "$current_ticket_dir" = "/tmp" ]; then
+        # No valid configuration, need manual setup
+        print_warning "Manual configuration required"
+        echo ""
+        echo "You need to specify where Kerberos tickets are stored."
+        echo "Common locations:"
+        echo "  - /tmp/krb5cc_$(id -u)"
+        echo "  - /var/run/user/$(id -u)"
+        echo "  - Custom keytab location"
+        echo ""
+
+        if ask_yes_no "Would you like to manually edit .env now?" "y"; then
+            ${EDITOR:-nano} "$env_file"
+            print_success "Configuration saved"
+        else
+            print_warning "You'll need to configure KERBEROS_TICKET_DIR in .env manually"
+            echo "Edit: ${CYAN}$env_file${NC}"
+        fi
+    else
+        # Configuration looks good
+        print_success "Configuration validated"
     fi
 
-    # Manual configuration
-    echo ""
-    echo -e "${YELLOW}Manual configuration required${NC}"
-    echo ""
-
-    if ask_yes_no "Would you like to manually edit .env now?"; then
-        ${EDITOR:-nano} "$env_file"
+    # Step 5e: Final validation if sidecar is running
+    if docker ps --format "{{.Names}}" | grep -q "kerberos-platform-service"; then
         echo ""
-        print_success "Configuration saved"
-    else
-        print_warning "Skipping .env update - you'll need to configure it manually"
-        echo ""
-        echo -e "  Edit: ${CYAN}$env_file${NC}"
-        echo ""
-        echo "  Required variables:"
-        echo "    COMPANY_DOMAIN=YOUR_DOMAIN.COM"
-        echo "    KERBEROS_TICKET_DIR=/path/to/ticket/directory"
+        print_info "Restarting sidecar to pick up configuration changes..."
+        docker restart kerberos-platform-service >/dev/null 2>&1
+        sleep 2
     fi
 
     save_state
 }
 
-step_7_corporate_environment() {
-    print_step 7 "Corporate Environment Configuration"
+step_6_corporate_environment() {
+    print_step 6 "Corporate Environment Configuration"
 
     echo "Does your organization block access to public Docker registries"
     echo "(Docker Hub, download.microsoft.com, etc.)?"
@@ -799,8 +806,8 @@ step_7_corporate_environment() {
     save_state
 }
 
-step_8_build_sidecar() {
-    print_step 8 "Building Kerberos Sidecar Image"
+step_7_build_sidecar() {
+    print_step 7 "Building Kerberos Sidecar Image"
 
     echo -n "Checking for existing image... "
     if docker image inspect platform/kerberos-sidecar:latest >/dev/null 2>&1; then
@@ -857,8 +864,8 @@ step_8_build_sidecar() {
     fi
 }
 
-step_9_start_services() {
-    print_step 9 "Starting Platform Services"
+step_8_start_services() {
+    print_step 8 "Starting Platform Services"
 
     # Ensure Docker networks and volumes exist
     echo "Setting up Docker infrastructure..."
@@ -918,8 +925,8 @@ step_9_start_services() {
     fi
 }
 
-step_10_test_ticket_sharing() {
-    print_step 10 "Testing Kerberos Ticket Sharing"
+step_9_test_ticket_sharing() {
+    print_step 9 "Testing Kerberos Ticket Sharing"
 
     print_info "Running simple ticket sharing test..."
     echo ""
@@ -1028,63 +1035,44 @@ step_10_test_ticket_sharing() {
     fi
 }
 
-step_11_test_sql_server() {
-    print_step 11 "Testing SQL Server Connection (Optional)"
+step_10_test_sql_direct() {
+    print_step 10 "Testing Direct SQL Server Connection (Pre-flight)"
 
-    echo "This step tests authentication to an actual SQL Server database."
+    echo "This step tests SQL Server authentication WITHOUT the sidecar."
     echo ""
-    print_info "This is optional but recommended to verify end-to-end connectivity"
-    echo ""
-
-    # Simple test - no custom image build needed
-    print_info "Using simple FreeTDS-based test (no pyodbc complexity)"
-    print_info "This avoids pip/PyPI issues in corporate environments"
+    print_info "This isolates network connectivity from Kerberos integration issues"
     echo ""
 
-    if ! ask_yes_no "Would you like to test SQL Server connection?"; then
-        print_info "Skipping SQL Server test"
+    if ! ask_yes_no "Test direct SQL Server connection?"; then
+        print_info "Skipping direct SQL test"
         save_state
         return 0
     fi
 
     echo ""
 
-    # Check for saved SQL Server details from previous run
-    local saved_server=""
-    local saved_database=""
+    # Get SQL Server details (reuse from Step 11 if already provided)
+    local sql_server=""
+    local sql_database=""
+
+    # Check for saved SQL Server details
     if [ -f "$SCRIPT_DIR/.env" ]; then
-        saved_server=$(grep "^TEST_SQL_SERVER=" "$SCRIPT_DIR/.env" 2>/dev/null | cut -d= -f2)
-        saved_database=$(grep "^TEST_SQL_DATABASE=" "$SCRIPT_DIR/.env" 2>/dev/null | cut -d= -f2)
+        sql_server=$(grep "^TEST_SQL_SERVER=" "$SCRIPT_DIR/.env" 2>/dev/null | cut -d= -f2)
+        sql_database=$(grep "^TEST_SQL_DATABASE=" "$SCRIPT_DIR/.env" 2>/dev/null | cut -d= -f2)
     fi
 
-    if [ -n "$saved_server" ] && [ -n "$saved_database" ]; then
-        print_info "Found saved SQL Server configuration:"
-        echo "  Server:   $saved_server"
-        echo "  Database: $saved_database"
+    if [ -n "$sql_server" ] && [ -n "$sql_database" ]; then
+        print_info "Using saved SQL Server configuration:"
+        echo "  Server:   $sql_server"
+        echo "  Database: $sql_database"
         echo ""
-
-        if ask_yes_no "Use these settings?" "y"; then
-            sql_server="$saved_server"
-            sql_database="$saved_database"
-        else
-            saved_server=""
-            saved_database=""
-        fi
-    fi
-
-    # Prompt for SQL Server details if not using saved
-    if [ -z "$saved_server" ]; then
-        echo "You'll need:"
-        echo "  1. SQL Server hostname (e.g., sqlserver01.company.com)"
-        echo "  2. Database name (e.g., TestDB or AdventureWorks)"
+    else
+        echo "Enter SQL Server details for connectivity test:"
         echo ""
-        print_info "Ask your DBA or check your team's documentation for test servers"
-        echo ""
-
         read -p "SQL Server hostname (or 'skip' to skip): " sql_server
 
         if [ "$sql_server" = "skip" ] || [ -z "$sql_server" ]; then
-            print_info "Skipping SQL Server test"
+            print_info "Skipping direct SQL test"
             save_state
             return 0
         fi
@@ -1092,56 +1080,135 @@ step_11_test_sql_server() {
         read -p "Database name: " sql_database
 
         if [ -z "$sql_database" ]; then
-            print_warning "Database name is required for SQL Server test"
-            print_info "Skipping SQL Server test"
+            print_warning "Database name required"
+            print_info "Skipping direct SQL test"
             save_state
             return 0
         fi
 
-        # Save for future runs
-        echo ""
-        if ask_yes_no "Save these SQL Server details for future tests?" "y"; then
-            if grep -q "^TEST_SQL_SERVER=" "$SCRIPT_DIR/.env" 2>/dev/null; then
-                sed -i "s|^TEST_SQL_SERVER=.*|TEST_SQL_SERVER=$sql_server|" "$SCRIPT_DIR/.env"
-            else
-                echo "TEST_SQL_SERVER=$sql_server" >> "$SCRIPT_DIR/.env"
-            fi
-
-            if grep -q "^TEST_SQL_DATABASE=" "$SCRIPT_DIR/.env" 2>/dev/null; then
-                sed -i "s|^TEST_SQL_DATABASE=.*|TEST_SQL_DATABASE=$sql_database|" "$SCRIPT_DIR/.env"
-            else
-                echo "TEST_SQL_DATABASE=$sql_database" >> "$SCRIPT_DIR/.env"
-            fi
-
-            print_success "SQL Server details saved to .env"
-        fi
+        # Save for Step 11
+        echo "TEST_SQL_SERVER=$sql_server" >> "$SCRIPT_DIR/.env"
+        echo "TEST_SQL_DATABASE=$sql_database" >> "$SCRIPT_DIR/.env"
     fi
 
     echo ""
-    print_info "Testing connection to ${CYAN}${sql_server}/${sql_database}${NC}..."
+    print_info "Testing DIRECT connection to ${CYAN}${sql_server}${NC}..."
+    print_info "This test runs WITHOUT the sidecar to isolate connectivity issues"
     echo ""
 
-    # Check if test script exists
-    if [ -f "$SCRIPT_DIR/test-sql-simple.sh" ]; then
-        if "$SCRIPT_DIR/test-sql-simple.sh" "$sql_server" "$sql_database"; then
+    # Check if direct test script exists
+    if [ -f "$SCRIPT_DIR/test-sql-direct.sh" ]; then
+        if "$SCRIPT_DIR/test-sql-direct.sh" "$sql_server" "$sql_database"; then
             echo ""
-            print_success "SQL Server connection test PASSED!"
+            print_success "Direct SQL Server connection PASSED!"
+            print_info "Network connectivity confirmed - ready for sidecar test"
             save_state
             return 0
         else
             echo ""
-            print_error "SQL Server connection test FAILED"
+            print_warning "Direct connection failed - this is usually a network issue"
+            print_info "The sidecar test (Step 11) will likely also fail"
             echo ""
-            print_info "This may be due to:"
-            echo "  1. Incorrect server/database name"
-            echo "  2. Network connectivity issues"
-            echo "  3. Permission problems"
-            echo "  4. Server not configured for Kerberos"
-            echo ""
-            print_info "The basic ticket sharing is working, so you can still proceed"
+            print_info "Common causes:"
+            echo "  - Not on VPN"
+            echo "  - SQL Server name incorrect"
+            echo "  - Firewall blocking port 1433"
+            echo "  - SQL Server not configured for Kerberos"
         fi
     else
-        print_warning "test-sql-simple.sh not found - skipping SQL Server test"
+        print_warning "test-sql-direct.sh not found"
+        print_info "Cannot perform direct connectivity test"
+    fi
+
+    save_state
+}
+
+step_11_test_sql_via_sidecar() {
+    print_step 11 "Testing SQL Server Connection via Sidecar"
+
+    echo "This step tests SQL Server authentication THROUGH the sidecar."
+    echo ""
+    print_info "This verifies the complete Kerberos ticket sharing flow"
+    echo ""
+
+    if ! ask_yes_no "Test SQL Server connection via sidecar?"; then
+        print_info "Skipping sidecar SQL test"
+        save_state
+        return 0
+    fi
+
+    echo ""
+
+    # Get SQL Server details (should be saved from Step 10)
+    local sql_server=""
+    local sql_database=""
+
+    if [ -f "$SCRIPT_DIR/.env" ]; then
+        sql_server=$(grep "^TEST_SQL_SERVER=" "$SCRIPT_DIR/.env" 2>/dev/null | cut -d= -f2)
+        sql_database=$(grep "^TEST_SQL_DATABASE=" "$SCRIPT_DIR/.env" 2>/dev/null | cut -d= -f2)
+    fi
+
+    if [ -z "$sql_server" ] || [ -z "$sql_database" ]; then
+        echo "Enter SQL Server details:"
+        echo ""
+        read -p "SQL Server hostname (or 'skip' to skip): " sql_server
+
+        if [ "$sql_server" = "skip" ] || [ -z "$sql_server" ]; then
+            print_info "Skipping sidecar SQL test"
+            save_state
+            return 0
+        fi
+
+        read -p "Database name: " sql_database
+
+        if [ -z "$sql_database" ]; then
+            print_warning "Database name required"
+            print_info "Skipping sidecar SQL test"
+            save_state
+            return 0
+        fi
+    else
+        print_info "Using SQL Server configuration from Step 10:"
+        echo "  Server:   $sql_server"
+        echo "  Database: $sql_database"
+        echo ""
+    fi
+
+    print_info "Testing connection via sidecar to ${CYAN}${sql_server}/${sql_database}${NC}..."
+    echo ""
+
+    # Use the sidecar test script
+    if [ -f "$SCRIPT_DIR/test-sql-simple.sh" ]; then
+        if "$SCRIPT_DIR/test-sql-simple.sh" "$sql_server" "$sql_database"; then
+            echo ""
+            print_success "SQL Server sidecar test PASSED!"
+            print_success "Kerberos authentication is working end-to-end!"
+            save_state
+            return 0
+        else
+            echo ""
+            print_error "SQL Server sidecar test FAILED"
+            echo ""
+
+            # Smart diagnosis based on Step 10 result
+            if [ -f "$SCRIPT_DIR/.env" ] && grep -q "DIRECT_SQL_PASSED=true" "$SCRIPT_DIR/.env" 2>/dev/null; then
+                print_warning "Direct connection worked but sidecar failed"
+                echo ""
+                echo "This indicates a Kerberos ticket issue:"
+                echo "  - Sidecar may not have the ticket"
+                echo "  - Ticket may not be valid for SQL Server"
+                echo "  - SQL Server SPN may not be configured"
+            else
+                print_info "Both direct and sidecar tests failed"
+                echo ""
+                echo "Fix network connectivity first (Step 10)"
+            fi
+
+            echo ""
+            print_info "Run diagnostics: ${CYAN}./diagnose-kerberos.sh${NC}"
+        fi
+    else
+        print_warning "test-sql-simple.sh not found"
     fi
 
     save_state
@@ -1294,18 +1361,18 @@ main() {
         press_enter
     fi
 
-    # Execute steps
+    # Execute steps (11 total, Step 5 & 6 merged)
     [ $CURRENT_STEP -le 1 ] && { step_1_prerequisites && CURRENT_STEP=2; }
     [ $CURRENT_STEP -le 2 ] && { step_2_krb5_conf && CURRENT_STEP=3; }
     [ $CURRENT_STEP -le 3 ] && { step_3_test_kdc && CURRENT_STEP=4; }
     [ $CURRENT_STEP -le 4 ] && { step_4_kerberos_ticket && CURRENT_STEP=5; }
-    [ $CURRENT_STEP -le 5 ] && { step_5_detect_ticket_location && CURRENT_STEP=6; }
-    [ $CURRENT_STEP -le 6 ] && { step_6_update_env && CURRENT_STEP=7; }
-    [ $CURRENT_STEP -le 7 ] && { step_7_corporate_environment && CURRENT_STEP=8; }
-    [ $CURRENT_STEP -le 8 ] && { step_8_build_sidecar && CURRENT_STEP=9; }
-    [ $CURRENT_STEP -le 9 ] && { step_9_start_services && CURRENT_STEP=10; }
-    [ $CURRENT_STEP -le 10 ] && { step_10_test_ticket_sharing && CURRENT_STEP=11; }
-    [ $CURRENT_STEP -le 11 ] && { step_11_test_sql_server && CURRENT_STEP=12; }
+    [ $CURRENT_STEP -le 5 ] && { step_5_configure_ticket_location && CURRENT_STEP=6; }
+    [ $CURRENT_STEP -le 6 ] && { step_6_corporate_environment && CURRENT_STEP=7; }
+    [ $CURRENT_STEP -le 7 ] && { step_7_build_sidecar && CURRENT_STEP=8; }
+    [ $CURRENT_STEP -le 8 ] && { step_8_start_services && CURRENT_STEP=9; }
+    [ $CURRENT_STEP -le 9 ] && { step_9_test_ticket_sharing && CURRENT_STEP=10; }
+    [ $CURRENT_STEP -le 10 ] && { step_10_test_sql_direct && CURRENT_STEP=11; }
+    [ $CURRENT_STEP -le 11 ] && { step_11_test_sql_via_sidecar && CURRENT_STEP=12; }
 
     # Pause before showing summary
     echo ""

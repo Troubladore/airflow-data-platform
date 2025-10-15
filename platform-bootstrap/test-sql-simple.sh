@@ -47,23 +47,54 @@ echo -e "${GREEN}✓ Kerberos service running${NC}"
 echo ""
 
 # Determine ODBC driver URL (Microsoft or corporate mirror)
+echo "Package Source Configuration:"
+echo "------------------------------"
 if [ -n "$MSSQL_TOOLS_URL" ]; then
-    echo "Using corporate ODBC mirror: $MSSQL_TOOLS_URL"
+    echo -e "${GREEN}✓${NC} MSSQL_TOOLS_URL is set in .env"
+    echo "  Using corporate mirror:"
+    echo -e "  ${YELLOW}$MSSQL_TOOLS_URL${NC}"
     ODBC_BASE_URL="$MSSQL_TOOLS_URL"
+    IS_CORPORATE="true"
 else
-    echo "Using Microsoft downloads (https://download.microsoft.com)"
+    echo -e "${YELLOW}⚠${NC}  MSSQL_TOOLS_URL not set in .env"
+    echo "  Using Microsoft public downloads:"
+    echo -e "  ${YELLOW}https://download.microsoft.com${NC}"
     ODBC_BASE_URL="https://download.microsoft.com/download/7/6/d/76de322a-d860-4894-9945-f0cc5d6a45f8"
+    IS_CORPORATE="false"
 fi
-echo ""
-
-echo "Running SQL Server connection test with Microsoft sqlcmd..."
-echo "(Downloading and installing Microsoft ODBC driver and tools)"
 
 # Check if .netrc exists for corporate authentication
 NETRC_MOUNT=""
 if [ -f "${HOME}/.netrc" ]; then
-    echo "Found .netrc - will use for corporate repository authentication"
-    NETRC_MOUNT="-v ${HOME}/.netrc:/root/.netrc:ro"
+    if [ "$IS_CORPORATE" = "true" ]; then
+        echo -e "${GREEN}✓${NC} Found .netrc - will mount for Artifactory auth"
+        NETRC_MOUNT="-v ${HOME}/.netrc:/root/.netrc:ro"
+    else
+        echo -e "${YELLOW}ℹ${NC}  Found .netrc (not needed for public downloads)"
+    fi
+else
+    if [ "$IS_CORPORATE" = "true" ]; then
+        echo -e "${RED}✗${NC} No .netrc found - corporate download may fail!"
+        echo "  Create .netrc with Artifactory credentials"
+    else
+        echo -e "${GREEN}✓${NC} No .netrc needed for public downloads"
+    fi
+fi
+echo "------------------------------"
+echo ""
+
+echo "Running SQL Server connection test with Microsoft sqlcmd..."
+echo "(Downloading and installing Microsoft ODBC driver and tools)"
+echo ""
+
+# Show the actual Docker image being used
+DOCKER_IMAGE="${IMAGE_ALPINE:-alpine:latest}"
+echo "Docker image configuration:"
+echo -e "  Using: ${YELLOW}$DOCKER_IMAGE${NC}"
+if [[ "$DOCKER_IMAGE" == *"artifactory"* ]] || [[ "$DOCKER_IMAGE" == *"company"* ]]; then
+    echo "  Source: Corporate registry"
+else
+    echo "  Source: Docker Hub (public)"
 fi
 echo ""
 
@@ -75,7 +106,7 @@ docker run --rm \
     -e SQL_SERVER="$SQL_SERVER" \
     -e SQL_DATABASE="$SQL_DATABASE" \
     -e ODBC_BASE_URL="$ODBC_BASE_URL" \
-    ${IMAGE_ALPINE:-alpine:latest} \
+    ${DOCKER_IMAGE} \
     sh -c '
         # Install prerequisites
         echo "Installing prerequisites..."
@@ -151,7 +182,12 @@ docker run --rm \
         # Test connection with sqlcmd using integrated authentication
         # -E flag uses Kerberos authentication
         # -C trusts the server certificate (for testing)
-        if sqlcmd -S "$SQL_SERVER" -d "$SQL_DATABASE" -E -C -Q "SELECT @@VERSION" 2>&1; then
+        # Capture output for error analysis
+        OUTPUT=$(sqlcmd -S "$SQL_SERVER" -d "$SQL_DATABASE" -E -C -Q "SELECT @@VERSION" 2>&1)
+        RESULT=$?
+
+        if [ $RESULT -eq 0 ]; then
+            echo "$OUTPUT"
             echo ""
             echo "=========================================="
             echo "✅ SUCCESS! Kerberos authentication works!"
@@ -165,18 +201,91 @@ docker run --rm \
             }
             exit 0
         else
+            echo "$OUTPUT"
             echo ""
             echo "=========================================="
             echo "❌ Connection failed"
             echo "=========================================="
             echo ""
-            echo "Common issues:"
-            echo "1. SQL Server SPN not registered (ask DBA)"
-            echo "2. Server name must be FQDN (not IP or short name)"
-            echo "3. Database name wrong or no permissions"
-            echo "4. Kerberos ticket not valid for SQL Server"
+
+            # Analyze specific error
+            if echo "$OUTPUT" | grep -q "Login timeout expired"; then
+                echo "🔍 Error Analysis: LOGIN TIMEOUT"
+                echo "---------------------------------"
+                echo "Cannot establish network connection to SQL Server."
+                echo ""
+                echo "Likely causes:"
+                echo "  1. Server name is incorrect or not resolvable"
+                echo "  2. SQL Server is not reachable (firewall/network)"
+                echo "  3. SQL Server not listening on port 1433"
+                echo ""
+                echo "Diagnostics to run:"
+                echo "  1. Test direct connectivity (bypasses sidecar):"
+                echo "     ./test-sql-direct.sh $SQL_SERVER $SQL_DATABASE"
+                echo ""
+                echo "  2. Check DNS resolution:"
+                echo "     nslookup $SQL_SERVER"
+                echo ""
+                echo "  3. Test network connectivity:"
+                echo "     telnet $SQL_SERVER 1433"
+
+            elif echo "$OUTPUT" | grep -q "Error code 0x2AF9"; then
+                echo "🔍 Error Analysis: NETWORK ERROR (0x2AF9)"
+                echo "------------------------------------------"
+                echo "TCP connection failed - server not found or not accessible."
+                echo ""
+                echo "This is a network-level issue, NOT a Kerberos problem."
+                echo ""
+                echo "Required fixes:"
+                echo "  1. Verify server name is correct (must be FQDN)"
+                echo "  2. Ensure you are on corporate network/VPN"
+                echo "  3. Check if SQL Server uses non-standard port"
+                echo ""
+                echo "Next step:"
+                echo "  Run direct test to isolate the issue:"
+                echo "     ./test-sql-direct.sh $SQL_SERVER $SQL_DATABASE"
+
+            elif echo "$OUTPUT" | grep -q "Cannot authenticate using Kerberos"; then
+                echo "🔍 Error Analysis: KERBEROS AUTHENTICATION FAILED"
+                echo "--------------------------------------------------"
+                echo "Network connection OK, but Kerberos auth rejected."
+                echo ""
+                echo "Likely causes:"
+                echo "  1. SQL Server SPN not registered in Active Directory"
+                echo "  2. Kerberos ticket not valid for this server"
+                echo "  3. Clock skew between client and server"
+                echo ""
+                echo "Ask your DBA to verify SPNs:"
+                echo "  setspn -L <sql-service-account>"
+
+            elif echo "$OUTPUT" | grep -q "Login failed for user"; then
+                echo "🔍 Error Analysis: LOGIN FAILED"
+                echo "--------------------------------"
+                echo "Authentication worked but access denied."
+                echo ""
+                echo "Likely causes:"
+                echo "  1. User not granted access to database"
+                echo "  2. Database name is incorrect"
+                echo ""
+                echo "Ask your DBA to grant access:"
+                echo "  GRANT CONNECT TO [$DETECTED_USERNAME]"
+
+            else
+                echo "🔍 Error Analysis: UNKNOWN ERROR"
+                echo "---------------------------------"
+                echo "Could not identify specific error pattern."
+                echo ""
+                echo "Next steps:"
+                echo "  1. Run direct connectivity test:"
+                echo "     ./test-sql-direct.sh $SQL_SERVER $SQL_DATABASE"
+                echo ""
+                echo "  2. Check sidecar logs:"
+                echo "     docker logs kerberos-platform-service --tail 50"
+            fi
+
             echo ""
-            echo "Debug with: ./diagnose-kerberos.sh"
+            echo "For detailed diagnostics:"
+            echo "  ./diagnose-kerberos.sh"
             exit 1
         fi
     '
