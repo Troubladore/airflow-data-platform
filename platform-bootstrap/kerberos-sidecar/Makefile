@@ -37,7 +37,50 @@ build: check-requirements ## Build sidecar image for local development
 	@echo "Image ready for local development"
 	@echo "To use: docker compose -f ../docker-compose.yml up -d"
 
-build-test-image: ## Build SQL Server test image with pyodbc pre-installed
+build-sqlcmd-test: ## Build SQL Server test image with Microsoft sqlcmd pre-installed
+	@echo "Building SQL Server test image with Microsoft sqlcmd..."
+	@printf "Configuration:\n"
+	@printf "  Base image: %s\n" "${IMAGE_ALPINE:-alpine:3.19}"
+	@if [ -n "${MSSQL_TOOLS_URL}" ]; then \
+		printf "  SQL tools: %s (corporate)\n" "${MSSQL_TOOLS_URL}"; \
+	elif [ -n "${ODBC_DRIVER_URL}" ]; then \
+		printf "  SQL tools: %s (using ODBC_DRIVER_URL)\n" "${ODBC_DRIVER_URL}"; \
+	else \
+		printf "  SQL tools: Microsoft downloads (public)\n"; \
+	fi
+	@echo ""
+	@# Use MSSQL_TOOLS_URL if set, otherwise fall back to ODBC_DRIVER_URL, then Microsoft
+	@if [ -n "${MSSQL_TOOLS_URL}" ]; then \
+		TOOLS_URL="${MSSQL_TOOLS_URL}"; \
+	elif [ -n "${ODBC_DRIVER_URL}" ]; then \
+		TOOLS_URL="${ODBC_DRIVER_URL}"; \
+	else \
+		TOOLS_URL=""; \
+	fi; \
+	if [ -f "${HOME}/.netrc" ]; then \
+		echo "Using .netrc for corporate repository authentication"; \
+		docker build \
+			-f Dockerfile.sqlcmd-test \
+			$(if $(IMAGE_ALPINE),--build-arg IMAGE_ALPINE=$(IMAGE_ALPINE),) \
+			--build-arg MSSQL_TOOLS_URL="$$TOOLS_URL" \
+			--secret id=netrc,src=${HOME}/.netrc \
+			-t platform/sqlcmd-test:latest .; \
+	else \
+		echo "No .netrc found - may fail if using corporate repository"; \
+		docker build \
+			-f Dockerfile.sqlcmd-test \
+			$(if $(IMAGE_ALPINE),--build-arg IMAGE_ALPINE=$(IMAGE_ALPINE),) \
+			--build-arg MSSQL_TOOLS_URL="$$TOOLS_URL" \
+			-t platform/sqlcmd-test:latest .; \
+	fi
+	@echo ""
+	@echo "✓ Built: platform/sqlcmd-test:latest"
+	@echo ""
+	@echo "This image contains Microsoft ODBC Driver 18 and sqlcmd"
+	@echo "Use with: ../test-sql-prebuilt.sh <server> <database>"
+	@echo ""
+
+build-test-image: ## Build SQL Server test image with pyodbc pre-installed (OLD)
 	@echo "Building SQL Server test image..."
 	@printf "Base: %s\n" "${IMAGE_PYTHON:-python:3.11-alpine}"
 	@echo ""
