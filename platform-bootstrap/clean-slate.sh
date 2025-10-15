@@ -142,7 +142,7 @@ if [ "$CLEAR_HOST_TICKETS" = true ]; then
     read -p "Are you SURE you want to proceed? [y/N]: " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        local removed_count=0
+        removed_count=0
 
         # Remove file-based ticket caches in /tmp
         for ticket in /tmp/krb5cc_* /tmp/krb5_*; do

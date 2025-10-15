@@ -269,11 +269,11 @@ check_ticket_cache() {
 
     # 4. Scan for additional ticket caches in common locations
     for pattern in /tmp/krb5cc_* /tmp/krb5_* /dev/shm/krb5cc_*; do
-        for f in $pattern 2>/dev/null; do
+        for f in $pattern; do
             if [ -f "$f" ]; then
                 possible_locations+=("FILE:$f")
             fi
-        done
+        done 2>/dev/null
     done
 
     # Find which caches actually exist and have valid tickets
