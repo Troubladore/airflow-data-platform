@@ -17,25 +17,24 @@ RUN apk add --no-cache \
 ARG PIP_INDEX_URL
 ARG PIP_TRUSTED_HOST
 
-# Install UV (fast Python package installer)
-RUN pip install --no-cache-dir uv
-
-# Configure UV/pip for corporate environment if provided
-# Build args contain index URL detected from host uv.toml/pip.conf
-RUN if [ -n "$PIP_INDEX_URL" ]; then \
+# Install UV and pyodbc in single RUN with .netrc mounted throughout
+# The .netrc file is mounted temporarily (NOT stored in image)
+# This provides credentials for BOTH installing UV and installing pyodbc
+RUN --mount=type=secret,id=netrc,target=/root/.netrc \
+    # Configure pip/uv for corporate environment if provided \
+    if [ -n "$PIP_INDEX_URL" ]; then \
         echo "Configuring for corporate PyPI: $PIP_INDEX_URL" && \
-        uv pip config set global.index-url "$PIP_INDEX_URL" 2>/dev/null || \
         pip config set global.index-url "$PIP_INDEX_URL"; \
     fi && \
     if [ -n "$PIP_TRUSTED_HOST" ]; then \
         echo "Trusted host: $PIP_TRUSTED_HOST" && \
-        uv pip config set global.trusted-host "$PIP_TRUSTED_HOST" 2>/dev/null || \
         pip config set global.trusted-host "$PIP_TRUSTED_HOST"; \
-    fi
-
-# Install Python packages using UV with BuildKit secret for credentials
-# The .netrc file is mounted temporarily (NOT stored in image)
-RUN --mount=type=secret,id=netrc,target=/root/.netrc \
+    fi && \
+    # Install UV (needs .netrc if corporate PyPI requires auth) \
+    echo "Installing UV package manager..." && \
+    pip install --no-cache-dir uv && \
+    # Install pyodbc using UV (much faster) \
+    echo "Installing pyodbc with UV..." && \
     uv pip install --system --no-cache pyodbc
 
 # Credentials are NOT in the final image - only used during build
