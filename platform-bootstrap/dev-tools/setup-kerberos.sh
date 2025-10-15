@@ -21,6 +21,7 @@ CURRENT_STEP=1
 
 # Configuration variables
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLATFORM_DIR="$(dirname "$SCRIPT_DIR")"  # Parent directory containing all platform scripts
 DETECTED_DOMAIN=""
 DETECTED_USERNAME=""
 DETECTED_TICKET_DIR=""
@@ -446,8 +447,8 @@ step_5_configure_ticket_location() {
     # 3. Validate existing or detected configuration
     # 4. Update .env with working values
 
-    local env_file="$SCRIPT_DIR/.env"
-    local env_example="$SCRIPT_DIR/.env.example"
+    local env_file="$PLATFORM_DIR/.env"
+    local env_example="$PLATFORM_DIR/.env.example"
 
     # Step 5a: Ensure .env exists
     if [ ! -f "$env_file" ]; then
@@ -533,9 +534,9 @@ EOF
     print_info "Running diagnostic to detect ticket location..."
     echo ""
 
-    if [ -f "$SCRIPT_DIR/diagnose-kerberos.sh" ]; then
+    if [ -f "$PLATFORM_DIR/diagnostics/diagnose-kerberos.sh" ]; then
         # Run diagnostic and capture output
-        local diag_output=$("$SCRIPT_DIR/diagnose-kerberos.sh" 2>&1)
+        local diag_output=$("$PLATFORM_DIR/diagnostics/diagnose-kerberos.sh" 2>&1)
 
         # Try to extract configuration from diagnostic output
         DETECTED_TICKET_DIR=$(echo "$diag_output" | grep "^KERBEROS_TICKET_DIR=" | cut -d= -f2)
@@ -650,9 +651,9 @@ step_6_corporate_environment() {
         echo ""
 
         # Check if .env already has corporate config
-        if [ -f "$SCRIPT_DIR/.env" ]; then
+        if [ -f "$PLATFORM_DIR/.env" ]; then
             local has_config=false
-            if grep -q "^IMAGE_ALPINE=" "$SCRIPT_DIR/.env" && ! grep -q "^IMAGE_ALPINE=$" "$SCRIPT_DIR/.env"; then
+            if grep -q "^IMAGE_ALPINE=" "$PLATFORM_DIR/.env" && ! grep -q "^IMAGE_ALPINE=$" "$PLATFORM_DIR/.env"; then
                 has_config=true
             fi
 
@@ -660,7 +661,7 @@ step_6_corporate_environment() {
                 print_success ".env already has corporate configuration"
                 echo ""
                 echo "Current settings:"
-                grep -E "^(IMAGE_ALPINE|IMAGE_PYTHON|IMAGE_MOCKSERVER|ODBC_DRIVER_URL)=" "$SCRIPT_DIR/.env" 2>/dev/null | sed 's/^/  /' || echo "  (partial configuration)"
+                grep -E "^(IMAGE_ALPINE|IMAGE_PYTHON|IMAGE_MOCKSERVER|ODBC_DRIVER_URL)=" "$PLATFORM_DIR/.env" 2>/dev/null | sed 's/^/  /' || echo "  (partial configuration)"
                 echo ""
 
                 if ask_yes_no "Use existing configuration?" "y"; then
@@ -740,7 +741,7 @@ step_6_corporate_environment() {
         print_info "Updating .env with corporate configuration..."
         echo ""
 
-        local env_file="$SCRIPT_DIR/.env"
+        local env_file="$PLATFORM_DIR/.env"
         if [ ! -f "$env_file" ]; then
             cp "$SCRIPT_DIR/.env.example" "$env_file"
         fi
@@ -835,31 +836,31 @@ step_7_build_sidecar() {
     echo ""
 
     # Build the image
-    if [ -d "$SCRIPT_DIR/kerberos-sidecar" ]; then
-        cd "$SCRIPT_DIR/kerberos-sidecar"
+    if [ -d "$PLATFORM_DIR/kerberos-sidecar" ]; then
+        cd "$PLATFORM_DIR/kerberos-sidecar"
 
         if [ -f "Makefile" ]; then
             if make build; then
                 echo ""
                 print_success "Sidecar image built successfully!"
                 save_state
-                cd "$SCRIPT_DIR"
+                cd "$PLATFORM_DIR"
                 return 0
             else
                 echo ""
                 print_error "Failed to build sidecar image"
-                cd "$SCRIPT_DIR"
+                cd "$PLATFORM_DIR"
                 return 1
             fi
         else
             print_error "Makefile not found in kerberos-sidecar/"
-            cd "$SCRIPT_DIR"
+            cd "$PLATFORM_DIR"
             return 1
         fi
     else
         print_error "kerberos-sidecar directory not found"
         echo ""
-        echo "  Expected location: $SCRIPT_DIR/kerberos-sidecar/"
+        echo "  Expected location: $PLATFORM_DIR/kerberos-sidecar/"
         return 1
     fi
 }
@@ -893,7 +894,7 @@ step_8_start_services() {
     print_info "Starting services with docker compose..."
     echo ""
 
-    cd "$SCRIPT_DIR"
+    cd "$PLATFORM_DIR"
 
     if docker compose up -d; then
         echo ""
@@ -932,7 +933,7 @@ step_9_test_ticket_sharing() {
     echo ""
 
     # Check if test script exists
-    if [ ! -f "$SCRIPT_DIR/test_kerberos_simple.py" ]; then
+    if [ ! -f "$PLATFORM_DIR/test_kerberos_simple.py" ]; then
         print_warning "test_kerberos_simple.py not found"
         print_info "Skipping ticket sharing test"
         save_state
@@ -941,8 +942,8 @@ step_9_test_ticket_sharing() {
 
     # Determine test image (use configured from .env or default)
     # Load .env to get IMAGE_PYTHON if configured
-    if [ -f "$SCRIPT_DIR/.env" ]; then
-        source "$SCRIPT_DIR/.env" 2>/dev/null || true
+    if [ -f "$PLATFORM_DIR/.env" ]; then
+        source "$PLATFORM_DIR/.env" 2>/dev/null || true
     fi
 
     local test_image="${IMAGE_PYTHON:-python:3.11-alpine}"
@@ -963,7 +964,7 @@ step_9_test_ticket_sharing() {
     if docker run --rm \
         --network platform_network \
         -v platform_kerberos_cache:/krb5/cache:ro \
-        -v "$SCRIPT_DIR/test_kerberos_simple.py:/app/test.py" \
+        -v "$PLATFORM_DIR/test_kerberos_simple.py:/app/test.py" \
         -e KRB5CCNAME=/krb5/cache/krb5cc \
         "$test_image" \
         sh -c "$install_cmd >/dev/null 2>&1 && python /app/test.py" 2>&1 | tee /tmp/kerberos-test-output.txt | grep -q "SUCCESS"; then
@@ -1022,7 +1023,7 @@ step_9_test_ticket_sharing() {
             print_warning "Test failed for unknown reason"
             echo ""
             echo "  Output: /tmp/kerberos-test-output.txt"
-            echo "  Diagnostic: ${CYAN}./diagnose-kerberos.sh${NC}"
+            echo "  Diagnostic: ${CYAN}./diagnostics/diagnose-kerberos.sh${NC}"
         fi
 
         echo ""
@@ -1056,9 +1057,9 @@ step_10_test_sql_direct() {
     local sql_database=""
 
     # Check for saved SQL Server details
-    if [ -f "$SCRIPT_DIR/.env" ]; then
-        sql_server=$(grep "^TEST_SQL_SERVER=" "$SCRIPT_DIR/.env" 2>/dev/null | cut -d= -f2)
-        sql_database=$(grep "^TEST_SQL_DATABASE=" "$SCRIPT_DIR/.env" 2>/dev/null | cut -d= -f2)
+    if [ -f "$PLATFORM_DIR/.env" ]; then
+        sql_server=$(grep "^TEST_SQL_SERVER=" "$PLATFORM_DIR/.env" 2>/dev/null | cut -d= -f2)
+        sql_database=$(grep "^TEST_SQL_DATABASE=" "$PLATFORM_DIR/.env" 2>/dev/null | cut -d= -f2)
     fi
 
     if [ -n "$sql_server" ] && [ -n "$sql_database" ]; then
@@ -1087,8 +1088,8 @@ step_10_test_sql_direct() {
         fi
 
         # Save for Step 11
-        echo "TEST_SQL_SERVER=$sql_server" >> "$SCRIPT_DIR/.env"
-        echo "TEST_SQL_DATABASE=$sql_database" >> "$SCRIPT_DIR/.env"
+        echo "TEST_SQL_SERVER=$sql_server" >> "$PLATFORM_DIR/.env"
+        echo "TEST_SQL_DATABASE=$sql_database" >> "$PLATFORM_DIR/.env"
     fi
 
     echo ""
@@ -1097,8 +1098,8 @@ step_10_test_sql_direct() {
     echo ""
 
     # Check if direct test script exists
-    if [ -f "$SCRIPT_DIR/test-sql-direct.sh" ]; then
-        if "$SCRIPT_DIR/test-sql-direct.sh" "$sql_server" "$sql_database"; then
+    if [ -f "$PLATFORM_DIR/diagnostics/test-sql-direct.sh" ]; then
+        if "$PLATFORM_DIR/diagnostics/test-sql-direct.sh" "$sql_server" "$sql_database"; then
             echo ""
             print_success "Direct SQL Server connection PASSED!"
             print_info "Network connectivity confirmed - ready for sidecar test"
@@ -1143,9 +1144,9 @@ step_11_test_sql_via_sidecar() {
     local sql_server=""
     local sql_database=""
 
-    if [ -f "$SCRIPT_DIR/.env" ]; then
-        sql_server=$(grep "^TEST_SQL_SERVER=" "$SCRIPT_DIR/.env" 2>/dev/null | cut -d= -f2)
-        sql_database=$(grep "^TEST_SQL_DATABASE=" "$SCRIPT_DIR/.env" 2>/dev/null | cut -d= -f2)
+    if [ -f "$PLATFORM_DIR/.env" ]; then
+        sql_server=$(grep "^TEST_SQL_SERVER=" "$PLATFORM_DIR/.env" 2>/dev/null | cut -d= -f2)
+        sql_database=$(grep "^TEST_SQL_DATABASE=" "$PLATFORM_DIR/.env" 2>/dev/null | cut -d= -f2)
     fi
 
     if [ -z "$sql_server" ] || [ -z "$sql_database" ]; then
@@ -1178,8 +1179,8 @@ step_11_test_sql_via_sidecar() {
     echo ""
 
     # Use the sidecar test script
-    if [ -f "$SCRIPT_DIR/test-sql-simple.sh" ]; then
-        if "$SCRIPT_DIR/test-sql-simple.sh" "$sql_server" "$sql_database"; then
+    if [ -f "$PLATFORM_DIR/diagnostics/test-sql-simple.sh" ]; then
+        if "$PLATFORM_DIR/diagnostics/test-sql-simple.sh" "$sql_server" "$sql_database"; then
             echo ""
             print_success "SQL Server sidecar test PASSED!"
             print_success "Kerberos authentication is working end-to-end!"
@@ -1191,7 +1192,7 @@ step_11_test_sql_via_sidecar() {
             echo ""
 
             # Smart diagnosis based on Step 10 result
-            if [ -f "$SCRIPT_DIR/.env" ] && grep -q "DIRECT_SQL_PASSED=true" "$SCRIPT_DIR/.env" 2>/dev/null; then
+            if [ -f "$PLATFORM_DIR/.env" ] && grep -q "DIRECT_SQL_PASSED=true" "$PLATFORM_DIR/.env" 2>/dev/null; then
                 print_warning "Direct connection worked but sidecar failed"
                 echo ""
                 echo "This indicates a Kerberos ticket issue:"
@@ -1205,7 +1206,7 @@ step_11_test_sql_via_sidecar() {
             fi
 
             echo ""
-            print_info "Run diagnostics: ${CYAN}./diagnose-kerberos.sh${NC}"
+            print_info "Run diagnostics: ${CYAN}./diagnostics/diagnose-kerberos.sh${NC}"
         fi
     else
         print_warning "test-sql-simple.sh not found"
@@ -1229,8 +1230,8 @@ show_summary() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     # Show configuration
-    if [ -f "$SCRIPT_DIR/.env" ]; then
-        grep -E "^(COMPANY_DOMAIN|KERBEROS_TICKET_DIR)=" "$SCRIPT_DIR/.env" 2>/dev/null | sed 's/^/  /' || echo "  (configuration not found)"
+    if [ -f "$PLATFORM_DIR/.env" ]; then
+        grep -E "^(COMPANY_DOMAIN|KERBEROS_TICKET_DIR)=" "$PLATFORM_DIR/.env" 2>/dev/null | sed 's/^/  /' || echo "  (configuration not found)"
     fi
 
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -1260,7 +1261,7 @@ show_summary() {
     echo -e "  4. ${GREEN}Managing Kerberos tickets:${NC}"
     echo -e "     ${CYAN}klist${NC}                      # Check ticket status"
     echo -e "     ${CYAN}kinit $DETECTED_USERNAME@$DETECTED_DOMAIN${NC}  # Renew ticket"
-    echo -e "     ${CYAN}./diagnose-kerberos.sh${NC}     # Troubleshoot issues"
+    echo -e "     ${CYAN}./diagnostics/diagnose-kerberos.sh${NC}  # Troubleshoot issues"
     echo ""
     echo -e "  5. ${GREEN}When done for the day:${NC}"
     echo -e "     ${CYAN}make platform-stop${NC}         # Stop all services"
