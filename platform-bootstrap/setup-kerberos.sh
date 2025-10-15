@@ -930,7 +930,12 @@ step_10_test_ticket_sharing() {
         return 0
     fi
 
-    # Determine test image (use configured or default)
+    # Determine test image (use configured from .env or default)
+    # Load .env to get IMAGE_PYTHON if configured
+    if [ -f "$SCRIPT_DIR/.env" ]; then
+        source "$SCRIPT_DIR/.env" 2>/dev/null || true
+    fi
+
     local test_image="${IMAGE_PYTHON:-python:3.11-alpine}"
 
     # Detect package manager based on image
@@ -942,7 +947,7 @@ step_10_test_ticket_sharing() {
     fi
 
     print_info "Using test image: ${CYAN}$test_image${NC}"
-    echo "  Package install: $install_cmd"
+    echo -e "  Package install: $install_cmd"
     echo ""
 
     # Run the test
