@@ -12,10 +12,29 @@ RUN apk add --no-cache \
     musl-dev \
     unixodbc-dev
 
-# Install Python packages
-# If corporate environment: pip.conf should be configured on build machine
-# pointing to corporate PyPI mirror
-RUN pip install --no-cache-dir pyodbc
+# Corporate PyPI configuration
+# Build args pass through from host environment (auto-detected by Makefile)
+ARG PIP_INDEX_URL
+ARG PIP_TRUSTED_HOST
+
+# Install UV (fast Python package installer)
+RUN pip install --no-cache-dir uv
+
+# Configure UV/pip for corporate environment if provided
+RUN if [ -n "$PIP_INDEX_URL" ]; then \
+        echo "Configuring for corporate PyPI: $PIP_INDEX_URL" && \
+        uv pip config set global.index-url "$PIP_INDEX_URL" 2>/dev/null || \
+        pip config set global.index-url "$PIP_INDEX_URL"; \
+    fi && \
+    if [ -n "$PIP_TRUSTED_HOST" ]; then \
+        echo "Trusted host: $PIP_TRUSTED_HOST" && \
+        uv pip config set global.trusted-host "$PIP_TRUSTED_HOST" 2>/dev/null || \
+        pip config set global.trusted-host "$PIP_TRUSTED_HOST"; \
+    fi
+
+# Install Python packages using UV (much faster than pip)
+# Will use corporate PyPI if configured via build args
+RUN uv pip install --system --no-cache pyodbc
 
 # Set working directory
 WORKDIR /app
