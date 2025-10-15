@@ -5,6 +5,18 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLATFORM_DIR="$(dirname "$SCRIPT_DIR")"
+if [ -f "$PLATFORM_DIR/lib/formatting.sh" ]; then
+    source "$PLATFORM_DIR/lib/formatting.sh"
+else
+    # Fallback if library not found
+    echo "Warning: formatting library not found, using basic output" >&2
+    CYAN='\033[0;36m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    NC='\033[0m'
+fi
+
 LOG_DIR="$SCRIPT_DIR/logs"
 mkdir -p "$LOG_DIR"
 
@@ -12,19 +24,6 @@ mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 LOG_FILE="$LOG_DIR/kerberos-setup-$TIMESTAMP.log"
 LATEST_LOG="$LOG_DIR/kerberos-setup-latest.log"
-
-# Colors for terminal output only
-if [ -t 1 ]; then
-    CYAN='\033[0;36m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[1;33m'
-    NC='\033[0m'
-else
-    CYAN=''
-    GREEN=''
-    YELLOW=''
-    NC=''
-fi
 
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${CYAN}Starting Kerberos Setup Wizard with Logging${NC}"

@@ -6,28 +6,30 @@
 
 set -e
 
-# Source the shared formatting library
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLATFORM_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
-if [ -f "$PLATFORM_DIR/lib/formatting.sh" ]; then
-    source "$PLATFORM_DIR/lib/formatting.sh"
+# Colors for output (disabled if not in terminal or NO_COLOR is set)
+if [ -t 1 ] && [ -z "${NO_COLOR}" ]; then
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    RED='\033[0;31m'
+    BLUE='\033[0;34m'
+    NC='\033[0m' # No Color
 else
-    # Fallback if library not found
-    echo "Warning: formatting library not found, using basic output" >&2
-    print_msg() { echo "$@"; }
-    print_section() { echo "=== $1 ==="; }
-    print_check() { echo "[$1] $2"; }
-    print_error() { echo "Error: $@"; }
-    print_warning() { echo "Warning: $@"; }
-    print_success() { echo "$@"; }
-    CHECK_MARK="[OK]"
-    CROSS_MARK="[FAIL]"
-    WARNING_SIGN="[WARN]"
     GREEN=''
     YELLOW=''
     RED=''
     BLUE=''
     NC=''
+fi
+
+# Check marks (use ASCII when NO_COLOR is set or not in terminal)
+if [ -t 1 ] && [ -z "${NO_COLOR}" ]; then
+    CHECK_MARK="${GREEN}✓${NC}"
+    CROSS_MARK="${RED}✗${NC}"
+    WARNING="${YELLOW}⚠${NC}"
+else
+    CHECK_MARK="[OK]"
+    CROSS_MARK="[FAIL]"
+    WARNING="[WARN]"
 fi
 
 echo "Build Requirements Check for Kerberos Sidecar"
@@ -36,6 +38,16 @@ echo ""
 
 # Exit code tracking
 EXIT_CODE=0
+
+# Helper function for colored/plain output
+print_msg() {
+    if [ -t 1 ] && [ -z "${NO_COLOR}" ]; then
+        echo -e "$@"
+    else
+        # Strip ANSI codes and echo without -e
+        echo "$@" | sed 's/\x1b\[[0-9;]*m//g'
+    fi
+}
 
 # Function to check a condition and report
 check_condition() {
@@ -63,7 +75,7 @@ fi
 # 1. Docker Accessibility
 # ==========================================
 if [ -t 1 ] && [ -z "${NO_COLOR}" ]; then
-    print_msg "${BLUE}=== 1. DOCKER ACCESSIBILITY ===${NC}"
+    echo -e "${BLUE}=== 1. DOCKER ACCESSIBILITY ===${NC}"
 else
     echo "=== 1. DOCKER ACCESSIBILITY ==="
 fi
@@ -71,7 +83,7 @@ echo ""
 
 if ! command -v docker >/dev/null 2>&1; then
     if [ -t 1 ] && [ -z "${NO_COLOR}" ]; then
-        print_msg "${CROSS_MARK} Docker command not found"
+        echo -e "${CROSS_MARK} Docker command not found"
     else
         echo "${CROSS_MARK} Docker command not found"
     fi
@@ -84,7 +96,7 @@ if ! command -v docker >/dev/null 2>&1; then
     echo ""
     EXIT_CODE=1
 elif ! docker info >/dev/null 2>&1; then
-    print_msg "${CROSS_MARK} Docker daemon not running or not accessible"
+    echo -e "${CROSS_MARK} Docker daemon not running or not accessible"
     echo ""
     echo "Docker is installed but not running or you don't have permission."
     echo ""
@@ -95,7 +107,7 @@ elif ! docker info >/dev/null 2>&1; then
     echo ""
     EXIT_CODE=1
 else
-    print_msg "${CHECK_MARK} Docker is running and accessible"
+    echo -e "${CHECK_MARK} Docker is running and accessible"
     DOCKER_VERSION=$(docker version --format '{{.Server.Version}}' 2>/dev/null)
     echo "  Version: $DOCKER_VERSION"
     echo ""
@@ -104,7 +116,7 @@ fi
 # ==========================================
 # 2. Disk Space
 # ==========================================
-print_msg "${BLUE}=== 2. DISK SPACE ===${NC}"
+echo -e "${BLUE}=== 2. DISK SPACE ===${NC}"
 echo ""
 
 # Check available space in /var/lib/docker (where Docker stores images)
@@ -117,7 +129,7 @@ if [ -z "$AVAILABLE_SPACE" ] || ! [[ "$AVAILABLE_SPACE" =~ ^[0-9]+$ ]]; then
 fi
 
 if [ "$AVAILABLE_SPACE" -lt 2 ] && [ "$AVAILABLE_SPACE" -ne 0 ]; then
-    print_msg "${CROSS_MARK} Insufficient disk space"
+    echo -e "${CROSS_MARK} Insufficient disk space"
     echo ""
     echo "Available space at $DOCKER_ROOT: ${AVAILABLE_SPACE}GB"
     echo "Required: At least 2GB for image build"
@@ -128,24 +140,24 @@ if [ "$AVAILABLE_SPACE" -lt 2 ] && [ "$AVAILABLE_SPACE" -ne 0 ]; then
     echo ""
     EXIT_CODE=1
 elif [ "$AVAILABLE_SPACE" -lt 5 ] && [ "$AVAILABLE_SPACE" -ne 0 ]; then
-    print_msg "${WARNING} Limited disk space"
+    echo -e "${WARNING} Limited disk space"
     echo "  Available: ${AVAILABLE_SPACE}GB at $DOCKER_ROOT"
     echo "  Recommended: 5GB or more"
     echo ""
 elif [ "$AVAILABLE_SPACE" -eq 0 ]; then
     # Check if we're in WSL2
     if [ -f /proc/sys/fs/binfmt_misc/WSLInterop ]; then
-        print_msg "${CHECK_MARK} WSL2 detected - disk space check skipped"
+        echo -e "${CHECK_MARK} WSL2 detected - disk space check skipped"
         echo "  (WSL2 uses dynamically allocated disk space)"
         echo ""
     else
-        print_msg "${WARNING} Could not determine disk space"
+        echo -e "${WARNING} Could not determine disk space"
         echo "  Docker root: $DOCKER_ROOT"
         echo "  (Build may fail if insufficient space)"
         echo ""
     fi
 else
-    print_msg "${CHECK_MARK} Sufficient disk space"
+    echo -e "${CHECK_MARK} Sufficient disk space"
     echo "  Available: ${AVAILABLE_SPACE}GB at $DOCKER_ROOT"
     echo ""
 fi
@@ -153,7 +165,7 @@ fi
 # ==========================================
 # 3. Network Connectivity - Alpine Base
 # ==========================================
-print_msg "${BLUE}=== 3. ALPINE BASE IMAGE ACCESS ===${NC}"
+echo -e "${BLUE}=== 3. ALPINE BASE IMAGE ACCESS ===${NC}"
 echo ""
 
 # Check if custom IMAGE_ALPINE is set
@@ -167,11 +179,11 @@ if [ -n "$IMAGE_ALPINE" ]; then
     # Try to pull (or verify access to) the custom image
     echo -n "Testing access to custom Alpine image... "
     if docker pull "$IMAGE_ALPINE" >/dev/null 2>&1; then
-        print_msg "${CHECK_MARK}"
+        echo -e "${CHECK_MARK}"
         echo "  Successfully verified $IMAGE_ALPINE"
         echo ""
     else
-        print_msg "${CROSS_MARK}"
+        echo -e "${CROSS_MARK}"
         echo ""
         echo "Failed to pull custom Alpine image: $IMAGE_ALPINE"
         echo ""
@@ -208,18 +220,18 @@ else
     echo -n "Testing access to docker.io... "
     # Try to reach docker.io
     if timeout 10 docker pull alpine:3.19 >/dev/null 2>&1; then
-        print_msg "${CHECK_MARK}"
+        echo -e "${CHECK_MARK}"
         echo "  Docker Hub is accessible"
         echo ""
     else
-        print_msg "${CROSS_MARK}"
+        echo -e "${CROSS_MARK}"
         echo ""
         echo "Cannot reach docker.io (Docker Hub)"
         echo ""
 
         # Try to determine if it's a proxy issue
         if env | grep -i proxy >/dev/null 2>&1; then
-            print_msg "${WARNING} Proxy environment variables detected:"
+            echo -e "${WARNING} Proxy environment variables detected:"
             env | grep -i proxy | sed 's/^/  /'
             echo ""
             echo "Corporate proxy detected. Common issues:"
@@ -260,7 +272,7 @@ fi
 # ==========================================
 # 4. Network Connectivity - Microsoft ODBC Drivers
 # ==========================================
-print_msg "${BLUE}=== 4. MICROSOFT ODBC DRIVER ACCESS ===${NC}"
+echo -e "${BLUE}=== 4. MICROSOFT ODBC DRIVER ACCESS ===${NC}"
 echo ""
 
 # Check if custom ODBC_DRIVER_URL is set
@@ -274,11 +286,11 @@ if [ -n "$ODBC_DRIVER_URL" ]; then
     echo -n "Testing access to ODBC driver source... "
     # Try to reach the custom URL
     if timeout 10 curl -f -s -I "${ODBC_DRIVER_URL}/msodbcsql18_18.3.2.1-1_amd64.apk" >/dev/null 2>&1; then
-        print_msg "${CHECK_MARK}"
+        echo -e "${CHECK_MARK}"
         echo "  ODBC drivers accessible at custom URL"
         echo ""
     else
-        print_msg "${CROSS_MARK}"
+        echo -e "${CROSS_MARK}"
         echo ""
         echo "Cannot reach custom ODBC driver URL"
         echo ""
@@ -317,18 +329,18 @@ else
     echo -n "Testing access to download.microsoft.com... "
     # Try to reach Microsoft
     if timeout 10 curl -f -s -I "https://download.microsoft.com/download/3/5/5/355d7943-a338-41a7-858d-53b259ea33f5/msodbcsql18_18.3.2.1-1_amd64.apk" >/dev/null 2>&1; then
-        print_msg "${CHECK_MARK}"
+        echo -e "${CHECK_MARK}"
         echo "  Microsoft download site is accessible"
         echo ""
     else
-        print_msg "${CROSS_MARK}"
+        echo -e "${CROSS_MARK}"
         echo ""
         echo "Cannot reach download.microsoft.com"
         echo ""
 
         # Check for proxy
         if env | grep -i proxy >/dev/null 2>&1; then
-            print_msg "${WARNING} Corporate proxy detected"
+            echo -e "${WARNING} Corporate proxy detected"
             echo ""
             echo "Microsoft downloads may be blocked by corporate firewall."
             echo ""
@@ -362,11 +374,11 @@ fi
 # ==========================================
 # 5. Corporate Proxy Guidance
 # ==========================================
-print_msg "${BLUE}=== 5. CORPORATE PROXY DETECTION ===${NC}"
+echo -e "${BLUE}=== 5. CORPORATE PROXY DETECTION ===${NC}"
 echo ""
 
 if env | grep -i proxy >/dev/null 2>&1; then
-    print_msg "${WARNING} Proxy environment variables detected:"
+    echo -e "${WARNING} Proxy environment variables detected:"
     env | grep -i proxy | sed 's/^/  /'
     echo ""
 
@@ -392,7 +404,7 @@ if env | grep -i proxy >/dev/null 2>&1; then
     echo "3. Contact DevOps for correct repository paths"
     echo ""
 else
-    print_msg "${CHECK_MARK} No corporate proxy detected"
+    echo -e "${CHECK_MARK} No corporate proxy detected"
     echo "  Direct internet access available"
     echo ""
 fi
@@ -400,7 +412,7 @@ fi
 # ==========================================
 # 6. Build Arguments Preview
 # ==========================================
-print_msg "${BLUE}=== 6. BUILD CONFIGURATION PREVIEW ===${NC}"
+echo -e "${BLUE}=== 6. BUILD CONFIGURATION PREVIEW ===${NC}"
 echo ""
 
 echo "The following configuration will be used for build:"
@@ -422,17 +434,17 @@ echo ""
 # ==========================================
 # Summary
 # ==========================================
-print_msg "${BLUE}=== SUMMARY ===${NC}"
+echo -e "${BLUE}=== SUMMARY ===${NC}"
 echo ""
 
 if [ $EXIT_CODE -eq 0 ]; then
-    print_msg "${CHECK_MARK} ${GREEN}All build requirements satisfied${NC}"
+    echo -e "${CHECK_MARK} ${GREEN}All build requirements satisfied${NC}"
     echo ""
     echo "Ready to build! Run:"
     echo "  make build"
     echo ""
 else
-    print_msg "${CROSS_MARK} ${RED}Build requirements not satisfied${NC}"
+    echo -e "${CROSS_MARK} ${RED}Build requirements not satisfied${NC}"
     echo ""
     echo "Please fix the issues above before building."
     echo ""

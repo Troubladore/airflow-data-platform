@@ -383,7 +383,7 @@ if ! docker info >/dev/null 2>&1; then
     echo "  Start Docker and re-run diagnostic"
 elif docker ps -a --format "{{.Names}}" | grep -q "kerberos-platform-service"; then
     # Use configured Alpine image from .env or default
-    local test_image="${IMAGE_ALPINE:-alpine:latest}"
+    test_image="${IMAGE_ALPINE:-alpine:latest}"
     echo "Testing ticket visibility in container..."
     echo "  Using image: $test_image"
     echo ""

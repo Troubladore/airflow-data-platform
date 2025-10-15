@@ -14,15 +14,24 @@
 
 set -e
 
+# Load formatting library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLATFORM_DIR="$(dirname "$SCRIPT_DIR")"
+if [ -f "$PLATFORM_DIR/lib/formatting.sh" ]; then
+    source "$PLATFORM_DIR/lib/formatting.sh"
+else
+    # Fallback if library not found
+    echo "Warning: formatting library not found, using basic output" >&2
+    GREEN='\033[0;32m'
+    RED='\033[0;31m'
+    YELLOW='\033[1;33m'
+    NC='\033[0m'
+fi
+
 # Load .env to get configuration
 if [ -f .env ]; then
     source .env
 fi
-
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
 
 echo "🔍 SQL Server Kerberos Authentication Test (Pre-built Image)"
 echo "============================================================="

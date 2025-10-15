@@ -5,21 +5,35 @@
 
 set -e
 
-# Colors
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-GREEN='\033[0;32m'
-NC='\033[0m'
+# Source the shared formatting library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLATFORM_DIR="$(dirname "$SCRIPT_DIR")"
+if [ -f "$PLATFORM_DIR/lib/formatting.sh" ]; then
+    source "$PLATFORM_DIR/lib/formatting.sh"
+else
+    # Fallback if library not found
+    echo "Warning: formatting library not found, using basic output" >&2
+    print_msg() { echo "$@"; }
+    print_success() { echo "$@"; }
+    print_warning() { echo "Warning: $@"; }
+    print_error() { echo "Error: $@"; }
+    CHECK_MARK="[OK]"
+    CROSS_MARK="[FAIL]"
+    GREEN=''
+    YELLOW=''
+    RED=''
+    NC=''
+fi
 
-echo "🧹 Clean Slate - Platform Docker Cleanup"
+print_title "Clean Slate - Platform Docker Cleanup" "🧹"
 echo "========================================="
 echo ""
-echo -e "${YELLOW}This will remove:${NC}"
-echo "  • Kerberos sidecar container"
-echo "  • Mock services containers"
-echo "  • platform_network"
+print_list_header "This will remove:"
+print_bullet "Kerberos sidecar container"
+print_bullet "Mock services containers"
+print_bullet "platform_network"
 echo ""
-echo -e "${YELLOW}Optional removals (you choose):${NC}"
+print_list_header "Optional removals (you choose):"
 echo ""
 
 # Helper function for yes/no prompts
@@ -34,9 +48,9 @@ ask_yes_no() {
 REMOVE_IMAGES=false
 if ask_yes_no "Remove built sidecar image? (forces rebuild next time)"; then
     REMOVE_IMAGES=true
-    echo -e "  ${YELLOW}→ Will remove: platform/kerberos-sidecar:latest${NC}"
+    print_arrow "WARN" "Will remove: platform/kerberos-sidecar:latest"
 else
-    echo -e "  ${GREEN}→ Will keep: platform/kerberos-sidecar:latest (reusable)${NC}"
+    print_arrow "PASS" "Will keep: platform/kerberos-sidecar:latest (reusable)"
 fi
 
 echo ""
@@ -45,9 +59,9 @@ echo ""
 CLEAR_TICKET_CACHE=false
 if ask_yes_no "Clear ticket cache volume? (removes stale tickets)"; then
     CLEAR_TICKET_CACHE=true
-    echo -e "  ${YELLOW}→ Will remove: platform_kerberos_cache volume${NC}"
+    print_arrow "WARN" "Will remove: platform_kerberos_cache volume"
 else
-    echo -e "  ${GREEN}→ Will keep: platform_kerberos_cache volume${NC}"
+    print_arrow "PASS" "Will keep: platform_kerberos_cache volume"
 fi
 
 echo ""
@@ -56,17 +70,17 @@ echo ""
 CLEAR_HOST_TICKETS=false
 if ask_yes_no "Clear host-side Kerberos tickets? (removes all ticket caches)"; then
     CLEAR_HOST_TICKETS=true
-    echo -e "  ${YELLOW}→ Will remove: /tmp/krb5*, /dev/shm/krb5*, etc.${NC}"
-    echo -e "  ${YELLOW}→ Warning: This affects ALL users on the host${NC}"
+    print_arrow "WARN" "Will remove: /tmp/krb5*, /dev/shm/krb5*, etc."
+    print_arrow "WARN" "Warning: This affects ALL users on the host"
 else
-    echo -e "  ${GREEN}→ Will keep: Host-side Kerberos tickets${NC}"
+    print_arrow "PASS" "Will keep: Host-side Kerberos tickets"
 fi
 
 echo ""
-echo -e "${GREEN}Always preserved:${NC}"
-echo "  • Your .env configuration"
+print_success "Always preserved:"
+print_bullet "Your .env configuration"
 if [ "$CLEAR_HOST_TICKETS" = false ]; then
-    echo "  • Your Kerberos tickets on host"
+    print_bullet "Your Kerberos tickets on host"
 fi
 echo ""
 
@@ -95,18 +109,18 @@ echo "Removing Docker resources..."
 if [ "$CLEAR_TICKET_CACHE" = true ]; then
     # Complete purge - remove volume entirely
     if docker volume rm platform_kerberos_cache 2>/dev/null; then
-        echo -e "${GREEN}✓${NC} Removed platform_kerberos_cache volume (tickets cleared)"
+        print_status "PASS" "Removed platform_kerberos_cache volume (tickets cleared)"
     else
         echo "  platform_kerberos_cache: not found or in use"
     fi
 else
     # Just clean - keep volume and tickets
-    echo -e "${GREEN}✓${NC} Keeping platform_kerberos_cache volume (tickets preserved)"
+    print_status "PASS" "Keeping platform_kerberos_cache volume (tickets preserved)"
 fi
 
 # Remove network
 if docker network rm platform_network 2>/dev/null; then
-    echo -e "${GREEN}✓${NC} Removed platform_network"
+    print_status "PASS" "Removed platform_network"
 else
     echo "  platform_network: not found or in use"
 fi
@@ -118,13 +132,13 @@ if [ "$REMOVE_IMAGES" = true ]; then
     echo "Removing built images..."
 
     if docker rmi platform/kerberos-sidecar:latest 2>/dev/null; then
-        echo -e "${GREEN}✓${NC} Removed platform/kerberos-sidecar:latest"
+        print_status "PASS" "Removed platform/kerberos-sidecar:latest"
     else
         echo "  platform/kerberos-sidecar:latest: not found"
     fi
 
     if docker rmi platform/kerberos-test:latest 2>/dev/null; then
-        echo -e "${GREEN}✓${NC} Removed platform/kerberos-test:latest"
+        print_status "PASS" "Removed platform/kerberos-test:latest"
     else
         echo "  platform/kerberos-test:latest: not found"
     fi
@@ -136,22 +150,22 @@ fi
 if [ "$CLEAR_HOST_TICKETS" = true ]; then
     echo "Cleaning host-side Kerberos tickets..."
     echo ""
-    echo -e "${YELLOW}⚠ Warning: This will remove ALL Kerberos tickets for ALL users${NC}"
-    echo -e "${YELLOW}   You will need to run 'kinit' again after cleanup${NC}"
+    print_status "WARN" "Warning: This will remove ALL Kerberos tickets for ALL users"
+    print_warning "You will need to run 'kinit' again after cleanup"
     echo ""
     read -p "Are you SURE you want to proceed? [y/N]: " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        local removed_count=0
+        removed_count=0
 
         # Remove file-based ticket caches in /tmp
         for ticket in /tmp/krb5cc_* /tmp/krb5_*; do
             if [ -f "$ticket" ] || [ -d "$ticket" ]; then
                 if rm -rf "$ticket" 2>/dev/null; then
-                    echo -e "${GREEN}✓${NC} Removed $ticket"
+                    print_status "PASS" "Removed $ticket"
                     removed_count=$((removed_count + 1))
                 else
-                    echo -e "${YELLOW}⚠${NC} Could not remove $ticket (permission denied?)"
+                    print_status "WARN" "Could not remove $ticket (permission denied?)"
                 fi
             fi
         done
@@ -161,10 +175,10 @@ if [ "$CLEAR_HOST_TICKETS" = true ]; then
             for ticket in /dev/shm/krb5cc_* /dev/shm/krb5_*; do
                 if [ -f "$ticket" ] || [ -d "$ticket" ]; then
                     if rm -rf "$ticket" 2>/dev/null; then
-                        echo -e "${GREEN}✓${NC} Removed $ticket"
+                        print_status "PASS" "Removed $ticket"
                         removed_count=$((removed_count + 1))
                     else
-                        echo -e "${YELLOW}⚠${NC} Could not remove $ticket (permission denied?)"
+                        print_status "WARN" "Could not remove $ticket (permission denied?)"
                     fi
                 fi
             done
@@ -172,7 +186,7 @@ if [ "$CLEAR_HOST_TICKETS" = true ]; then
 
         # Note about keyring caches (cannot be easily cleaned)
         if [ -d "/proc/keys" ]; then
-            echo -e "${YELLOW}ℹ${NC} Note: Keyring-based caches (KEYRING:) require 'keyctl purge' to clean"
+            print_status "INFO" "Note: Keyring-based caches (KEYRING:) require 'keyctl purge' to clean"
             echo "   Run: keyctl purge krb5cc @s (requires root for other users)"
         fi
 
@@ -180,7 +194,7 @@ if [ "$CLEAR_HOST_TICKETS" = true ]; then
             echo "  No host-side ticket caches found to remove"
         else
             echo ""
-            echo -e "${GREEN}✓${NC} Removed $removed_count ticket cache(s) from host"
+            print_status "PASS" "Removed $removed_count ticket cache(s) from host"
         fi
 
         echo ""
@@ -190,7 +204,7 @@ if [ "$CLEAR_HOST_TICKETS" = true ]; then
     fi
 fi
 
-echo -e "${GREEN}✓ Clean slate complete!${NC}"
+print_status "PASS" "Clean slate complete!"
 echo ""
 
 if [ "$REMOVE_IMAGES" = true ]; then
