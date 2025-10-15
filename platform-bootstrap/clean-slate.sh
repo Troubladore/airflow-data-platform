@@ -51,9 +51,23 @@ else
 fi
 
 echo ""
+
+# Ask about host-side tickets
+CLEAR_HOST_TICKETS=false
+if ask_yes_no "Clear host-side Kerberos tickets? (removes all ticket caches)"; then
+    CLEAR_HOST_TICKETS=true
+    echo -e "  ${YELLOW}→ Will remove: /tmp/krb5*, /dev/shm/krb5*, etc.${NC}"
+    echo -e "  ${YELLOW}→ Warning: This affects ALL users on the host${NC}"
+else
+    echo -e "  ${GREEN}→ Will keep: Host-side Kerberos tickets${NC}"
+fi
+
+echo ""
 echo -e "${GREEN}Always preserved:${NC}"
 echo "  • Your .env configuration"
-echo "  • Your Kerberos tickets on host"
+if [ "$CLEAR_HOST_TICKETS" = false ]; then
+    echo "  • Your Kerberos tickets on host"
+fi
 echo ""
 
 read -p "Proceed with cleanup? [y/N]: " -n 1 -r
@@ -104,18 +118,76 @@ if [ "$REMOVE_IMAGES" = true ]; then
     echo "Removing built images..."
 
     if docker rmi platform/kerberos-sidecar:latest 2>/dev/null; then
+        echo -e "${GREEN}✓${NC} Removed platform/kerberos-sidecar:latest"
+    else
+        echo "  platform/kerberos-sidecar:latest: not found"
+    fi
 
     if docker rmi platform/kerberos-test:latest 2>/dev/null; then
         echo -e "${GREEN}✓${NC} Removed platform/kerberos-test:latest"
     else
         echo "  platform/kerberos-test:latest: not found"
     fi
-        echo -e "${GREEN}✓${NC} Removed platform/kerberos-sidecar:latest"
-    else
-        echo "  platform/kerberos-sidecar:latest: not found"
-    fi
 
     echo ""
+fi
+
+# Clean host-side Kerberos tickets if requested
+if [ "$CLEAR_HOST_TICKETS" = true ]; then
+    echo "Cleaning host-side Kerberos tickets..."
+    echo ""
+    echo -e "${YELLOW}⚠ Warning: This will remove ALL Kerberos tickets for ALL users${NC}"
+    echo -e "${YELLOW}   You will need to run 'kinit' again after cleanup${NC}"
+    echo ""
+    read -p "Are you SURE you want to proceed? [y/N]: " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        local removed_count=0
+
+        # Remove file-based ticket caches in /tmp
+        for ticket in /tmp/krb5cc_* /tmp/krb5_*; do
+            if [ -f "$ticket" ] || [ -d "$ticket" ]; then
+                if rm -rf "$ticket" 2>/dev/null; then
+                    echo -e "${GREEN}✓${NC} Removed $ticket"
+                    removed_count=$((removed_count + 1))
+                else
+                    echo -e "${YELLOW}⚠${NC} Could not remove $ticket (permission denied?)"
+                fi
+            fi
+        done
+
+        # Remove shared memory ticket caches
+        if [ -d "/dev/shm" ]; then
+            for ticket in /dev/shm/krb5cc_* /dev/shm/krb5_*; do
+                if [ -f "$ticket" ] || [ -d "$ticket" ]; then
+                    if rm -rf "$ticket" 2>/dev/null; then
+                        echo -e "${GREEN}✓${NC} Removed $ticket"
+                        removed_count=$((removed_count + 1))
+                    else
+                        echo -e "${YELLOW}⚠${NC} Could not remove $ticket (permission denied?)"
+                    fi
+                fi
+            done
+        fi
+
+        # Note about keyring caches (cannot be easily cleaned)
+        if [ -d "/proc/keys" ]; then
+            echo -e "${YELLOW}ℹ${NC} Note: Keyring-based caches (KEYRING:) require 'keyctl purge' to clean"
+            echo "   Run: keyctl purge krb5cc @s (requires root for other users)"
+        fi
+
+        if [ $removed_count -eq 0 ]; then
+            echo "  No host-side ticket caches found to remove"
+        else
+            echo ""
+            echo -e "${GREEN}✓${NC} Removed $removed_count ticket cache(s) from host"
+        fi
+
+        echo ""
+    else
+        echo "  Skipped host-side ticket cleanup"
+        echo ""
+    fi
 fi
 
 echo -e "${GREEN}✓ Clean slate complete!${NC}"
