@@ -1036,30 +1036,10 @@ step_11_test_sql_server() {
     print_info "This is optional but recommended to verify end-to-end connectivity"
     echo ""
 
-    # Check if test image exists, offer to build if not
-    if ! docker image inspect platform/kerberos-test:latest >/dev/null 2>&1; then
-        echo ""
-        print_warning "Test image not found (platform/kerberos-test:latest)"
-        echo ""
-        print_info "The test image has pyodbc pre-installed (avoids runtime pip downloads)"
-        print_info "For corporate environments, this prevents PyPI access during testing"
-        echo ""
-
-        if ask_yes_no "Build test image now? (recommended for corporate environments)" "y"; then
-            echo ""
-            print_info "Building test image..."
-            cd "$SCRIPT_DIR/kerberos-sidecar"
-            if make build-test-image; then
-                cd "$SCRIPT_DIR"
-                print_success "Test image built successfully!"
-            else
-                cd "$SCRIPT_DIR"
-                print_warning "Test image build failed - will use runtime install instead"
-                echo "  (may fail if PyPI is blocked)"
-            fi
-            echo ""
-        fi
-    fi
+    # Simple test - no custom image build needed
+    print_info "Using simple FreeTDS-based test (no pyodbc complexity)"
+    print_info "This avoids pip/PyPI issues in corporate environments"
+    echo ""
 
     if ! ask_yes_no "Would you like to test SQL Server connection?"; then
         print_info "Skipping SQL Server test"
