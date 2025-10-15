@@ -1,6 +1,6 @@
 # Kerberos Authentication Diagnostic Context
 
-**Generated:** 2025-10-15 11:48:26 CDT
+**Generated:** 2025-10-15 12:27:53 CDT
 **Purpose:** Self-contained diagnostic information for troubleshooting Kerberos/SQL authentication issues
 
 ---
@@ -51,7 +51,7 @@ Kerberos Sidecar: Not running
 
 ### Ticket Status
 ```
-KRB5CCNAME: FILE:/tmp/krb5cc_test_252249
+KRB5CCNAME: FILE:/tmp/krb5cc_test_321064
 
 klist: Not installed (cannot check tickets)
 ```
@@ -74,11 +74,11 @@ None configured
 
 ### Time Synchronization (Critical for Kerberos)
 ```
-Current time: Wed Oct 15 11:48:26 AM CDT 2025
-UTC time: Wed Oct 15 04:48:26 PM UTC 2025
+Current time: Wed Oct 15 12:27:53 PM CDT 2025
+UTC time: Wed Oct 15 05:27:53 PM UTC 2025
 
-               Local time: Wed 2025-10-15 11:48:26 CDT
-           Universal time: Wed 2025-10-15 16:48:26 UTC
+               Local time: Wed 2025-10-15 12:27:53 CDT
+           Universal time: Wed 2025-10-15 17:27:53 UTC
 System clock synchronized: yes
               NTP service: active
 ```
