@@ -7,18 +7,16 @@ set -e
 
 # Find script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Colors for output
-if [ -t 1 ] && [ -z "${NO_COLOR}" ]; then
+PLATFORM_DIR="$(dirname "$SCRIPT_DIR")"
+if [ -f "$PLATFORM_DIR/lib/formatting.sh" ]; then
+    source "$PLATFORM_DIR/lib/formatting.sh"
+else
+    # Fallback if library not found
+    echo "Warning: formatting library not found, using basic output" >&2
     GREEN='\033[0;32m'
     YELLOW='\033[1;33m'
     CYAN='\033[0;36m'
     NC='\033[0m'
-else
-    GREEN=''
-    YELLOW=''
-    CYAN=''
-    NC=''
 fi
 
 echo "Git Hooks Setup for Platform Bootstrap"

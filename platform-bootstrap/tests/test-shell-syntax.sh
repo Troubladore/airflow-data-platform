@@ -30,14 +30,14 @@ WARNINGS=0
 
 # List of critical scripts to validate
 CRITICAL_SCRIPTS=(
-    "clean-slate.sh"
-    "setup-kerberos.sh"
-    "diagnose-kerberos.sh"
-    "krb5-auth-test.sh"
-    "test-sql-direct.sh"
-    "test-sql-simple.sh"
-    "generate-diagnostic-context.sh"
-    "run-kerberos-setup.sh"
+    "dev-tools/clean-slate.sh"
+    "dev-tools/setup-kerberos.sh"
+    "diagnostics/diagnose-kerberos.sh"
+    "diagnostics/krb5-auth-test.sh"
+    "diagnostics/test-sql-direct.sh"
+    "diagnostics/test-sql-simple.sh"
+    "diagnostics/generate-diagnostic-context.sh"
+    "dev-tools/run-kerberos-setup.sh"
 )
 
 echo "Validating critical scripts..."

@@ -1,6 +1,6 @@
 # Kerberos Authentication Diagnostic Context
 
-**Generated:** 2025-10-15 11:34:46 CDT
+**Generated:** 2025-10-15 11:48:26 CDT
 **Purpose:** Self-contained diagnostic information for troubleshooting Kerberos/SQL authentication issues
 
 ---
@@ -51,7 +51,7 @@ Kerberos Sidecar: Not running
 
 ### Ticket Status
 ```
-KRB5CCNAME: FILE:/tmp/krb5cc_test_189679
+KRB5CCNAME: FILE:/tmp/krb5cc_test_252249
 
 klist: Not installed (cannot check tickets)
 ```
@@ -74,11 +74,11 @@ None configured
 
 ### Time Synchronization (Critical for Kerberos)
 ```
-Current time: Wed Oct 15 11:34:46 AM CDT 2025
-UTC time: Wed Oct 15 04:34:46 PM UTC 2025
+Current time: Wed Oct 15 11:48:26 AM CDT 2025
+UTC time: Wed Oct 15 04:48:26 PM UTC 2025
 
-               Local time: Wed 2025-10-15 11:34:46 CDT
-           Universal time: Wed 2025-10-15 16:34:46 UTC
+               Local time: Wed 2025-10-15 11:48:26 CDT
+           Universal time: Wed 2025-10-15 16:48:26 UTC
 System clock synchronized: yes
               NTP service: active
 ```
@@ -158,7 +158,7 @@ Example: "Based on this diagnostic context, why am I getting 'Login failed for u
 
 ### For Developers
 This report structure is designed to be parsed by MCP-compatible agents in the future.
-JSON output mode is available: `./generate-diagnostic-context.sh json diagnostic-context.json`
+JSON output mode is available: `./diagnostics/generate-diagnostic-context.sh json diagnostic-context.json`
 
 ### For Support Teams
 This report contains all necessary information for remote troubleshooting without
