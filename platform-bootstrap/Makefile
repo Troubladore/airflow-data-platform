@@ -35,25 +35,19 @@ help: ## Show this help message
 # Installation & Setup
 # ==========================================
 
-# TODO: These targets need implementation
-# install: ## Install prerequisites (Docker, Astronomer CLI, etc.)
-# 	@echo "Installing prerequisites..."
-# 	@./setup-scripts/install-prereqs.sh
-# 	@echo "✓ Prerequisites installed"
-
-# configure: ## Configure environment (Artifactory, Kerberos, etc.)
-# 	@echo "Configuring environment..."
-# 	@./setup-scripts/configure-environment.sh
-# 	@echo "✓ Environment configured"
-
-# validate: ## Validate environment is ready
-# 	@echo "Validating environment..."
-# 	@./setup-scripts/validate-environment.sh
-
-# For now, use kerberos-setup for configuration:
-install: ## Run interactive setup wizard (replaces old install/configure/validate)
-	@echo "Running setup wizard..."
+install: ## Run interactive setup wizard (Kerberos + platform services)
+	@echo "Running Kerberos setup wizard..."
 	@./dev-tools/setup-kerberos.sh
+
+setup-pagila: ## Setup pagila test database (idempotent)
+	@./setup-scripts/setup-pagila.sh
+
+setup-pagila-reset: ## Remove and reinstall pagila test database
+	@./setup-scripts/setup-pagila.sh --reset
+
+# Future modular setup scripts:
+# setup-kerberos: ./setup-scripts/setup-kerberos.sh (extract from wizard later)
+# setup-openmetadata: ./setup-scripts/setup-openmetadata.sh (if complex setup needed)
 
 # ==========================================
 # Platform Services
