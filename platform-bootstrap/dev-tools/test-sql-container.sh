@@ -82,9 +82,9 @@ fi
 print_check "PASS" "Kerberos sidecar is running"
 
 # Determine which diagnostic script to use
-DIAG_SCRIPT="krb5-auth-test.sh"
+DIAG_SCRIPT="$PLATFORM_DIR/diagnostics/krb5-auth-test.sh"
 if [ ! -f "$DIAG_SCRIPT" ]; then
-    print_check "WARN" "krb5-auth-test.sh not found locally"
+    print_check "WARN" "krb5-auth-test.sh not found in diagnostics/"
     echo "  Will create basic diagnostic in container"
     DIAG_SCRIPT=""
 fi
@@ -100,7 +100,7 @@ echo ""
 # Prepare the diagnostic script content if needed
 if [ -n "$DIAG_SCRIPT" ]; then
     # Copy our diagnostic script
-    MOUNT_DIAG="-v $(pwd)/$DIAG_SCRIPT:/tmp/krb5-auth-test.sh:ro"
+    MOUNT_DIAG="-v $DIAG_SCRIPT:/tmp/krb5-auth-test.sh:ro"
 else
     MOUNT_DIAG=""
 fi

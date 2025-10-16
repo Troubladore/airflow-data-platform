@@ -340,7 +340,7 @@ step_4_kerberos_ticket() {
 
         # Extract principal and expiry
         local principal=$(klist 2>/dev/null | grep "Default principal:" | sed 's/Default principal: //')
-        local expiry=$(klist 2>/dev/null | grep "Expires" | head -1 | awk '{print $3, $4}')
+        local expiry=$(klist 2>/dev/null | grep "Expires" | head -1 | awk '{print $3, $4, $5}')
 
         if [ -n "$principal" ]; then
             print_info "Principal: ${CYAN}$principal${NC}"
@@ -1039,9 +1039,7 @@ step_9_test_ticket_sharing() {
 step_10_test_sql_direct() {
     print_step 10 "Testing Direct SQL Server Connection (Pre-flight)"
 
-    echo "This step tests SQL Server authentication WITHOUT the sidecar."
-    echo ""
-    print_info "This isolates network connectivity from Kerberos integration issues"
+    print_info "This test runs WITHOUT the sidecar to isolate connectivity issues"
     echo ""
 
     if ! ask_yes_no "Test direct SQL Server connection?"; then
