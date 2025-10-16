@@ -221,7 +221,7 @@ if [ $RESULT -eq 0 ]; then
         echo -e "${YELLOW}⚠ Connected but NOT using Kerberos${NC}"
         echo "========================================="
         echo ""
-        echo "Authentication method: $(echo "$OUTPUT" | grep -v 'Connection successful')"
+        echo "Authentication method: $(echo "$OUTPUT" | grep -v 'Connection successful' | head -1)"
         echo ""
         echo "This might indicate:"
         echo "  - SQL Server fallback to NTLM"
