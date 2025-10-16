@@ -124,15 +124,20 @@ platform-status: ## Check status of platform services
 # Note: Kerberos is included in 'platform-start' (always-on)
 # These targets are for advanced use cases only
 
-kerberos-only: ## Start only Kerberos (without OpenMetadata)
-	@echo "Starting Kerberos sidecar only..."
+kerberos-start: ## Start Kerberos sidecar service
+	@echo "Starting Kerberos sidecar..."
 	@docker network create platform_network 2>/dev/null || true
 	@docker volume create platform_kerberos_cache 2>/dev/null || true
+	@echo "Checking for Kerberos sidecar image..."
+	@if ! docker images platform/kerberos-sidecar:latest --format "{{.Repository}}" | grep -q "platform/kerberos-sidecar"; then \
+		echo "Building Kerberos sidecar (one-time setup)..."; \
+		cd kerberos-sidecar && $(MAKE) build || exit 1; \
+	fi
 	@$(DOCKER_COMPOSE) up -d developer-kerberos-service
 	@echo "✓ Kerberos sidecar started"
 
 kerberos-stop: ## Stop Kerberos sidecar
-	@$(DOCKER_COMPOSE) down 2>/dev/null || true
+	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.openmetadata.yml down 2>/dev/null || true
 	@echo "✓ Kerberos sidecar stopped"
 
 kerberos-test: ## Test Kerberos ticket
