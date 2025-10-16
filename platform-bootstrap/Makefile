@@ -59,23 +59,57 @@ install: ## Run interactive setup wizard (replaces old install/configure/validat
 # Platform Services
 # ==========================================
 
-platform-start: kerberos-start ## Start all platform services
+platform-start: ## Start all platform services (Kerberos + OpenMetadata)
+	@echo "Starting platform services..."
+	@echo ""
+	@# Create network and volumes if needed
+	@docker network create platform_network 2>/dev/null || true
+	@docker volume create platform_kerberos_cache 2>/dev/null || true
+	@echo "Checking for Kerberos sidecar image..."
+	@if ! docker images platform/kerberos-sidecar:latest --format "{{.Repository}}" | grep -q "platform/kerberos-sidecar"; then \
+		echo "Building Kerberos sidecar (one-time setup)..."; \
+		cd kerberos-sidecar && $(MAKE) build || exit 1; \
+	fi
+	@echo ""
+	@echo "Starting services (this may take 2-3 minutes on first run)..."
+	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.openmetadata.yml up -d
+	@echo ""
 	@echo "✓ Platform services started"
 	@echo ""
-	@echo "Note: Docker caches images automatically - no registry service needed"
-	@echo "Next: astro dev init my-project"
+	@echo "Services:"
+	@echo "  • Kerberos Sidecar:  docker ps | grep kerberos-platform-service"
+	@echo "  • Platform PostgreSQL: docker ps | grep platform-postgres"
+	@echo "  • OpenMetadata UI:   http://localhost:8585"
+	@echo "  • Login:             admin@open-metadata.org / admin"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Check status: make platform-status"
+	@echo "  2. Create project: astro dev init my-project"
+	@echo "  3. Or run ingestion: cd examples/openmetadata-ingestion && astro dev start"
 	@echo ""
 	@echo "Optional: Start mock services with 'make mock-start' if needed"
 
-platform-stop: kerberos-stop ## Stop all platform services
+platform-stop: ## Stop all platform services
+	@echo "Stopping platform services..."
+	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.openmetadata.yml down
 	@echo "✓ Platform services stopped"
 
 platform-status: ## Check status of platform services
 	@echo "Platform Services Status:"
 	@echo "========================"
-	@$(DOCKER_COMPOSE) ps 2>/dev/null || echo "No services running"
 	@echo ""
-	@make kerberos-test
+	@echo "Core Services:"
+	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.openmetadata.yml ps 2>/dev/null || echo "No services running"
+	@echo ""
+	@echo "Health Checks:"
+	@echo -n "  Kerberos: "
+	@docker exec kerberos-platform-service klist -s 2>/dev/null && echo "✓ Valid ticket" || echo "✗ No ticket"
+	@echo -n "  OpenMetadata: "
+	@curl -sf http://localhost:8585/api/v1/health >/dev/null 2>&1 && echo "✓ Healthy" || echo "✗ Not healthy"
+	@echo -n "  PostgreSQL: "
+	@docker exec platform-postgres pg_isready -U platform_admin >/dev/null 2>&1 && echo "✓ Ready" || echo "✗ Not ready"
+	@echo -n "  Elasticsearch: "
+	@curl -sf http://localhost:9200/_cluster/health >/dev/null 2>&1 && echo "✓ Healthy" || echo "✗ Not healthy"
 
 # ==========================================
 # Note: Registry Removed
@@ -85,52 +119,25 @@ platform-status: ## Check status of platform services
 # See: deprecated/registry-implementations/ for historical reference.
 
 # ==========================================
-# Kerberos Service
+# Kerberos Service (Individual Targets)
 # ==========================================
+# Note: Kerberos is included in 'platform-start' (always-on)
+# These targets are for advanced use cases only
 
 kerberos-start: ## Start Kerberos sidecar service
+	@echo "Starting Kerberos sidecar..."
+	@docker network create platform_network 2>/dev/null || true
+	@docker volume create platform_kerberos_cache 2>/dev/null || true
 	@echo "Checking for Kerberos sidecar image..."
 	@if ! docker images platform/kerberos-sidecar:latest --format "{{.Repository}}" | grep -q "platform/kerberos-sidecar"; then \
-		echo "❌ Image not found (this is normal on first run)"; \
-		echo ""; \
-		echo "Building Kerberos sidecar (one-time setup, 2-3 minutes)..."; \
-		echo ""; \
-		cd kerberos-sidecar && $(MAKE) build || { \
-			echo ""; \
-			echo "❌ Build failed. Common issues:"; \
-			echo ""; \
-			echo "1. Network connectivity"; \
-			echo "   - Check internet connection or VPN"; \
-			echo "   - May need corporate Artifactory (see .env.example)"; \
-			echo ""; \
-			echo "2. Docker not running"; \
-			echo "   - Run: docker info"; \
-			echo ""; \
-			echo "3. Insufficient disk space"; \
-			echo "   - Run: docker system prune"; \
-			echo ""; \
-			echo "For detailed diagnostics, run:"; \
-			echo "   cd kerberos-sidecar && make check-requirements"; \
-			echo ""; \
-			exit 1; \
-		}; \
-		echo ""; \
-		echo "✓ Sidecar built successfully"; \
-		echo ""; \
-	else \
-		echo "✓ Image found"; \
-		echo ""; \
+		echo "Building Kerberos sidecar (one-time setup)..."; \
+		cd kerberos-sidecar && $(MAKE) build || exit 1; \
 	fi
-	@echo "Starting Kerberos sidecar..."
-	@# Note: Sidecar obtains tickets via keytab or password (configured in docker-compose.yml)
 	@$(DOCKER_COMPOSE) up -d developer-kerberos-service
 	@echo "✓ Kerberos sidecar started"
-	@echo ""
-	@echo "To verify: docker logs kerberos-platform-service"
-	@echo "To check ticket: docker exec kerberos-platform-service klist"
 
 kerberos-stop: ## Stop Kerberos sidecar
-	@$(DOCKER_COMPOSE) down 2>/dev/null || true
+	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.openmetadata.yml down 2>/dev/null || true
 	@echo "✓ Kerberos sidecar stopped"
 
 kerberos-test: ## Test Kerberos ticket

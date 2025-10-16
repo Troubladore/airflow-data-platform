@@ -1,0 +1,191 @@
+# OpenMetadata Platform Services
+# ===============================
+# Extends base docker-compose.yml with metadata cataloging capabilities
+#
+# Architecture: 3 services (Shared PostgreSQL + OpenMetadata Server + Elasticsearch)
+# - No separate ingestion container (uses Astronomer for DAG-based ingestion)
+# - Shared PostgreSQL for platform services (OLTP workloads)
+# - OLAP workloads use separate warehouse PostgreSQL instances
+#
+# Usage:
+#   make platform-start    # Starts Kerberos + OpenMetadata (always-on)
+#   make platform-stop     # Stops all services
+#   make platform-status   # Check service health
+
+services:
+  # ============================================
+  # Shared Platform PostgreSQL (OLTP)
+  # ============================================
+  # Multi-database instance for platform services
+  # - openmetadata_db: Metadata catalog storage
+  # - airflow_db (future): Airflow metastore
+  # - [other platform services as needed]
+  #
+  # Note: Separate from warehouse PostgreSQL (OLAP workloads)
+  # ============================================
+  platform-postgres:
+    image: ${IMAGE_POSTGRES:-postgres:15}
+    container_name: platform-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: platform_admin
+      POSTGRES_PASSWORD: ${PLATFORM_DB_PASSWORD:-changeme_platform_password}
+      # Databases created by init script
+
+    volumes:
+      # Persistent storage for all platform databases
+      - platform_postgres_data:/var/lib/postgresql/data
+      # Init script creates multiple databases on first startup
+      - ./postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
+
+    networks:
+      - platform-net
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platform_admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # Elasticsearch (Search & Indexing)
+  # ============================================
+  # Provides full-text search for metadata catalog
+  # ============================================
+  openmetadata-elasticsearch:
+    image: ${IMAGE_ELASTICSEARCH:-docker.elastic.co/elasticsearch/elasticsearch:8.10.2}
+    container_name: openmetadata-elasticsearch
+    restart: unless-stopped
+
+    environment:
+      # Single-node mode (suitable for local development)
+      - discovery.type=single-node
+      # Security disabled for local development
+      - xpack.security.enabled=false
+      # Memory allocation
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+
+    volumes:
+      # Persistent storage for search indices
+      - openmetadata_es_data:/usr/share/elasticsearch/data
+
+    networks:
+      - platform-net
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ============================================
+  # OpenMetadata Server (UI + API + Connectors)
+  # ============================================
+  # Core metadata catalog application
+  # - Web UI for browsing metadata
+  # - REST API for programmatic access
+  # - Built-in connectors (can run ad-hoc ingestion)
+  # - Kerberos-aware (for SQL Server connections)
+  # ============================================
+  openmetadata-server:
+    image: ${IMAGE_OPENMETADATA_SERVER:-docker.getcollate.io/openmetadata/server:1.2.0}
+    container_name: openmetadata-server
+    restart: unless-stopped
+
+    ports:
+      - "${OPENMETADATA_PORT:-8585}:8585"
+
+    environment:
+      # ========================================
+      # Database Configuration (Shared PostgreSQL)
+      # ========================================
+      DB_DRIVER_CLASS: org.postgresql.Driver
+      DB_URL: jdbc:postgresql://platform-postgres:5432/openmetadata_db
+      DB_USER: openmetadata_user
+      DB_USER_PASSWORD: ${OPENMETADATA_DB_PASSWORD:-changeme_openmetadata_password}
+
+      # ========================================
+      # Elasticsearch Configuration
+      # ========================================
+      ELASTICSEARCH_HOST: openmetadata-elasticsearch
+      ELASTICSEARCH_PORT: 9200
+
+      # ========================================
+      # OpenMetadata Configuration
+      # ========================================
+      OPENMETADATA_CLUSTER_NAME: ${OPENMETADATA_CLUSTER_NAME:-local-dev}
+      SERVER_HOST_API_URL: http://localhost:8585/api
+
+      # ========================================
+      # Authentication (Basic for Local Dev)
+      # ========================================
+      AUTHENTICATION_PROVIDER: basic
+      AUTHENTICATION_PUBLIC_KEYS: []
+      AUTHORIZER_CLASS_NAME: org.openmetadata.service.security.DefaultAuthorizer
+      AUTHORIZER_REQUEST_FILTER: org.openmetadata.service.security.JwtFilter
+      AUTHORIZER_ADMIN_PRINCIPALS: "[admin]"
+      AUTHORIZER_PRINCIPAL_DOMAIN: "open-metadata.org"
+
+      # ========================================
+      # Pipeline Service Client (For Airflow Integration)
+      # ========================================
+      PIPELINE_SERVICE_CLIENT_ENABLED: true
+      PIPELINE_SERVICE_CLIENT_CLASS_NAME: org.openmetadata.service.clients.pipeline.airflow.AirflowRESTClient
+
+      # ========================================
+      # Kerberos Configuration (For Ad-hoc SQL Server Testing)
+      # ========================================
+      # Server can test SQL Server connections using Kerberos
+      # Production ingestion runs via Astronomer DAGs
+      KRB5CCNAME: /krb5/cache/krb5cc
+      KRB5_CONFIG: /etc/krb5.conf
+
+    volumes:
+      # Kerberos integration (for testing connections in UI)
+      - platform_kerberos_cache:/krb5/cache:ro
+      - ${KRB5_CONF_PATH:-/etc/krb5.conf}:/etc/krb5.conf:ro
+
+    depends_on:
+      platform-postgres:
+        condition: service_healthy
+      openmetadata-elasticsearch:
+        condition: service_healthy
+      developer-kerberos-service:
+        condition: service_started
+
+    networks:
+      - platform-net
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8585/api/v1/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+
+# ============================================
+# Volumes
+# ============================================
+
+volumes:
+  # Shared PostgreSQL data (all platform databases)
+  platform_postgres_data:
+    name: platform_postgres_data
+
+  # Elasticsearch indices
+  openmetadata_es_data:
+    name: openmetadata_es_data
+
+  # Kerberos cache (external - managed by base docker-compose.yml)
+  platform_kerberos_cache:
+    external: true
+
+# ============================================
+# Networks
+# ============================================
+
+networks:
+  # Platform network (external - managed by base docker-compose.yml)
+  platform-net:
+    external: true
+    name: platform_network
