@@ -340,7 +340,7 @@ step_4_kerberos_ticket() {
 
         # Extract principal and expiry
         local principal=$(klist 2>/dev/null | grep "Default principal:" | sed 's/Default principal: //')
-        local expiry=$(klist 2>/dev/null | grep "Expires" | head -1 | awk '{print $3, $4, $5}')
+        local expiry=$(klist 2>/dev/null | grep -A1 "Default principal" | grep "Valid starting" | sed 's/.*Expires[[:space:]]*//;s/^[[:space:]]*//')
 
         if [ -n "$principal" ]; then
             print_info "Principal: ${CYAN}$principal${NC}"
@@ -1039,9 +1039,6 @@ step_9_test_ticket_sharing() {
 step_10_test_sql_direct() {
     print_step 10 "Testing Direct SQL Server Connection (Pre-flight)"
 
-    print_info "This test runs WITHOUT the sidecar to isolate connectivity issues"
-    echo ""
-
     if ! ask_yes_no "Test direct SQL Server connection?"; then
         print_info "Skipping direct SQL test"
         save_state
@@ -1091,8 +1088,7 @@ step_10_test_sql_direct() {
     fi
 
     echo ""
-    print_info "Testing DIRECT connection to ${CYAN}${sql_server}${NC}..."
-    print_info "This test runs WITHOUT the sidecar to isolate connectivity issues"
+    print_info "Testing connection to ${CYAN}${sql_server}${NC}..."
     echo ""
 
     # Check if direct test script exists
