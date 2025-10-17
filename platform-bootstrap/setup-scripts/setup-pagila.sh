@@ -156,8 +156,68 @@ if [ "$RESET" = true ]; then
 fi
 
 # ==========================================
+# Clean Up Old Pagila Resources (Defensive)
+# ==========================================
+
+print_info "Checking for old pagila resources (from previous setups)..."
+
+OLD_RESOURCES_FOUND=false
+
+# Check for old container with different name (before we renamed to pagila-postgres)
+if docker ps -a --format '{{.Names}}' | grep -q "^pagila$"; then
+    print_warning "Found old 'pagila' container (previous naming convention)"
+    OLD_RESOURCES_FOUND=true
+fi
+
+# Check for old volumes with various naming patterns
+for vol in "pagila_pgdata" "pagila-pgdata" "pgdata"; do
+    if docker volume ls --format '{{.Name}}' | grep -q "^${vol}$"; then
+        print_warning "Found old volume: $vol"
+        OLD_RESOURCES_FOUND=true
+    fi
+done
+
+if [ "$OLD_RESOURCES_FOUND" = true ]; then
+    echo ""
+    print_warning "Detected pagila Docker resources from previous setup"
+    print_info "These should be cleaned up to avoid conflicts with new naming/configuration"
+    echo ""
+
+    if ask_yes_no "Clean up old pagila Docker resources now?"; then
+        print_info "Removing old containers..."
+        docker rm -f pagila 2>/dev/null || true
+        docker rm -f pagila-postgres 2>/dev/null || true
+        docker rm -f pagila-jsonb-restore 2>/dev/null || true
+
+        print_info "Removing old volumes..."
+        docker volume rm pagila_pgdata 2>/dev/null || true
+        docker volume rm pagila-pgdata 2>/dev/null || true
+        docker volume rm pgdata 2>/dev/null || true
+
+        print_success "Old resources cleaned up"
+        echo ""
+        print_info "Fresh pagila installation will proceed..."
+    else
+        print_warning "Proceeding with old resources present"
+        print_info "If issues occur, run: $0 --reset"
+    fi
+fi
+
+echo ""
+
+# ==========================================
 # Clone Pagila Repository
 # ==========================================
+
+print_header "Pagila Repository Management"
+echo ""
+print_info "📌 Pagila is managed as a separate repository (clean architecture)"
+print_info "Repository: $PAGILA_REPO_URL"
+print_info "Location: $PAGILA_DIR"
+print_info ""
+print_info "This script automatically manages the pagila sibling repo."
+print_info "You don't need to clone it manually - it's handled for you!"
+echo ""
 
 print_info "Checking for pagila repository..."
 
@@ -189,6 +249,37 @@ else
         echo "  3. Check git is installed: git --version"
         exit 1
     fi
+fi
+
+echo ""
+
+# ==========================================
+# Create SA Password File (If Needed)
+# ==========================================
+
+print_info "Checking for PostgreSQL password file..."
+
+SA_PASSWORD_FILE="$PAGILA_DIR/postgres_sa_password.txt"
+
+if [ ! -f "$SA_PASSWORD_FILE" ]; then
+    print_info "Creating postgres_sa_password.txt with random password..."
+    print_info "(Required by docker-compose, but not actually used with trust auth)"
+
+    # Generate random password (avoids docker-compose warnings)
+    if command -v openssl >/dev/null 2>&1; then
+        openssl rand -base64 32 > "$SA_PASSWORD_FILE"
+    else
+        # Fallback: use /dev/urandom
+        head -c 32 /dev/urandom | base64 > "$SA_PASSWORD_FILE"
+    fi
+
+    print_success "Password file created"
+    echo ""
+    print_info "Note: Pagila uses 'trust' authentication (pg_hba.conf)"
+    print_info "      Password file just suppresses docker-compose warnings"
+    print_info "      Developers can connect via DBeaver/pgAdmin without password!"
+else
+    print_check "PASS" "Password file exists"
 fi
 
 echo ""
@@ -366,11 +457,17 @@ echo ""
 # ==========================================
 
 echo "Connection details:"
-echo "  Host (from platform):  pagila-postgres"
-echo "  Host (from host):      localhost:5432"
+echo "  Host (from platform):  pagila-postgres:5432"
+echo "  Host (from host):      localhost:${PAGILA_PORT:-5432}"
 echo "  Database:              pagila"
 echo "  Username:              postgres"
-echo "  Password:              postgres"
+echo "  Password:              (trust auth - no password needed!)"
+echo ""
+echo "Developer-friendly features:"
+echo "  ✓ Trust authentication enabled (pg_hba.conf)"
+echo "  ✓ Connect from DBeaver/pgAdmin without password"
+echo "  ✓ Localhost-only binding (127.0.0.1 - secure!)"
+echo "  ✓ Platform services access via Docker network"
 echo ""
 echo "Quick test:"
 echo "  docker exec $CONTAINER_NAME psql -U postgres -d pagila -c '\\dt'"
