@@ -254,32 +254,48 @@ fi
 echo ""
 
 # ==========================================
-# Create SA Password File (If Needed)
+# Create .env Configuration (If Needed)
 # ==========================================
 
-print_info "Checking for PostgreSQL password file..."
+print_info "Checking for pagila .env configuration..."
 
-SA_PASSWORD_FILE="$PAGILA_DIR/postgres_sa_password.txt"
+PAGILA_ENV_FILE="$PAGILA_DIR/.env"
 
-if [ ! -f "$SA_PASSWORD_FILE" ]; then
-    print_info "Creating postgres_sa_password.txt with random password..."
-    print_info "(Required by docker-compose, but not actually used with trust auth)"
+if [ ! -f "$PAGILA_ENV_FILE" ]; then
+    print_info "Creating .env from .env.example..."
+    print_info "(Consistent with platform pattern - configuration in .env, not password files)"
 
-    # Generate random password (avoids docker-compose warnings)
-    if command -v openssl >/dev/null 2>&1; then
-        openssl rand -base64 32 > "$SA_PASSWORD_FILE"
+    if [ -f "$PAGILA_DIR/.env.example" ]; then
+        cp "$PAGILA_DIR/.env.example" "$PAGILA_ENV_FILE"
+
+        # Generate random password in .env
+        if command -v openssl >/dev/null 2>&1; then
+            RANDOM_PASSWORD=$(openssl rand -base64 32)
+        else
+            RANDOM_PASSWORD=$(head -c 32 /dev/urandom | base64)
+        fi
+
+        # Replace default password with random one
+        sed -i "s/POSTGRES_PASSWORD=changeme_generate_random_password/POSTGRES_PASSWORD=$RANDOM_PASSWORD/" "$PAGILA_ENV_FILE"
+
+        print_success ".env created with random password"
+        echo ""
+        print_info "Note: Pagila uses 'trust' authentication (pg_hba.conf)"
+        print_info "      Password in .env just suppresses warnings"
+        print_info "      Developers can connect via DBeaver/pgAdmin without password!"
     else
-        # Fallback: use /dev/urandom
-        head -c 32 /dev/urandom | base64 > "$SA_PASSWORD_FILE"
-    fi
+        print_warning ".env.example not found - creating minimal .env"
 
-    print_success "Password file created"
-    echo ""
-    print_info "Note: Pagila uses 'trust' authentication (pg_hba.conf)"
-    print_info "      Password file just suppresses docker-compose warnings"
-    print_info "      Developers can connect via DBeaver/pgAdmin without password!"
+        cat > "$PAGILA_ENV_FILE" << EOF
+# Pagila Configuration (auto-generated)
+IMAGE_POSTGRES=${IMAGE_POSTGRES:-postgres:17.5-alpine}
+POSTGRES_PASSWORD=$(openssl rand -base64 32 2>/dev/null || echo "postgres")
+PAGILA_PORT=5432
+EOF
+        print_success "Minimal .env created"
+    fi
 else
-    print_check "PASS" "Password file exists"
+    print_check "PASS" ".env exists"
 fi
 
 echo ""
