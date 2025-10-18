@@ -71,6 +71,9 @@ Start with platform setup, then explore examples:
 | Component | Status | Purpose |
 |-----------|--------|---------|
 | SQLModel Framework | ✅ Production Ready | Table mixins, triggers, deployment |
+| Kerberos Ticket Sharer | ✅ Production Ready | SQL Server auth without passwords |
+| OpenMetadata | ✅ Phase 1 Complete | Data cataloging and discovery |
+| Pagila Test Database | ✅ Available | PostgreSQL sample data |
 | Runtime Environments | ✅ Production Ready | Dependency isolation |
 | Platform Bootstrap | ✅ Simplified | Developer tools |
 | Documentation | 🚧 Updating | Aligning with new vision |
