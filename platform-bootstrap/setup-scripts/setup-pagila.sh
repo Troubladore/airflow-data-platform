@@ -14,7 +14,9 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLATFORM_DIR="$(dirname "$SCRIPT_DIR")"
-PAGILA_REPO_URL="https://github.com/Troubladore/pagila.git"
+# Pagila repository URL - configurable for corporate environments
+# Can be overridden in .env with PAGILA_REPO_URL
+PAGILA_REPO_URL_DEFAULT="https://github.com/Troubladore/pagila.git"
 PAGILA_DIR="$(dirname "$(dirname "$PLATFORM_DIR")")/pagila"
 CONTAINER_NAME="pagila-postgres"
 
@@ -37,10 +39,13 @@ else
     GREEN='' RED='' YELLOW='' CYAN='' NC=''
 fi
 
-# Load .env for corporate image configuration
+# Load .env for corporate configuration
 if [ -f "$PLATFORM_DIR/.env" ]; then
     source "$PLATFORM_DIR/.env"
 fi
+
+# Set pagila repo URL (allow .env override for corporate git servers)
+PAGILA_REPO_URL="${PAGILA_REPO_URL:-$PAGILA_REPO_URL_DEFAULT}"
 
 # ==========================================
 # Parse Arguments
@@ -61,14 +66,15 @@ Options:
   -h, --help    Show this help
 
 This script:
-  1. Clones Troubladore/pagila repository
+  1. Clones pagila repository (configurable URL)
   2. Starts pagila PostgreSQL container
   3. Loads sample schema and data
   4. Connects to platform_network
 
 Corporate Environment:
-  Set IMAGE_POSTGRES in .env to use Artifactory:
-    IMAGE_POSTGRES=artifactory.company.com/docker-remote/library/postgres:15
+  Set variables in .env for corporate infrastructure:
+    IMAGE_POSTGRES=artifactory.company.com/docker-remote/library/postgres:17.5-alpine
+    PAGILA_REPO_URL=https://git.company.com/forks/pagila.git
 
 Examples:
   $0                     # Interactive setup
@@ -213,6 +219,14 @@ print_header "Pagila Repository Management"
 echo ""
 print_info "📌 Pagila is managed as a separate repository (clean architecture)"
 print_info "Repository: $PAGILA_REPO_URL"
+
+# Show if using corporate or public URL
+if [[ "$PAGILA_REPO_URL" != "$PAGILA_REPO_URL_DEFAULT" ]]; then
+    print_info "(Corporate git server - configured in .env)"
+elif [[ "$PAGILA_REPO_URL" == *"github.com"* ]]; then
+    print_info "(Public GitHub - default)"
+fi
+
 print_info "Location: $PAGILA_DIR"
 print_info ""
 print_info "This script automatically manages the pagila sibling repo."
