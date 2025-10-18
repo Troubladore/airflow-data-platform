@@ -30,6 +30,8 @@ echo "========================================="
 echo ""
 print_list_header "This will remove:"
 print_bullet "Kerberos sidecar container"
+print_bullet "OpenMetadata services (Server, Elasticsearch, PostgreSQL)"
+print_bullet "Pagila test database (if running)"
 print_bullet "Mock services containers"
 print_bullet "platform_network"
 echo ""
@@ -106,13 +108,38 @@ fi
 echo ""
 echo "Stopping and removing containers..."
 
-# Stop services
-docker compose down 2>/dev/null || echo "  (no services to stop)"
+# Ask about OpenMetadata (call modular script)
+if ask_yes_no "Remove OpenMetadata services?"; then
+    echo ""
+    if [ -f "$PLATFORM_DIR/setup-scripts/cleanup-openmetadata.sh" ]; then
+        "$PLATFORM_DIR/setup-scripts/cleanup-openmetadata.sh" --yes
+    else
+        print_warning "cleanup-openmetadata.sh not found, using fallback"
+        docker compose -f docker-compose.yml -f docker-compose.openmetadata.yml down 2>/dev/null || true
+    fi
+    echo ""
+fi
+
+# Ask about Pagila (reuse setup script's --reset)
+if ask_yes_no "Remove Pagila test database?"; then
+    echo ""
+    if [ -f "$PLATFORM_DIR/setup-scripts/setup-pagila.sh" ]; then
+        "$PLATFORM_DIR/setup-scripts/setup-pagila.sh" --reset --yes
+    else
+        print_warning "setup-pagila.sh not found, using fallback"
+        docker rm -f pagila-postgres 2>/dev/null || true
+        docker volume rm pagila_data 2>/dev/null || true
+    fi
+    echo ""
+fi
+
+# Stop base services
+docker compose down 2>/dev/null || echo "  (no base services to stop)"
 docker compose -f docker-compose.mock-services.yml down 2>/dev/null || echo "  (no mock services)"
 
-# Remove specific containers by name
-docker rm -f kerberos-platform-service 2>/dev/null || echo "  kerberos-platform-service: not found"
-docker rm -f mock-delinea 2>/dev/null || echo "  mock-delinea: not found"
+# Remove any remaining containers by name
+docker rm -f kerberos-platform-service 2>/dev/null || true
+docker rm -f mock-delinea 2>/dev/null || true
 
 echo ""
 echo "Removing Docker resources..."
