@@ -4,14 +4,16 @@ Set up the Airflow Data Platform enhancement services that work alongside Astron
 
 ## 🎯 What This Does
 
-The platform provides **2 enhancement services** that work alongside Astronomer for enterprise teams:
+The platform provides **enhancement services** that work alongside Astronomer for enterprise teams:
 
 1. **Kerberos Ticket Sharer** - Enables SQL Server Windows Authentication without passwords
-2. **SQLModel Framework** - Provides consistent data patterns across teams
+2. **OpenMetadata** - Data cataloging and metadata discovery (with Kerberos integration!)
+3. **Pagila Test Database** - PostgreSQL sample data for examples and testing
+4. **SQLModel Framework** - Provides consistent data patterns across teams
 
-These services run locally alongside your Astronomer projects.
+These services run locally alongside your Astronomer projects, providing an integrated data platform experience.
 
-**Note:** Docker caches images automatically - no local registry service needed!
+**Note:** All services support corporate environments (Artifactory images, internal git servers).
 
 ## 📋 Prerequisites
 
@@ -45,20 +47,29 @@ git clone https://github.com/Troubladore/airflow-data-platform.git
 cd airflow-data-platform/platform-bootstrap
 
 # 2. Run the setup wizard
-make kerberos-setup
+./dev-tools/setup-kerberos.sh
 
-# The wizard will:
+# The wizard will guide you through:
 # ✓ Check prerequisites (Docker, krb5-user, etc.)
 # ✓ Validate your krb5.conf configuration
 # ✓ Help you obtain Kerberos tickets
 # ✓ Auto-detect ticket location and type
 # ✓ Configure .env file automatically
-# ✓ Build and start all services
+# ✓ Build and start platform services
 # ✓ Test ticket sharing with containers
 # ✓ Optionally test SQL Server connection
+
+# 3. Setup test data (for examples)
+make setup-pagila
+
+# This automatically:
+# ✓ Clones pagila repository (configurable for corporate git)
+# ✓ Starts PostgreSQL with sample DVD rental data
+# ✓ Connects to platform network
+# ✓ Enables OpenMetadata ingestion examples
 ```
 
-The wizard is fully interactive with color-coded output, progress tracking, and can be safely resumed if interrupted.
+The setup is modular - each component can be set up independently and is idempotent (safe to rerun).
 
 ### Option 2: Manual Setup (For Experienced Users)
 
@@ -80,10 +91,19 @@ kinit your.username@COMPANY.COM
 # 4. Start the platform services
 make platform-start
 
-# You should see:
-# ✓ Kerberos sidecar started (with ticket sharing)
-# ✓ Mock services started
-# ✓ Docker caches images automatically
+# This starts (always-on):
+# ✓ Kerberos sidecar (ticket sharing for SQL Server)
+# ✓ Platform PostgreSQL (OLTP - metadata storage)
+# ✓ OpenMetadata Server (http://localhost:8585)
+# ✓ Elasticsearch (search indexing)
+
+# 5. Setup test data (optional but recommended)
+make setup-pagila
+
+# Provides pagila sample database for:
+# ✓ OpenMetadata ingestion examples
+# ✓ SQLModel framework testing
+# ✓ Learning SQL patterns
 ```
 
 ## ✅ Verify Services
@@ -91,59 +111,114 @@ make platform-start
 Confirm the platform services are running correctly:
 
 ```bash
-# Check Kerberos tickets (only if using SQL Server)
-klist
-# Expected: Your domain tickets (if configured)
+# Check all platform services
+make platform-status
 
-# Note: Docker caches images automatically
-docker images
-# Shows all cached images (pulled and built)
+# Expected output:
+# Platform Services Status:
+# ========================
+#
+# Core Services:
+# NAME                           STATUS    PORTS
+# kerberos-platform-service      Up        (healthy)
+# platform-postgres              Up        5432/tcp (healthy)
+# openmetadata-server            Up        0.0.0.0:8585->8585/tcp (healthy)
+# openmetadata-elasticsearch     Up        9200/tcp (healthy)
+# pagila-postgres                Up        127.0.0.1:5432->5432/tcp (healthy)
+#
+# Health Checks:
+#   Kerberos: ✓ Valid ticket
+#   OpenMetadata: ✓ Healthy
+#   PostgreSQL: ✓ Ready
+#   Elasticsearch: ✓ Healthy
 
 ## 🔧 Daily Workflow
 
-Each day when you start development, you'll need these platform services running so your Astronomer projects can access the registry cache and Kerberos tickets:
+Each day when you start development:
 
 ```bash
-# Morning - If using SQL Server, get your Kerberos ticket first
+# Morning - Get Kerberos ticket (if using SQL Server)
 kinit your.username@COMPANY.COM  # Only needed for SQL Server access
 
-# Start all platform services (one command does it all!)
+# Start all platform services (one command!)
 cd airflow-data-platform/platform-bootstrap
 make platform-start
 
-# This automatically:
-# ✅ Detects your Kerberos ticket and shares it with containers
-# ✅ Starts mock services for local testing
-# ✅ Docker caches images automatically (no registry service needed)
+# This automatically starts:
+# ✅ Kerberos ticket sharer (if ticket present)
+# ✅ Platform PostgreSQL (Admin OLTP - OpenMetadata, Airflow metadata)
+# ✅ OpenMetadata Server (http://localhost:8585)
+# ✅ Elasticsearch (metadata search)
 
-# Work on your Astronomer projects...
-# The services enable faster builds and SQL Server auth
+# Services are always-on - available for all your Astronomer projects
+
+# Work on your projects...
+# - Build Airflow DAGs
+# - Use OpenMetadata for schema discovery
+# - Connect to SQL Server via Kerberos
+# - Query pagila for testing
 
 # Evening - Stop platform services
 make platform-stop
 ```
 
-**🎯 Key Point**: `make platform-start` handles everything! If you have a Kerberos ticket from `kinit`, it automatically shares it. No extra steps needed.
+**🎯 Key Point**: `make platform-start` is always-on - Kerberos, OpenMetadata, and shared PostgreSQL start together. Everything you need for data platform development.
 
 ## 🎯 Next Steps
 
 Now that platform services are running, explore how to use them:
 
-1. **[Hello World Example](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/hello-world/README.md)**
-   Simple Astronomer project using the platform (5 minutes)
+### 1. Try OpenMetadata (Recommended First Step!)
 
-2. **Validate Kerberos Setup** (if using SQL Server)
-   - [Kerberos Progressive Validation](kerberos-progressive-validation.md) - Step-by-step validation (15-30 min)
-   - Proves each layer works before moving to the next
-   - From `kinit` to Airflow DAG execution
+**Access the metadata catalog:**
+```bash
+# Open in browser: http://localhost:8585
+# Login: admin@open-metadata.org / admin
 
-3. **Learn the Patterns**
-   - [SQLModel Patterns](patterns/sqlmodel-patterns.md) - Consistent data models
-   - [Runtime Patterns](patterns/runtime-patterns.md) - Team dependency isolation
+# Run an ingestion example
+cd ~/repos/airflow-data-platform-examples/openmetadata-ingestion
+astro dev start
+# Trigger DAG: openmetadata_ingest_pagila
+# See metadata appear in OpenMetadata UI!
+```
 
-4. **Advanced Setup** (if needed)
-   - [Kerberos Setup for WSL2](kerberos-setup-wsl2.md) - Detailed Kerberos configuration
-   - [Kerberos Diagnostic Guide](kerberos-diagnostic-guide.md) - Understanding diagnose-kerberos.sh
+**What you'll learn:**
+- How to discover data across databases
+- How metadata cataloging works (everything as code!)
+- How Kerberos integrates with SQL Server ingestion
+
+**Read:** [OpenMetadata Developer Journey](openmetadata-developer-journey.md) for the complete experience
+
+### 2. Validate Kerberos Setup (if using SQL Server)
+
+**Test SQL Server authentication:**
+```bash
+cd platform-bootstrap
+./diagnostics/test-sql-direct.sh sqlserver01.company.com TestDB
+```
+
+**Advanced validation:**
+- [Kerberos Progressive Validation](kerberos-progressive-validation.md) - Step-by-step (15-30 min)
+- Proves each layer works before moving to the next
+
+### 3. Explore Examples
+
+**[Hello World Example](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/hello-world)**
+- Simple Astronomer project (5 minutes)
+
+**[OpenMetadata Ingestion](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/openmetadata-ingestion)**
+- Programmatic metadata ingestion (10 minutes)
+- Shows "everything as code" pattern
+
+**[Pagila Implementations](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/pagila-implementations)**
+- SQLModel framework patterns
+- Bronze/Silver/Gold medallion architecture
+
+### 4. Learn the Architecture
+
+- [Platform Architecture Vision](platform-architecture-vision.md) - The big picture
+- [OpenMetadata Integration Design](openmetadata-integration-design.md) - Metadata cataloging architecture
+- [SQLModel Patterns](patterns/sqlmodel-patterns.md) - Consistent data models (if available)
 
 ## 🛑 Stop Services
 
