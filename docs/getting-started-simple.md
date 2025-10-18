@@ -192,6 +192,28 @@ docker info          # Verify Docker is running
 - Run: `make setup-pagila` (clones and starts automatically)
 - Verify: `docker ps | grep pagila-postgres`
 
+### Cleanup / Teardown (Iterative Testing)
+
+**Remove specific services:**
+```bash
+make clean-openmetadata  # Just OpenMetadata (asks about data volumes)
+make clean-pagila        # Just Pagila (removes volumes)
+make clean-kerberos      # Just Kerberos sidecar
+```
+
+**Full cleanup:**
+```bash
+make clean-slate         # Interactive (asks about each component)
+make clean-all           # Non-interactive (removes everything)
+```
+
+**What gets preserved:**
+- Your `.env` configuration
+- Built Docker images (unless you choose to remove)
+- Host-side Kerberos tickets (unless you choose to clear)
+
+**Note:** `clean-openmetadata` asks before removing data volumes since your cataloged metadata is valuable work product!
+
 </details>
 
 ---
