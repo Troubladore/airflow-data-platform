@@ -24,7 +24,7 @@ services:
   # Note: Separate from warehouse PostgreSQL (OLAP workloads)
   # ============================================
   platform-postgres:
-    image: ${IMAGE_POSTGRES:-postgres:15}
+    image: ${IMAGE_POSTGRES:-postgres:17.5-alpine}
     container_name: platform-postgres
     restart: unless-stopped
 
