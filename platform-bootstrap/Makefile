@@ -217,12 +217,31 @@ debug-logs: ## Show logs from all platform services
 # Cleanup
 # ==========================================
 
-clean: platform-stop ## Clean up platform services and volumes (keeps images)
+# Granular cleanup (for iterative testing)
+clean-openmetadata: ## Remove OpenMetadata services (asks about data volumes)
+	@./setup-scripts/cleanup-openmetadata.sh
+
+clean-pagila: ## Remove pagila test database (reuses setup script)
+	@./setup-scripts/setup-pagila.sh --reset --yes
+
+clean-kerberos: ## Remove only Kerberos sidecar (keeps volumes)
+	@echo "Removing Kerberos sidecar..."
+	@docker rm -f kerberos-platform-service 2>/dev/null || true
+	@echo "✓ Kerberos sidecar removed (volume preserved)"
+	@echo "To restart: make platform-start"
+
+# Full cleanup
+clean: platform-stop ## Clean up all platform services (interactive - asks about volumes)
 	@echo "Cleaning up platform services..."
 	@echo "1" | ./dev-tools/clean-slate.sh || true
 
-clean-slate: ## Interactive cleanup (option to remove built images too)
+clean-slate: ## Interactive cleanup (guided prompts for all components)
 	@./dev-tools/clean-slate.sh
+
+clean-all: clean-openmetadata clean-pagila clean-kerberos ## Remove all platform components and volumes
+	@echo "Removing platform network..."
+	@docker network rm platform_network 2>/dev/null || true
+	@echo "✓ All platform services cleaned"
 
 reset: clean ## Reset everything to fresh state
 	@echo "Resetting platform..."
