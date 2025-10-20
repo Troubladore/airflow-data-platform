@@ -192,6 +192,17 @@ print_warning() {
     fi
 }
 
+# Print an info message
+# Usage: print_info "info message"
+print_info() {
+    local message="$1"
+    if [ "$USE_COLOR" = true ]; then
+        print_msg "${CYAN}${INFO_SIGN} ${message}${NC}"
+    else
+        echo "${INFO_SIGN} ${message}"
+    fi
+}
+
 # Print a success message
 # Usage: print_success "success message"
 print_success() {
@@ -387,6 +398,7 @@ export -f print_section
 export -f print_check
 export -f print_error
 export -f print_warning
+export -f print_info
 export -f print_success
 export -f print_step
 export -f get_checkmark
