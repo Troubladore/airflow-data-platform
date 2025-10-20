@@ -41,8 +41,8 @@ HAS_KERBEROS_TICKET=false
 print_banner() {
     clear
     echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║${NC}                  ${BOLD}${BLUE}Platform Setup Wizard${NC}                        ${CYAN}║${NC}"
-    echo -e "${CYAN}║${NC}              ${BLUE}Composable Data Platform Services${NC}                ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}                   ${BOLD}${BLUE}Platform Setup Wizard${NC}                       ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}               ${BLUE}Composable Data Platform Services${NC}               ${CYAN}║${NC}"
     echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
