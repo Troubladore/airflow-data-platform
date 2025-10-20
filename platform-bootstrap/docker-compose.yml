@@ -95,7 +95,7 @@ services:
 volumes:
   kerberos_cache:
     name: platform_kerberos_cache
-    external: true
+    # Don't mark as external - create it if needed (empty is fine when Kerberos disabled)
 
 networks:
   platform-net:
