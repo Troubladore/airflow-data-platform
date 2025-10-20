@@ -153,12 +153,15 @@ services:
 
 volumes:
   # Shared PostgreSQL data (all platform databases)
+  # Note: May already exist from platform-bootstrap (that's OK - we reuse it)
   platform_postgres_data:
     name: platform_postgres_data
+    external: true
 
   # Elasticsearch indices
   openmetadata_es_data:
     name: openmetadata_es_data
+    external: true
 
 # ============================================
 # Networks

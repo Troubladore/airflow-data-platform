@@ -194,6 +194,31 @@ step_2_configure_env() {
 step_3_start_services() {
     print_step 3 "Starting OpenMetadata Services"
 
+    # Check for existing containers
+    EXISTING_CONTAINERS=$(docker ps -a --filter "name=platform-postgres" --filter "name=openmetadata-" --format "{{.Names}}" 2>/dev/null)
+
+    if [ -n "$EXISTING_CONTAINERS" ]; then
+        echo "Found existing OpenMetadata containers:"
+        echo "$EXISTING_CONTAINERS" | sed 's/^/  • /'
+        echo ""
+
+        if ask_yes_no "Stop and remove existing containers to start fresh?"; then
+            echo "Stopping and removing existing containers..."
+            docker stop $EXISTING_CONTAINERS 2>/dev/null || true
+            docker rm $EXISTING_CONTAINERS 2>/dev/null || true
+            print_success "Existing containers removed"
+            echo ""
+        else
+            print_info "Keeping existing containers (attempting to reuse)"
+            echo ""
+        fi
+    fi
+
+    # Create volumes if they don't exist (idempotent)
+    echo "Ensuring volumes exist..."
+    docker volume create platform_postgres_data 2>/dev/null || print_info "Volume platform_postgres_data already exists"
+    docker volume create openmetadata_es_data 2>/dev/null || print_info "Volume openmetadata_es_data already exists"
+
     echo "Starting services (this may take 2-3 minutes on first run)..."
     echo ""
 
@@ -203,6 +228,11 @@ step_3_start_services() {
         print_success "Services started"
     else
         print_error "Failed to start services"
+        echo ""
+        echo "Troubleshooting:"
+        echo "  • Check if containers already exist: docker ps -a"
+        echo "  • Clean up old containers: cd ../platform-bootstrap && make clean"
+        echo "  • View logs: docker compose logs"
         exit 1
     fi
 }
