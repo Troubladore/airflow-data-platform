@@ -289,16 +289,18 @@ step_4_validate_health() {
     done
 
     # Elasticsearch (takes longer - 2-3 minutes on first run)
-    echo -n "Elasticsearch: "
+    echo "Elasticsearch (may take 2-3 minutes on first run):"
     for i in {1..90}; do
         if curl -sf http://localhost:9200/_cluster/health >/dev/null 2>&1; then
             echo ""  # New line after dots
-            print_success "Healthy (took ${i} checks)"
+            print_success "Healthy (took $((i * 2)) seconds)"
             break
         fi
-        # Show progress every 5 checks
+        # Show progress every 5 checks with time estimate
         if [ $((i % 5)) -eq 0 ]; then
-            echo -n "."
+            local elapsed=$((i * 2))
+            local remaining=$((180 - elapsed))
+            echo -ne "\r  Waiting... ${elapsed}s elapsed, ~${remaining}s remaining"
         fi
         sleep 2
         if [ $i -eq 90 ]; then
@@ -317,16 +319,18 @@ step_4_validate_health() {
     done
 
     # OpenMetadata Server (starts after Elasticsearch is ready)
-    echo -n "OpenMetadata Server: "
+    echo "OpenMetadata Server (usually 1-2 minutes):"
     for i in {1..90}; do
         if curl -sf http://localhost:8585/api/v1/health >/dev/null 2>&1; then
-            echo ""  # New line after dots
-            print_success "Healthy (took ${i} checks)"
+            echo ""  # New line after progress
+            print_success "Healthy (took $((i * 2)) seconds)"
             break
         fi
-        # Show progress every 5 checks
+        # Show progress every 5 checks with time estimate
         if [ $((i % 5)) -eq 0 ]; then
-            echo -n "."
+            local elapsed=$((i * 2))
+            local remaining=$((180 - elapsed))
+            echo -ne "\r  Waiting... ${elapsed}s elapsed, ~${remaining}s remaining"
         fi
         sleep 2
         if [ $i -eq 90 ]; then
