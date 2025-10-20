@@ -202,16 +202,42 @@ step_3_start_services() {
         echo "$EXISTING_CONTAINERS" | sed 's/^/  • /'
         echo ""
 
-        if ask_yes_no "Stop and remove existing containers to start fresh?"; then
-            echo "Stopping and removing existing containers..."
-            docker stop $EXISTING_CONTAINERS 2>/dev/null || true
-            docker rm $EXISTING_CONTAINERS 2>/dev/null || true
-            print_success "Existing containers removed"
-            echo ""
-        else
-            print_info "Keeping existing containers (attempting to reuse)"
-            echo ""
-        fi
+        print_info "Your data is safe - volumes are preserved even if containers are removed"
+        echo ""
+        echo "What would you like to do?"
+        echo "  1. Restart with existing containers (quick, reuses everything)"
+        echo "  2. Recreate containers (updates images, keeps data)"
+        echo "  3. Skip - containers already running"
+        echo ""
+        read -p "Enter choice [1-3]: " container_choice
+
+        case "$container_choice" in
+            1)
+                echo "Restarting existing containers..."
+                docker restart $EXISTING_CONTAINERS 2>/dev/null || true
+                print_success "Containers restarted"
+                echo ""
+                # Skip docker compose up since containers are already configured
+                return 0
+                ;;
+            2)
+                echo "Recreating containers (data volumes preserved)..."
+                docker stop $EXISTING_CONTAINERS 2>/dev/null || true
+                docker rm $EXISTING_CONTAINERS 2>/dev/null || true
+                print_success "Old containers removed (data volumes preserved)"
+                echo ""
+                ;;
+            3)
+                print_info "Skipping container management"
+                echo ""
+                return 0
+                ;;
+            *)
+                print_warning "Invalid choice, proceeding with recreation"
+                docker stop $EXISTING_CONTAINERS 2>/dev/null || true
+                docker rm $EXISTING_CONTAINERS 2>/dev/null || true
+                ;;
+        esac
     fi
 
     # Create volumes if they don't exist (idempotent)
