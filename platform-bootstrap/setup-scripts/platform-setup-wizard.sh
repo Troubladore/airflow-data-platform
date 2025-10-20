@@ -193,8 +193,6 @@ ask_service_needs() {
             return
         fi
     fi
-
-    press_enter
 }
 
 # ==========================================
@@ -229,8 +227,6 @@ ask_corporate_infrastructure() {
     else
         print_info "Corporate infrastructure: DISABLED (using public registries)"
     fi
-
-    press_enter
 }
 
 # ==========================================
