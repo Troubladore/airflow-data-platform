@@ -6,22 +6,30 @@
 
 set -e
 
-# Colors for output
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m'
-
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUTO_MODE=false
 TOTAL_STEPS=6
 
+# Load formatting library from platform-bootstrap
+PLATFORM_BOOTSTRAP="$(dirname "$SCRIPT_DIR")/platform-bootstrap"
+if [ -f "$PLATFORM_BOOTSTRAP/lib/formatting.sh" ]; then
+    source "$PLATFORM_BOOTSTRAP/lib/formatting.sh"
+else
+    # Fallback formatting
+    echo "Warning: formatting library not found" >&2
+    GREEN='' RED='' YELLOW='' CYAN='' BLUE='' BOLD='' NC=''
+    CHECK_MARK="+" CROSS_MARK="x" WARNING_SIGN="!" INFO_SIGN="i"
+    print_success() { echo "+ $1"; }
+    print_error() { echo "x $1"; }
+    print_warning() { echo "! $1"; }
+    print_info() { echo "i $1"; }
+fi
+
 # ==========================================
 # Utility Functions
 # ==========================================
+# Note: print_success, print_error, print_warning, print_info from formatting.sh
 
 print_step() {
     local step_num=$1
@@ -32,11 +40,6 @@ print_step() {
     echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
     echo ""
 }
-
-print_success() { echo -e "${GREEN}✓${NC} $1"; }
-print_error() { echo -e "${RED}✗${NC} $1"; }
-print_warning() { echo -e "${YELLOW}⚠${NC}  $1"; }
-print_info() { echo -e "${CYAN}ℹ${NC}  $1"; }
 
 ask_yes_no() {
     local prompt="$1"

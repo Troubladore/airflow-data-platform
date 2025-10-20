@@ -110,7 +110,8 @@ press_enter() {
 
 detect_windows_info() {
     # Try to detect Windows domain and username if in WSL2
-    if [ -f /proc/sys/fs/binfmt_misc/WSLInterop ]; then
+    # Use uname -r check (more reliable than WSLInterop file)
+    if uname -r | grep -qi "microsoft\|wsl"; then
         if command -v powershell.exe >/dev/null 2>&1; then
             DETECTED_DOMAIN=$(powershell.exe -Command "([System.DirectoryServices.ActiveDirectory.Domain]::GetComputerDomain()).Name" 2>/dev/null | tr -d '\r' | tr '[:lower:]' '[:upper:]')
             if [ -n "$DETECTED_DOMAIN" ] && [[ "$DETECTED_DOMAIN" != *"Exception"* ]]; then
