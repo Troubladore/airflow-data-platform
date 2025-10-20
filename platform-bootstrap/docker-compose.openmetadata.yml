@@ -121,7 +121,7 @@ services:
       # Authentication (Basic for Local Dev)
       # ========================================
       AUTHENTICATION_PROVIDER: basic
-      AUTHENTICATION_PUBLIC_KEYS: []
+      AUTHENTICATION_PUBLIC_KEYS: "[]"
       AUTHORIZER_CLASS_NAME: org.openmetadata.service.security.DefaultAuthorizer
       AUTHORIZER_REQUEST_FILTER: org.openmetadata.service.security.JwtFilter
       AUTHORIZER_ADMIN_PRINCIPALS: "[admin]"
