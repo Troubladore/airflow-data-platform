@@ -19,10 +19,14 @@ else
     echo "Warning: formatting library not found" >&2
     GREEN='' RED='' YELLOW='' CYAN='' BLUE='' BOLD='' NC=''
     CHECK_MARK="+" CROSS_MARK="x" WARNING_SIGN="!" INFO_SIGN="i"
-    print_success() { echo "✓ $1"; }
-    print_error() { echo "✗ $1"; }
-    print_warning() { echo "⚠  $1"; }
-    print_info() { echo "ℹ  $1"; }
+    print_header() { echo ""; echo "=== $1 ==="; echo ""; }
+    print_section() { echo ""; echo "--- $1 ---"; echo ""; }
+    print_check() { echo "[$1] $2"; }
+    print_success() { echo "+ $1"; }
+    print_error() { echo "x $1"; }
+    print_warning() { echo "! $1"; }
+    print_info() { echo "i $1"; }
+    print_divider() { echo "========================================"; }
 fi
 
 # User selections
