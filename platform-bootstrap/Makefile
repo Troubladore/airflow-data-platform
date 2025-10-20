@@ -83,6 +83,30 @@ platform-start: ## Start all platform services (Kerberos + OpenMetadata)
 	@echo ""
 	@echo "Optional: Start mock services with 'make mock-start' if needed"
 
+platform-start-no-kerberos: ## Start OpenMetadata only (skip Kerberos for local testing)
+	@echo "Starting platform services (OpenMetadata only, no Kerberos)..."
+	@echo ""
+	@# Create network if needed
+	@docker network create platform_network 2>/dev/null || true
+	@echo "Starting services (this may take 2-3 minutes on first run)..."
+	@$(DOCKER_COMPOSE) -f docker-compose.openmetadata.yml up -d
+	@echo ""
+	@echo "✓ Platform services started (OpenMetadata only)"
+	@echo ""
+	@echo "Services:"
+	@echo "  • Platform PostgreSQL: docker ps | grep platform-postgres"
+	@echo "  • Elasticsearch:       docker ps | grep openmetadata-elasticsearch"
+	@echo "  • OpenMetadata UI:     http://localhost:8585"
+	@echo "  • Login:               admin@open-metadata.org / admin"
+	@echo ""
+	@echo "Note: Kerberos not started - SQL Server connections unavailable"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Setup Pagila: make setup-pagila"
+	@echo "  2. Check status: make platform-status"
+	@echo "  3. Access OpenMetadata UI: http://localhost:8585"
+	@echo ""
+
 platform-stop: ## Stop all platform services
 	@echo "Stopping platform services..."
 	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.openmetadata.yml down
