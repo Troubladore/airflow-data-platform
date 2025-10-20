@@ -149,6 +149,7 @@ test_service() {
 }
 
 # Test all standalone services
+test_service "platform-infrastructure"
 test_service "openmetadata"
 test_service "kerberos"
 

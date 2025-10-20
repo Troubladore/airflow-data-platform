@@ -253,6 +253,42 @@ configure_platform_env() {
     echo "  ENABLE_OPENMETADATA=$NEED_OPENMETADATA"
 }
 
+setup_infrastructure() {
+    print_section "Shared Infrastructure Setup"
+
+    echo "Setting up platform infrastructure (always required)..."
+    echo "  • PostgreSQL: Shared OLTP for Airflow, OpenMetadata, etc."
+    echo "  • Network: platform_network for service communication"
+    echo ""
+
+    # Ensure infrastructure .env exists
+    if [ ! -f "$REPO_ROOT/platform-infrastructure/.env" ]; then
+        cp "$REPO_ROOT/platform-infrastructure/.env.example" "$REPO_ROOT/platform-infrastructure/.env"
+        # Generate password
+        if command -v openssl >/dev/null 2>&1; then
+            INFRA_PASS=$(openssl rand -base64 24)
+        else
+            INFRA_PASS=$(head -c 24 /dev/urandom | base64)
+        fi
+        sed -i "s|PLATFORM_DB_PASSWORD=.*|PLATFORM_DB_PASSWORD=$INFRA_PASS|" "$REPO_ROOT/platform-infrastructure/.env"
+        print_success "Generated infrastructure .env with secure password"
+    else
+        print_info "Infrastructure .env already exists"
+    fi
+
+    # Start infrastructure
+    echo ""
+    echo "Starting infrastructure services..."
+    if cd "$REPO_ROOT/platform-infrastructure" && make start; then
+        print_success "Infrastructure started"
+    else
+        print_error "Infrastructure setup failed"
+        exit 1
+    fi
+
+    cd "$PLATFORM_DIR"
+}
+
 setup_openmetadata() {
     if [ "$NEED_OPENMETADATA" = false ]; then
         return 0
@@ -430,12 +466,15 @@ main() {
     # Step 4: Configure platform .env
     configure_platform_env
 
-    # Step 5: Setup each service (with progressive validation)
+    # Step 5: Setup infrastructure (always first)
+    setup_infrastructure
+
+    # Step 6: Setup optional services (with progressive validation)
     setup_openmetadata
     setup_kerberos
     setup_pagila
 
-    # Step 6: Final summary
+    # Step 7: Final summary
     show_final_summary
 }
 

@@ -49,11 +49,22 @@ Each platform service is **standalone and independent** - use what you need:
 
 ```
 airflow-data-platform/
-├── openmetadata/      # Metadata catalog (PostgreSQL + Elasticsearch + UI)
-├── kerberos/          # SQL Server auth (Kerberos ticket sharing)
-├── pagila/            # PostgreSQL sample database
-└── platform-bootstrap/ # Orchestrator (optional - or use services individually)
+├── platform-infrastructure/  # Shared foundation (ALWAYS runs)
+│   ├── platform-postgres     # Shared OLTP: Airflow + OpenMetadata DBs
+│   └── platform_network      # Shared network for all services
+├── openmetadata/            # Metadata catalog (OPTIONAL)
+│   ├── elasticsearch         # Search/indexing
+│   └── server                # Web UI + REST API + Backend (all-in-one)
+├── kerberos/                # SQL Server auth (OPTIONAL)
+│   └── sidecar               # Ticket sharing
+├── pagila/                  # PostgreSQL sample data (OPTIONAL)
+└── platform-bootstrap/       # Orchestrator
+    └── .env                  # Toggle optional services
 ```
+
+**Foundation vs Optional:**
+- `platform-infrastructure/` - **Always starts** (needed for Airflow)
+- Everything else - **Optional** (toggle via .env)
 
 **Run individually:**
 ```bash

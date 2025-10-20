@@ -69,12 +69,15 @@ platform-start: ## Start platform services (configured in .env)
 	fi
 	@if [ "$(ENABLE_KERBEROS)" != "true" ] && [ "$(ENABLE_OPENMETADATA)" != "true" ]; then \
 		echo ""; \
-		echo "⚠️  No services enabled in .env"; \
-		echo "Set ENABLE_KERBEROS=true and/or ENABLE_OPENMETADATA=true"; \
-		exit 1; \
+		echo "⚠️  No optional services enabled"; \
+		echo "Infrastructure will still start (always needed for Airflow)"; \
 	fi
 	@echo ""
-	@# Start enabled services via their Makefiles
+	@# ALWAYS start platform-infrastructure first (foundation)
+	@echo "Starting platform infrastructure (always required)..."; \
+	cd ../platform-infrastructure && $(MAKE) start || exit 1; \
+	echo ""
+	@# Start optional services
 	@if [ "$(ENABLE_KERBEROS)" = "true" ]; then \
 		echo "Starting Kerberos..."; \
 		cd ../kerberos && $(MAKE) start || exit 1; \
@@ -88,30 +91,37 @@ platform-start: ## Start platform services (configured in .env)
 	@echo "✓ Platform services started"
 	@echo ""
 	@echo "Active services:"
+	@echo "  • Platform PostgreSQL: docker ps | grep platform-postgres (foundation)"
+	@echo "  • Platform Network:    platform_network (shared)"
 	@if [ "$(ENABLE_KERBEROS)" = "true" ]; then \
 		echo "  • Kerberos Sidecar:    docker ps | grep kerberos-sidecar"; \
 	fi
 	@if [ "$(ENABLE_OPENMETADATA)" = "true" ]; then \
-		echo "  • Platform PostgreSQL: docker ps | grep platform-postgres"; \
 		echo "  • OpenMetadata UI:     http://localhost:8585"; \
 		echo "  • Login:               admin@open-metadata.org / admin"; \
 	fi
 	@echo ""
-	@echo "Configuration: Edit .env to enable/disable services"
+	@echo "Configuration: Edit .env to enable/disable optional services"
 	@echo "Status: make platform-status"
 
 platform-stop: ## Stop all platform services
 	@echo "Stopping platform services..."
-	@# Stop all services (safe to call even if not running)
+	@# Stop optional services first
 	@cd ../kerberos && $(MAKE) stop 2>/dev/null || true
 	@cd ../openmetadata && $(MAKE) stop 2>/dev/null || true
+	@# Stop infrastructure last
+	@cd ../platform-infrastructure && $(MAKE) stop 2>/dev/null || true
 	@echo "✓ Platform services stopped"
 
 platform-status: ## Check status of platform services
 	@echo "Platform Services Status:"
 	@echo "========================"
 	@echo ""
-	@# Check each service's status
+	@# Infrastructure status (always check - it's the foundation)
+	@echo "Infrastructure (always running):"
+	@cd ../platform-infrastructure && $(MAKE) status 2>/dev/null || echo "  Not running"
+	@echo ""
+	@# Optional services
 	@if [ "$(ENABLE_KERBEROS)" = "true" ]; then \
 		echo "Kerberos:"; \
 		cd ../kerberos && $(MAKE) status 2>/dev/null || echo "  Not running"; \

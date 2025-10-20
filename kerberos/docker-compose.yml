@@ -78,11 +78,11 @@ volumes:
 # ============================================
 
 networks:
-  # Kerberos internal network
-  # Other services can connect to this network to access Kerberos tickets
+  # Shared platform network (managed by platform-infrastructure)
+  # Kerberos tickets accessible to all services on this network
   kerberos-net:
-    name: kerberos_network
-    driver: bridge
+    name: platform_network
+    external: true
 
 # ============================================
 # Secrets

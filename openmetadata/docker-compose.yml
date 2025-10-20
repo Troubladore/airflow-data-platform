@@ -1,53 +1,21 @@
 # OpenMetadata Standalone Service
 # ================================
-# Metadata catalog for data discovery and governance
+# Metadata catalog and data discovery platform
 #
-# Architecture: 3 services (PostgreSQL + Elasticsearch + OpenMetadata Server)
-# - Shared PostgreSQL for platform services (OLTP workloads)
-# - Elasticsearch for full-text search and indexing
-# - OpenMetadata Server for UI, API, and connectors
+# Dependencies:
+#   - platform-infrastructure (provides platform-postgres via platform_network)
+#
+# Architecture: 2 OpenMetadata-specific services
+#   - Elasticsearch: Search and indexing (OpenMetadata-specific)
+#   - OpenMetadata Server: Web UI + REST API + Backend (all-in-one application)
 #
 # Usage:
+#   Requires: platform-infrastructure must be running first
 #   make start     # Start OpenMetadata
 #   make stop      # Stop OpenMetadata
 #   make status    # Check service health
 
 services:
-  # ============================================
-  # Shared Platform PostgreSQL (OLTP)
-  # ============================================
-  # Multi-database instance for platform services
-  # - openmetadata_db: Metadata catalog storage
-  # - airflow_db (future): Airflow metastore
-  # - [other platform services as needed]
-  #
-  # Note: Separate from warehouse PostgreSQL (OLAP workloads)
-  # ============================================
-  platform-postgres:
-    image: ${IMAGE_POSTGRES:-postgres:17.5-alpine}
-    container_name: platform-postgres
-    restart: unless-stopped
-
-    environment:
-      POSTGRES_USER: platform_admin
-      POSTGRES_PASSWORD: ${PLATFORM_DB_PASSWORD:-changeme_platform_password}
-      # Databases created by init script
-
-    volumes:
-      # Persistent storage for all platform databases
-      - platform_postgres_data:/var/lib/postgresql/data
-      # Init script creates multiple databases on first startup
-      - ./postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
-
-    networks:
-      - openmetadata-net
-
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U platform_admin"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # ============================================
   # Elasticsearch (Search & Indexing)
   # ============================================
@@ -71,7 +39,7 @@ services:
       - openmetadata_es_data:/usr/share/elasticsearch/data
 
     networks:
-      - openmetadata-net
+      - platform-net  # Connect to shared platform network
 
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -q '\"status\":\"\\(green\\|yellow\\)\"' || exit 1"]
@@ -133,13 +101,13 @@ services:
       PIPELINE_SERVICE_CLIENT_CLASS_NAME: org.openmetadata.service.clients.pipeline.airflow.AirflowRESTClient
 
     depends_on:
-      platform-postgres:
-        condition: service_healthy
       openmetadata-elasticsearch:
         condition: service_healthy
+      # Note: platform-postgres from platform-infrastructure must be running
+      # No explicit depends_on since it's in a different compose file
 
     networks:
-      - openmetadata-net
+      - platform-net  # Connect to shared platform network (where platform-postgres lives)
 
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8585/api/v1/health || exit 1"]
@@ -152,24 +120,19 @@ services:
 # ============================================
 
 volumes:
-  # Shared PostgreSQL data (all platform databases)
-  # Note: May already exist from platform-bootstrap (that's OK - we reuse it)
-  platform_postgres_data:
-    name: platform_postgres_data
-    external: true
-
-  # Elasticsearch indices
+  # Elasticsearch indices (OpenMetadata-specific data)
   openmetadata_es_data:
     name: openmetadata_es_data
-    external: true
+
+  # Note: platform_postgres_data volume is managed by platform-infrastructure service
 
 # ============================================
 # Networks
 # ============================================
 
 networks:
-  # OpenMetadata internal network
-  # Also connects to external platform_network for cross-service communication
-  openmetadata-net:
-    name: openmetadata_network
-    driver: bridge
+  # Shared platform network (managed by platform-infrastructure)
+  # All platform services connect to this network
+  platform-net:
+    name: platform_network
+    external: true
