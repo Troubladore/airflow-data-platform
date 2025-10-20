@@ -288,32 +288,55 @@ step_4_validate_health() {
         fi
     done
 
-    # Elasticsearch
+    # Elasticsearch (takes longer - 2-3 minutes on first run)
     echo -n "Elasticsearch: "
-    for i in {1..60}; do
+    for i in {1..90}; do
         if curl -sf http://localhost:9200/_cluster/health >/dev/null 2>&1; then
-            print_success "Healthy"
+            echo ""  # New line after dots
+            print_success "Healthy (took ${i} checks)"
             break
         fi
+        # Show progress every 5 checks
+        if [ $((i % 5)) -eq 0 ]; then
+            echo -n "."
+        fi
         sleep 2
-        if [ $i -eq 60 ]; then
-            print_error "Timeout"
-            echo "Check logs: docker logs openmetadata-elasticsearch"
+        if [ $i -eq 90 ]; then
+            echo ""
+            print_error "Timeout after 3 minutes"
+            echo ""
+            echo "Elasticsearch is taking too long to start."
+            echo "This is normal on first run or low-memory systems."
+            echo ""
+            echo "Troubleshooting:"
+            echo "  • Check logs: docker logs openmetadata-elasticsearch"
+            echo "  • Check memory: Elasticsearch needs ~1GB RAM"
+            echo "  • Wait longer: docker compose logs -f openmetadata-elasticsearch"
             exit 1
         fi
     done
 
-    # OpenMetadata Server
+    # OpenMetadata Server (starts after Elasticsearch is ready)
     echo -n "OpenMetadata Server: "
     for i in {1..90}; do
         if curl -sf http://localhost:8585/api/v1/health >/dev/null 2>&1; then
-            print_success "Healthy"
+            echo ""  # New line after dots
+            print_success "Healthy (took ${i} checks)"
             break
+        fi
+        # Show progress every 5 checks
+        if [ $((i % 5)) -eq 0 ]; then
+            echo -n "."
         fi
         sleep 2
         if [ $i -eq 90 ]; then
-            print_error "Timeout"
-            echo "Check logs: docker logs openmetadata-server"
+            echo ""
+            print_error "Timeout after 3 minutes"
+            echo ""
+            echo "Troubleshooting:"
+            echo "  • Check logs: docker logs openmetadata-server"
+            echo "  • Check Elasticsearch: curl http://localhost:9200"
+            echo "  • Check PostgreSQL: docker exec platform-postgres pg_isready"
             exit 1
         fi
     done
