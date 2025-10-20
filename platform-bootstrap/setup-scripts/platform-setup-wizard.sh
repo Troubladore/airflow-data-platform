@@ -36,8 +36,8 @@ HAS_KERBEROS_TICKET=false
 print_banner() {
     clear
     echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║${NC}            ${BOLD}${BLUE}Platform Setup Wizard${NC}                             ${CYAN}║${NC}"
-    echo -e "${CYAN}║${NC}        ${BLUE}Composable Data Platform Services${NC}                    ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}                  ${BOLD}${BLUE}Platform Setup Wizard${NC}                        ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}              ${BLUE}Composable Data Platform Services${NC}                ${CYAN}║${NC}"
     echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -329,7 +329,7 @@ show_final_summary() {
     clear
     echo -e "${GREEN}╔══════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${GREEN}║                                                                  ║${NC}"
-    echo -e "${GREEN}║          ${BOLD}Platform Setup Complete!${NC}${GREEN}                             ║${NC}"
+    echo -e "${GREEN}║                  ${BOLD}Platform Setup Complete!${NC}${GREEN}                     ║${NC}"
     echo -e "${GREEN}║                                                                  ║${NC}"
     echo -e "${GREEN}╚══════════════════════════════════════════════════════════════════╝${NC}"
     echo ""

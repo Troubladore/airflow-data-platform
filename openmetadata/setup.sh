@@ -286,7 +286,7 @@ step_6_summary() {
     print_step 6 "Setup Complete"
 
     echo -e "${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║                 OpenMetadata Setup Complete!                  ║${NC}"
+    echo -e "${GREEN}║                  OpenMetadata Setup Complete!                 ║${NC}"
     echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
