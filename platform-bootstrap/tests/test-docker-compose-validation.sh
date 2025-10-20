@@ -150,6 +150,36 @@ if [ -f "docker-compose.yml" ] && [ -f "docker-compose.openmetadata.yml" ]; then
 fi
 
 echo ""
+print_header "PROFILE-BASED CONFIGURATIONS"
+echo ""
+
+# Test different profile combinations (how users actually run it via .env)
+echo "Testing OpenMetadata only (ENABLE_KERBEROS=false, ENABLE_OPENMETADATA=true)..."
+TOTAL_TESTS=$((TOTAL_TESTS + 1))
+if COMPOSE_PROFILES=openmetadata docker compose -f docker-compose.yml -f docker-compose.openmetadata.yml config >/dev/null 2>&1; then
+    print_check "PASS" "OpenMetadata profile works standalone"
+    PASSED_TESTS=$((PASSED_TESTS + 1))
+else
+    print_check "FAIL" "OpenMetadata profile fails"
+    FAILED_TESTS=$((FAILED_TESTS + 1))
+    FAILED_ITEMS+=("OpenMetadata profile configuration")
+fi
+
+# Note: Kerberos-only mode not tested - it's not a valid standalone configuration
+# Kerberos is a supporting service that requires OpenMetadata or Airflow to be useful
+
+echo "Testing Both (ENABLE_KERBEROS=true, ENABLE_OPENMETADATA=true)..."
+TOTAL_TESTS=$((TOTAL_TESTS + 1))
+if COMPOSE_PROFILES=kerberos,openmetadata docker compose -f docker-compose.yml -f docker-compose.openmetadata.yml config >/dev/null 2>&1; then
+    print_check "PASS" "Both profiles work together"
+    PASSED_TESTS=$((PASSED_TESTS + 1))
+else
+    print_check "FAIL" "Both profiles fail"
+    FAILED_TESTS=$((FAILED_TESTS + 1))
+    FAILED_ITEMS+=("Kerberos + OpenMetadata profile configuration")
+fi
+
+echo ""
 print_header "ENVIRONMENT VARIABLE TYPE VALIDATION"
 echo ""
 

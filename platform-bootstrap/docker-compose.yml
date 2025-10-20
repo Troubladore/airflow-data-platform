@@ -6,6 +6,7 @@
 services:
   # Platform-level Kerberos sidecar for developers
   developer-kerberos-service:
+    profiles: ["kerberos"]
     # Custom sidecar image (built locally, cached by Docker)
     # Build: docker build -t platform/kerberos-sidecar:latest .
     image: platform/kerberos-sidecar:latest
@@ -54,6 +55,26 @@ services:
       interval: 60s
       timeout: 10s
       retries: 3
+
+  # OpenMetadata Kerberos Integration (extends openmetadata-server from docker-compose.openmetadata.yml)
+  # This adds Kerberos volumes and env vars when BOTH kerberos and openmetadata profiles are active
+  # Note: Docker Compose merges this with the base openmetadata-server definition
+  openmetadata-server:
+    profiles: ["kerberos"]  # Only applies when Kerberos is enabled
+    environment:
+      # Kerberos Configuration (For Ad-hoc SQL Server Testing)
+      KRB5CCNAME: /krb5/cache/krb5cc
+      KRB5_CONFIG: /etc/krb5.conf
+
+    volumes:
+      # Kerberos integration (for testing connections in UI)
+      - kerberos_cache:/krb5/cache:ro
+      - ${KRB5_CONF_PATH:-/etc/krb5.conf}:/etc/krb5.conf:ro
+
+    depends_on:
+      developer-kerberos-service:
+        condition: service_started
+        required: false  # Don't fail if Kerberos service not available
 
   # Mock Delinea for development (OPTIONAL - not needed for Kerberos)
   # (Real Delinea isn't accessible from workstations)

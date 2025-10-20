@@ -53,59 +53,56 @@ setup-pagila-reset: ## Remove and reinstall pagila test database
 # Platform Services
 # ==========================================
 
-platform-start: ## Start all platform services (Kerberos + OpenMetadata)
-	@echo "Starting platform services..."
+platform-start: ## Start platform services (configured in .env)
+	@echo "Starting platform services (configured in .env)..."
 	@echo ""
-	@# Create network and volumes if needed
-	@docker network create platform_network 2>/dev/null || true
-	@docker volume create platform_kerberos_cache 2>/dev/null || true
-	@echo "Checking for Kerberos sidecar image..."
-	@if ! docker images platform/kerberos-sidecar:latest --format "{{.Repository}}" | grep -q "platform/kerberos-sidecar"; then \
-		echo "Building Kerberos sidecar (one-time setup)..."; \
-		cd kerberos-sidecar && $(MAKE) build || exit 1; \
-	fi
-	@echo ""
-	@echo "Starting services (this may take 2-3 minutes on first run)..."
-	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.openmetadata.yml up -d
-	@echo ""
-	@echo "✓ Platform services started"
-	@echo ""
-	@echo "Services:"
-	@echo "  • Kerberos Sidecar:  docker ps | grep kerberos-platform-service"
-	@echo "  • Platform PostgreSQL: docker ps | grep platform-postgres"
-	@echo "  • OpenMetadata UI:   http://localhost:8585"
-	@echo "  • Login:             admin@open-metadata.org / admin"
-	@echo ""
-	@echo "Next steps:"
-	@echo "  1. Check status: make platform-status"
-	@echo "  2. Create project: astro dev init my-project"
-	@echo "  3. Or run ingestion: cd examples/openmetadata-ingestion && astro dev start"
-	@echo ""
-	@echo "Optional: Start mock services with 'make mock-start' if needed"
-
-platform-start-no-kerberos: ## Start OpenMetadata only (skip Kerberos for local testing)
-	@echo "Starting platform services (OpenMetadata only, no Kerberos)..."
-	@echo ""
-	@# Create network if needed
-	@docker network create platform_network 2>/dev/null || true
-	@echo "Starting services (this may take 2-3 minutes on first run)..."
-	@$(DOCKER_COMPOSE) -f docker-compose.openmetadata.yml up -d
-	@echo ""
-	@echo "✓ Platform services started (OpenMetadata only)"
-	@echo ""
-	@echo "Services:"
-	@echo "  • Platform PostgreSQL: docker ps | grep platform-postgres"
-	@echo "  • Elasticsearch:       docker ps | grep openmetadata-elasticsearch"
-	@echo "  • OpenMetadata UI:     http://localhost:8585"
-	@echo "  • Login:               admin@open-metadata.org / admin"
-	@echo ""
-	@echo "Note: Kerberos not started - SQL Server connections unavailable"
-	@echo ""
-	@echo "Next steps:"
-	@echo "  1. Setup Pagila: make setup-pagila"
-	@echo "  2. Check status: make platform-status"
-	@echo "  3. Access OpenMetadata UI: http://localhost:8585"
-	@echo ""
+	@# Build list of enabled profiles based on .env
+	@PROFILES=""; \
+	if [ "$(ENABLE_KERBEROS)" = "true" ]; then \
+		PROFILES="$$PROFILES,kerberos"; \
+		echo "✓ Kerberos: ENABLED"; \
+	else \
+		echo "○ Kerberos: DISABLED"; \
+	fi; \
+	if [ "$(ENABLE_OPENMETADATA)" = "true" ]; then \
+		PROFILES="$$PROFILES,openmetadata"; \
+		echo "✓ OpenMetadata: ENABLED"; \
+	else \
+		echo "○ OpenMetadata: DISABLED"; \
+	fi; \
+	PROFILES=$${PROFILES#,}; \
+	if [ -z "$$PROFILES" ]; then \
+		echo ""; \
+		echo "⚠️  No services enabled in .env"; \
+		echo "Set ENABLE_KERBEROS=true and/or ENABLE_OPENMETADATA=true"; \
+		exit 1; \
+	fi; \
+	echo ""; \
+	docker network create platform_network 2>/dev/null || true; \
+	if [ "$(ENABLE_KERBEROS)" = "true" ]; then \
+		docker volume create platform_kerberos_cache 2>/dev/null || true; \
+		if ! docker images platform/kerberos-sidecar:latest --format "{{.Repository}}" | grep -q "platform/kerberos-sidecar"; then \
+			echo "Building Kerberos sidecar (one-time setup)..."; \
+			cd kerberos-sidecar && $(MAKE) build || exit 1; \
+		fi; \
+	fi; \
+	echo "Starting services (profiles: $$PROFILES)..."; \
+	COMPOSE_PROFILES=$$PROFILES $(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.openmetadata.yml up -d; \
+	echo ""; \
+	echo "✓ Platform services started"; \
+	echo ""; \
+	echo "Active services:"; \
+	if [ "$(ENABLE_KERBEROS)" = "true" ]; then \
+		echo "  • Kerberos Sidecar:    docker ps | grep kerberos-platform-service"; \
+	fi; \
+	if [ "$(ENABLE_OPENMETADATA)" = "true" ]; then \
+		echo "  • Platform PostgreSQL: docker ps | grep platform-postgres"; \
+		echo "  • OpenMetadata UI:     http://localhost:8585"; \
+		echo "  • Login:               admin@open-metadata.org / admin"; \
+	fi; \
+	echo ""; \
+	echo "Configuration: Edit .env to enable/disable services"; \
+	echo "Status: make platform-status"
 
 platform-stop: ## Stop all platform services
 	@echo "Stopping platform services..."

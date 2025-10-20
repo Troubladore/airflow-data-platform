@@ -24,6 +24,7 @@ services:
   # Note: Separate from warehouse PostgreSQL (OLAP workloads)
   # ============================================
   platform-postgres:
+    profiles: ["openmetadata"]
     image: ${IMAGE_POSTGRES:-postgres:17.5-alpine}
     container_name: platform-postgres
     restart: unless-stopped
@@ -54,6 +55,7 @@ services:
   # Provides full-text search for metadata catalog
   # ============================================
   openmetadata-elasticsearch:
+    profiles: ["openmetadata"]
     image: ${IMAGE_ELASTICSEARCH:-docker.elastic.co/elasticsearch/elasticsearch:8.10.2}
     container_name: openmetadata-elasticsearch
     restart: unless-stopped
@@ -89,6 +91,7 @@ services:
   # - Kerberos-aware (for SQL Server connections)
   # ============================================
   openmetadata-server:
+    profiles: ["openmetadata"]
     image: ${IMAGE_OPENMETADATA_SERVER:-docker.getcollate.io/openmetadata/server:1.2.0}
     container_name: openmetadata-server
     restart: unless-stopped
@@ -133,19 +136,6 @@ services:
       PIPELINE_SERVICE_CLIENT_ENABLED: true
       PIPELINE_SERVICE_CLIENT_CLASS_NAME: org.openmetadata.service.clients.pipeline.airflow.AirflowRESTClient
 
-      # ========================================
-      # Kerberos Configuration (For Ad-hoc SQL Server Testing)
-      # ========================================
-      # Server can test SQL Server connections using Kerberos
-      # Production ingestion runs via Astronomer DAGs
-      KRB5CCNAME: /krb5/cache/krb5cc
-      KRB5_CONFIG: /etc/krb5.conf
-
-    volumes:
-      # Kerberos integration (for testing connections in UI)
-      - platform_kerberos_cache:/krb5/cache:ro
-      - ${KRB5_CONF_PATH:-/etc/krb5.conf}:/etc/krb5.conf:ro
-
     depends_on:
       platform-postgres:
         condition: service_healthy
@@ -177,9 +167,8 @@ volumes:
   openmetadata_es_data:
     name: openmetadata_es_data
 
-  # Kerberos cache (external - managed by base docker-compose.yml)
-  platform_kerberos_cache:
-    external: true
+  # Note: Kerberos cache volume removed - not needed for no-Kerberos mode
+  # When using with Kerberos (via docker-compose.yml), volume is managed there
 
 # ============================================
 # Networks

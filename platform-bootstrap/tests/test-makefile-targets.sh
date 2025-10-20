@@ -139,7 +139,6 @@ print_header "SERVICE MANAGEMENT TARGETS"
 echo ""
 
 test_make_target "platform-start" "dry-run" "Start platform services"
-test_make_target "platform-start-no-kerberos" "dry-run" "Start platform (no Kerberos)"
 test_make_target "platform-stop" "dry-run" "Stop platform services"
 test_make_target "kerberos-start" "dry-run" "Start Kerberos service"
 test_make_target "kerberos-stop" "dry-run" "Stop Kerberos service"
