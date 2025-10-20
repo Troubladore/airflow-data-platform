@@ -40,19 +40,14 @@ HAS_KERBEROS_TICKET=false
 
 print_banner() {
     clear
-    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║${NC}                   ${BOLD}${BLUE}Platform Setup Wizard${NC}                       ${CYAN}║${NC}"
-    echo -e "${CYAN}║${NC}               ${BLUE}Composable Data Platform Services${NC}               ${CYAN}║${NC}"
-    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════╝${NC}"
+    print_header "Platform Setup Wizard"
+    echo "Composable Data Platform Services"
     echo ""
 }
 
-print_section() {
-    echo ""
-    echo -e "${BOLD}${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-    echo -e "${BOLD}$1${NC}"
-    echo -e "${BOLD}${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-    echo ""
+# print_section is already in formatting.sh, but add wrapper for consistency
+wizard_section() {
+    print_section "$1"
 }
 
 # print_success, print_error, print_warning, print_info provided by formatting.sh
@@ -130,7 +125,7 @@ ask_service_needs() {
     echo ""
 
     # OpenMetadata
-    echo -e "${BOLD}OpenMetadata${NC} - Metadata Catalog & Data Discovery"
+    echo "OpenMetadata - Metadata Catalog & Data Discovery"
     echo "  • Catalog databases (PostgreSQL, SQL Server, etc.)"
     echo "  • Track data lineage and quality"
     echo "  • Collaborate on data documentation"
@@ -146,16 +141,16 @@ ask_service_needs() {
     echo ""
 
     # Kerberos
-    echo -e "${BOLD}Kerberos${NC} - SQL Server Authentication (Windows/Active Directory)"
+    echo "Kerberos - SQL Server Authentication (Windows/Active Directory)"
     echo "  • Connect to corporate SQL Server databases"
     echo "  • Use your domain credentials (no passwords in code!)"
     echo "  • Required: Domain membership, kinit access"
 
     if [ -n "$DETECTED_DOMAIN" ]; then
-        echo -e "  • ${GREEN}Auto-detected: Domain $DETECTED_DOMAIN${NC}"
+        print_info "Auto-detected: Domain $DETECTED_DOMAIN"
     fi
     if [ "$HAS_KERBEROS_TICKET" = true ]; then
-        echo -e "  • ${GREEN}You already have a valid Kerberos ticket${NC}"
+        print_success "You already have a valid Kerberos ticket"
     fi
     echo ""
 
@@ -169,7 +164,7 @@ ask_service_needs() {
     echo ""
 
     # Pagila
-    echo -e "${BOLD}Pagila${NC} - PostgreSQL Sample Database"
+    echo "Pagila - PostgreSQL Sample Database"
     echo "  • Test data for OpenMetadata ingestion"
     echo "  • Real-world schema (film rental database)"
     echo "  • Requirements: ~100MB disk"
@@ -207,7 +202,7 @@ ask_corporate_infrastructure() {
 
     echo "Does your organization use corporate infrastructure?"
     echo ""
-    echo -e "${BOLD}Artifactory / Internal Registries${NC}"
+    echo "Artifactory / Internal Registries"
     echo "  • Internal Docker registry (artifactory.company.com)"
     echo "  • Internal PyPI mirror"
     echo "  • Internal git servers"
@@ -329,47 +324,45 @@ setup_pagila() {
 
 show_final_summary() {
     clear
-    echo -e "${GREEN}╔══════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║                                                                  ║${NC}"
-    echo -e "${GREEN}║                  ${BOLD}Platform Setup Complete!${NC}${GREEN}                     ║${NC}"
-    echo -e "${GREEN}║                                                                  ║${NC}"
-    echo -e "${GREEN}╚══════════════════════════════════════════════════════════════════╝${NC}"
+    print_divider
+    print_success "Platform Setup Complete!"
+    print_divider
     echo ""
 
-    echo -e "${BOLD}Active Services:${NC}"
+    echo "Active Services:"
     echo ""
 
     if [ "$NEED_OPENMETADATA" = true ]; then
-        echo -e "  ${GREEN}✓${NC} OpenMetadata"
+        print_check "PASS" "OpenMetadata"
         echo "      UI:    http://localhost:8585"
         echo "      Login: admin@open-metadata.org / admin"
         echo ""
     fi
 
     if [ "$NEED_KERBEROS" = true ]; then
-        echo -e "  ${GREEN}✓${NC} Kerberos Sidecar"
+        print_check "PASS" "Kerberos Sidecar"
         echo "      Status: Sharing tickets with containers"
         echo "      Domain: ${DETECTED_DOMAIN:-Configured}"
         echo ""
     fi
 
     if [ "$NEED_PAGILA" = true ]; then
-        echo -e "  ${GREEN}✓${NC} Pagila Test Database"
+        print_check "PASS" "Pagila Test Database"
         echo "      Host: localhost:5432"
         echo "      Database: pagila"
         echo "      User: postgres (trust auth - no password)"
         echo ""
     fi
 
-    echo -e "${BOLD}Next Steps:${NC}"
+    echo "Next Steps:"
     echo ""
     echo "  1. Check platform status:"
-    echo "     ${CYAN}cd $PLATFORM_DIR && make platform-status${NC}"
+    echo "     cd $PLATFORM_DIR && make platform-status"
     echo ""
 
     if [ "$NEED_OPENMETADATA" = true ]; then
         echo "  2. Access OpenMetadata UI:"
-        echo "     ${CYAN}open http://localhost:8585${NC}"
+        echo "     open http://localhost:8585"
         echo ""
     fi
 
@@ -381,27 +374,27 @@ show_final_summary() {
     fi
 
     echo "  4. Create Airflow project:"
-    echo "     ${CYAN}astro dev init my-project${NC}"
+    echo "     astro dev init my-project"
     echo ""
 
-    echo -e "${BOLD}Service Management:${NC}"
+    echo "Service Management:"
     echo ""
     echo "  Platform Orchestrator:"
-    echo "    ${CYAN}cd $PLATFORM_DIR${NC}"
-    echo "    ${CYAN}make platform-start${NC}    # Start all enabled services"
-    echo "    ${CYAN}make platform-stop${NC}     # Stop all services"
-    echo "    ${CYAN}make platform-status${NC}   # Check service health"
+    echo "    cd $PLATFORM_DIR"
+    echo "    make platform-start    # Start all enabled services"
+    echo "    make platform-stop     # Stop all services"
+    echo "    make platform-status   # Check service health"
     echo ""
     echo "  Individual Services:"
     if [ "$NEED_OPENMETADATA" = true ]; then
-        echo "    ${CYAN}cd $REPO_ROOT/openmetadata && make status${NC}"
+        echo "    cd $REPO_ROOT/openmetadata && make status"
     fi
     if [ "$NEED_KERBEROS" = true ]; then
-        echo "    ${CYAN}cd $REPO_ROOT/kerberos && make status${NC}"
+        echo "    cd $REPO_ROOT/kerberos && make status"
     fi
     echo ""
 
-    echo -e "${BOLD}Configuration Files:${NC}"
+    echo "Configuration Files:"
     echo "  • $PLATFORM_DIR/.env           (service toggles)"
     if [ "$NEED_OPENMETADATA" = true ]; then
         echo "  • $REPO_ROOT/openmetadata/.env  (OpenMetadata config)"

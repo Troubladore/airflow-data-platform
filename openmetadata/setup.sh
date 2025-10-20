@@ -288,9 +288,9 @@ step_5_test_api() {
 step_6_summary() {
     print_step 6 "Setup Complete"
 
-    echo -e "${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║                  OpenMetadata Setup Complete!                 ║${NC}"
-    echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}"
+    print_divider
+    print_success "OpenMetadata Setup Complete!"
+    print_divider
     echo ""
 
     echo "Services Running:"
