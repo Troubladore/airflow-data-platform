@@ -291,18 +291,32 @@ step_4_validate_health() {
     # Elasticsearch (takes longer - 2-3 minutes on first run)
     echo "Elasticsearch (may take 2-3 minutes on first run):"
     for i in {1..90}; do
-        # Check cluster status is green or yellow (not red)
-        CLUSTER_STATUS=$(curl -sf http://localhost:9200/_cluster/health 2>/dev/null | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
-        if [ "$CLUSTER_STATUS" = "green" ] || [ "$CLUSTER_STATUS" = "yellow" ]; then
+        # Check Docker healthcheck status (more reliable than direct curl since port not exposed)
+        HEALTH_STATUS=$(docker inspect --format='{{.State.Health.Status}}' openmetadata-elasticsearch 2>/dev/null || echo "unknown")
+
+        if [ "$HEALTH_STATUS" = "healthy" ]; then
             echo ""  # New line after progress
-            print_success "Healthy - status: $CLUSTER_STATUS (took $((i * 2)) seconds)"
+            print_success "Healthy (took $((i * 2)) seconds)"
             break
+        elif [ "$HEALTH_STATUS" = "unknown" ]; then
+            # Container has no healthcheck or not started yet
+            if docker ps --filter "name=openmetadata-elasticsearch" --format "{{.Status}}" | grep -q "Up"; then
+                # Container running but no healthcheck - just check if port responding
+                if docker exec openmetadata-elasticsearch curl -sf http://localhost:9200/_cluster/health | grep -q '"status":"green"\|"status":"yellow"' 2>/dev/null; then
+                    echo ""
+                    print_success "Healthy (took $((i * 2)) seconds)"
+                    break
+                fi
+            fi
         fi
+
         # Show progress every 5 checks with time estimate
         if [ $((i % 5)) -eq 0 ]; then
             local elapsed=$((i * 2))
             local remaining=$((180 - elapsed))
-            echo -ne "\r  Waiting... ${elapsed}s elapsed, ~${remaining}s remaining"
+            local status_msg="$HEALTH_STATUS"
+            [ "$HEALTH_STATUS" = "unknown" ] && status_msg="starting"
+            echo -ne "\r  Status: $status_msg | ${elapsed}s elapsed, ~${remaining}s remaining"
         fi
         sleep 2
         if [ $i -eq 90 ]; then
@@ -315,6 +329,7 @@ step_4_validate_health() {
             echo "Troubleshooting:"
             echo "  • Check logs: docker logs openmetadata-elasticsearch"
             echo "  • Check memory: Elasticsearch needs ~1GB RAM"
+            echo "  • Check status: docker inspect openmetadata-elasticsearch"
             echo "  • Wait longer: docker compose logs -f openmetadata-elasticsearch"
             exit 1
         fi
@@ -323,16 +338,20 @@ step_4_validate_health() {
     # OpenMetadata Server (starts after Elasticsearch is ready)
     echo "OpenMetadata Server (usually 1-2 minutes):"
     for i in {1..90}; do
-        if curl -sf http://localhost:8585/api/v1/health >/dev/null 2>&1; then
+        # Check Docker healthcheck status (port is published, so we could curl, but healthcheck is more reliable)
+        HEALTH_STATUS=$(docker inspect --format='{{.State.Health.Status}}' openmetadata-server 2>/dev/null || echo "unknown")
+
+        if [ "$HEALTH_STATUS" = "healthy" ]; then
             echo ""  # New line after progress
             print_success "Healthy (took $((i * 2)) seconds)"
             break
         fi
-        # Show progress every 5 checks with time estimate
+
+        # Show progress every 5 checks with time estimate and current status
         if [ $((i % 5)) -eq 0 ]; then
             local elapsed=$((i * 2))
             local remaining=$((180 - elapsed))
-            echo -ne "\r  Waiting... ${elapsed}s elapsed, ~${remaining}s remaining"
+            echo -ne "\r  Status: $HEALTH_STATUS | ${elapsed}s elapsed, ~${remaining}s remaining"
         fi
         sleep 2
         if [ $i -eq 90 ]; then
