@@ -291,9 +291,11 @@ step_4_validate_health() {
     # Elasticsearch (takes longer - 2-3 minutes on first run)
     echo "Elasticsearch (may take 2-3 minutes on first run):"
     for i in {1..90}; do
-        if curl -sf http://localhost:9200/_cluster/health >/dev/null 2>&1; then
-            echo ""  # New line after dots
-            print_success "Healthy (took $((i * 2)) seconds)"
+        # Check cluster status is green or yellow (not red)
+        CLUSTER_STATUS=$(curl -sf http://localhost:9200/_cluster/health 2>/dev/null | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+        if [ "$CLUSTER_STATUS" = "green" ] || [ "$CLUSTER_STATUS" = "yellow" ]; then
+            echo ""  # New line after progress
+            print_success "Healthy - status: $CLUSTER_STATUS (took $((i * 2)) seconds)"
             break
         fi
         # Show progress every 5 checks with time estimate
