@@ -151,8 +151,9 @@ services:
         condition: service_healthy
       openmetadata-elasticsearch:
         condition: service_healthy
-      developer-kerberos-service:
-        condition: service_started
+      # Note: Kerberos dependency removed to support no-Kerberos mode
+      # When running with Kerberos, ensure sidecar starts first via:
+      #   docker compose -f docker-compose.yml -f docker-compose.openmetadata.yml up -d
 
     networks:
       - platform-net
