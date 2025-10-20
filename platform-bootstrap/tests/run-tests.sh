@@ -102,8 +102,15 @@ run_test_section "  test-sql-direct.sh syntax" "bash -n '$PROJECT_ROOT/diagnosti
 
 echo ""
 
-# 5. Documentation tests
-print_section "5. DOCUMENTATION"
+# 5. Composable architecture validation
+print_section "5. COMPOSABLE ARCHITECTURE"
+
+run_test_section "  Architecture pattern" "$SCRIPT_DIR/test-composable-architecture.sh"
+
+echo ""
+
+# 6. Documentation tests
+print_section "6. DOCUMENTATION"
 
 # Check that key files have documentation
 check_file_has_content() {

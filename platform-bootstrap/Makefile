@@ -35,19 +35,14 @@ help: ## Show this help message
 # Installation & Setup
 # ==========================================
 
-install: ## Run interactive setup wizard (Kerberos + platform services)
-	@echo "Running Kerberos setup wizard..."
-	@./dev-tools/setup-kerberos.sh
+setup: ## Run comprehensive platform setup wizard (recommended for first-time setup)
+	@./setup-scripts/platform-setup-wizard.sh
 
 setup-pagila: ## Setup pagila test database (idempotent)
 	@./setup-scripts/setup-pagila.sh
 
 setup-pagila-reset: ## Remove and reinstall pagila test database
 	@./setup-scripts/setup-pagila.sh --reset
-
-# Future modular setup scripts:
-# setup-kerberos: ./setup-scripts/setup-kerberos.sh (extract from wizard later)
-# setup-openmetadata: ./setup-scripts/setup-openmetadata.sh (if complex setup needed)
 
 # ==========================================
 # Platform Services
@@ -56,75 +51,77 @@ setup-pagila-reset: ## Remove and reinstall pagila test database
 platform-start: ## Start platform services (configured in .env)
 	@echo "Starting platform services (configured in .env)..."
 	@echo ""
-	@# Build list of enabled profiles based on .env
-	@PROFILES=""; \
-	if [ "$(ENABLE_KERBEROS)" = "true" ]; then \
-		PROFILES="$$PROFILES,kerberos"; \
+	@if [ ! -f .env ]; then \
+		echo "⚠️  No .env file found in platform-bootstrap/"; \
+		echo "Create one: cp .env.example .env"; \
+		exit 1; \
+	fi
+	@# Check what services are enabled
+	@if [ "$(ENABLE_KERBEROS)" = "true" ]; then \
 		echo "✓ Kerberos: ENABLED"; \
 	else \
 		echo "○ Kerberos: DISABLED"; \
-	fi; \
-	if [ "$(ENABLE_OPENMETADATA)" = "true" ]; then \
-		PROFILES="$$PROFILES,openmetadata"; \
+	fi
+	@if [ "$(ENABLE_OPENMETADATA)" = "true" ]; then \
 		echo "✓ OpenMetadata: ENABLED"; \
 	else \
 		echo "○ OpenMetadata: DISABLED"; \
-	fi; \
-	PROFILES=$${PROFILES#,}; \
-	if [ -z "$$PROFILES" ]; then \
+	fi
+	@if [ "$(ENABLE_KERBEROS)" != "true" ] && [ "$(ENABLE_OPENMETADATA)" != "true" ]; then \
 		echo ""; \
 		echo "⚠️  No services enabled in .env"; \
 		echo "Set ENABLE_KERBEROS=true and/or ENABLE_OPENMETADATA=true"; \
 		exit 1; \
-	fi; \
-	echo ""; \
-	docker network create platform_network 2>/dev/null || true; \
-	if [ "$(ENABLE_KERBEROS)" = "true" ]; then \
-		docker volume create platform_kerberos_cache 2>/dev/null || true; \
-		if ! docker images platform/kerberos-sidecar:latest --format "{{.Repository}}" | grep -q "platform/kerberos-sidecar"; then \
-			echo "Building Kerberos sidecar (one-time setup)..."; \
-			cd kerberos-sidecar && $(MAKE) build || exit 1; \
-		fi; \
-	fi; \
-	echo "Starting services (profiles: $$PROFILES)..."; \
-	COMPOSE_PROFILES=$$PROFILES $(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.openmetadata.yml up -d; \
-	echo ""; \
-	echo "✓ Platform services started"; \
-	echo ""; \
-	echo "Active services:"; \
-	if [ "$(ENABLE_KERBEROS)" = "true" ]; then \
-		echo "  • Kerberos Sidecar:    docker ps | grep kerberos-platform-service"; \
-	fi; \
-	if [ "$(ENABLE_OPENMETADATA)" = "true" ]; then \
+	fi
+	@echo ""
+	@# Start enabled services via their Makefiles
+	@if [ "$(ENABLE_KERBEROS)" = "true" ]; then \
+		echo "Starting Kerberos..."; \
+		cd ../kerberos && $(MAKE) start || exit 1; \
+		echo ""; \
+	fi
+	@if [ "$(ENABLE_OPENMETADATA)" = "true" ]; then \
+		echo "Starting OpenMetadata..."; \
+		cd ../openmetadata && $(MAKE) start || exit 1; \
+		echo ""; \
+	fi
+	@echo "✓ Platform services started"
+	@echo ""
+	@echo "Active services:"
+	@if [ "$(ENABLE_KERBEROS)" = "true" ]; then \
+		echo "  • Kerberos Sidecar:    docker ps | grep kerberos-sidecar"; \
+	fi
+	@if [ "$(ENABLE_OPENMETADATA)" = "true" ]; then \
 		echo "  • Platform PostgreSQL: docker ps | grep platform-postgres"; \
 		echo "  • OpenMetadata UI:     http://localhost:8585"; \
 		echo "  • Login:               admin@open-metadata.org / admin"; \
-	fi; \
-	echo ""; \
-	echo "Configuration: Edit .env to enable/disable services"; \
-	echo "Status: make platform-status"
+	fi
+	@echo ""
+	@echo "Configuration: Edit .env to enable/disable services"
+	@echo "Status: make platform-status"
 
 platform-stop: ## Stop all platform services
 	@echo "Stopping platform services..."
-	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.openmetadata.yml down
+	@# Stop all services (safe to call even if not running)
+	@cd ../kerberos && $(MAKE) stop 2>/dev/null || true
+	@cd ../openmetadata && $(MAKE) stop 2>/dev/null || true
 	@echo "✓ Platform services stopped"
 
 platform-status: ## Check status of platform services
 	@echo "Platform Services Status:"
 	@echo "========================"
 	@echo ""
-	@echo "Core Services:"
-	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.openmetadata.yml ps 2>/dev/null || echo "No services running"
-	@echo ""
-	@echo "Health Checks:"
-	@echo -n "  Kerberos: "
-	@docker exec kerberos-platform-service klist -s 2>/dev/null && echo "✓ Valid ticket" || echo "✗ No ticket"
-	@echo -n "  OpenMetadata: "
-	@curl -sf http://localhost:8585/api/v1/health >/dev/null 2>&1 && echo "✓ Healthy" || echo "✗ Not healthy"
-	@echo -n "  PostgreSQL: "
-	@docker exec platform-postgres pg_isready -U platform_admin >/dev/null 2>&1 && echo "✓ Ready" || echo "✗ Not ready"
-	@echo -n "  Elasticsearch: "
-	@curl -sf http://localhost:9200/_cluster/health >/dev/null 2>&1 && echo "✓ Healthy" || echo "✗ Not healthy"
+	@# Check each service's status
+	@if [ "$(ENABLE_KERBEROS)" = "true" ]; then \
+		echo "Kerberos:"; \
+		cd ../kerberos && $(MAKE) status 2>/dev/null || echo "  Not running"; \
+		echo ""; \
+	fi
+	@if [ "$(ENABLE_OPENMETADATA)" = "true" ]; then \
+		echo "OpenMetadata:"; \
+		cd ../openmetadata && $(MAKE) status 2>/dev/null || echo "  Not running"; \
+		echo ""; \
+	fi
 
 # ==========================================
 # Note: Registry Removed

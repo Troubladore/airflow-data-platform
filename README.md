@@ -43,12 +43,42 @@ This framework provides a thin layer of enterprise patterns on top of Astronomer
 └─────────────────────────────────────┘
 ```
 
+## 🏛️ Composable Services Architecture
+
+Each platform service is **standalone and independent** - use what you need:
+
+```
+airflow-data-platform/
+├── openmetadata/      # Metadata catalog (PostgreSQL + Elasticsearch + UI)
+├── kerberos/          # SQL Server auth (Kerberos ticket sharing)
+├── pagila/            # PostgreSQL sample database
+└── platform-bootstrap/ # Orchestrator (optional - or use services individually)
+```
+
+**Run individually:**
+```bash
+cd openmetadata && make setup && make start
+cd kerberos && make setup && make start
+```
+
+**Or use orchestrator:**
+```bash
+cd platform-bootstrap
+make setup           # Guided wizard - asks what you need
+make platform-start  # Starts enabled services
+```
+
 ## 🚀 Getting Started
 
-Start with platform setup, then explore examples:
+**Option 1: Guided Setup (Recommended)**
+```bash
+cd platform-bootstrap
+make setup    # Interactive wizard detects environment, configures services
+```
 
+**Option 2: Manual Quick Start**
 1. **[Platform Setup Guide](docs/getting-started-simple.md)** - Deploy the enhancement services
-2. **[Hello World Example](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/hello-world)** - Your first project (after platform setup)
+2. **[Hello World Example](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/hello-world)** - Your first project
 
 ## 📚 Documentation
 

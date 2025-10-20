@@ -1,0 +1,93 @@
+# Kerberos Sidecar Service
+# =========================
+# Provides Kerberos ticket sharing for SQL Server authentication
+#
+# Architecture: Single sidecar container that manages Kerberos tickets
+# - Copies tickets from host (local development)
+# - Shares tickets with other services via volume mount
+# - Refreshes tickets automatically
+#
+# Usage:
+#   make build    # Build the sidecar image
+#   make start    # Start Kerberos service
+#   make stop     # Stop Kerberos service
+#   make status   # Check service health
+
+services:
+  # Platform-level Kerberos sidecar for developers
+  kerberos-sidecar:
+    # Custom sidecar image (built locally, cached by Docker)
+    # Build: make build
+    image: platform/kerberos-sidecar:latest
+    container_name: kerberos-sidecar
+    restart: unless-stopped
+
+    environment:
+      # Ticket mode: copy (local dev) or create (production)
+      # - copy: Copies your existing kinit tickets from host
+      # - create: Creates tickets via password/keytab
+      TICKET_MODE: ${TICKET_MODE:-copy}
+
+      # Developer mode configuration
+      ENVIRONMENT: development
+      KRB_PRINCIPAL: ${USER}@${COMPANY_DOMAIN}
+      KRB_REALM: ${COMPANY_DOMAIN}
+
+      # Copy mode refreshes tickets from host every 5 minutes
+      # (No password or keytab needed for local development)
+      COPY_INTERVAL: ${COPY_INTERVAL:-300}
+
+      # Create mode settings (for production/K8s)
+      # Uncomment when using TICKET_MODE=create:
+      # USE_PASSWORD: "true"
+      # KRB_PASSWORD_COMMAND: "cat /run/secrets/krb_password"
+      # RENEWAL_INTERVAL: 1800
+
+    volumes:
+      # Share ticket cache with all local containers
+      - kerberos_cache:/krb5/cache:rw
+
+      # Use developer's existing krb5.conf
+      - ${KRB5_CONF_PATH:-/etc/krb5.conf}:/krb5/conf/krb5.conf:ro
+
+      # Mount ticket directory from .env configuration
+      - ${KERBEROS_TICKET_DIR:-${HOME}/.krb5-cache}:/host/tickets:ro
+
+    secrets:
+      - krb_password
+
+    networks:
+      - kerberos-net
+
+    healthcheck:
+      test: ["CMD", "klist", "-s"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+# ============================================
+# Volumes
+# ============================================
+
+volumes:
+  kerberos_cache:
+    name: platform_kerberos_cache
+
+# ============================================
+# Networks
+# ============================================
+
+networks:
+  # Kerberos internal network
+  # Other services can connect to this network to access Kerberos tickets
+  kerberos-net:
+    name: kerberos_network
+    driver: bridge
+
+# ============================================
+# Secrets
+# ============================================
+
+secrets:
+  krb_password:
+    file: ./.secrets/krb_password.txt
