@@ -223,6 +223,10 @@ if [ "$REMOVE_IMAGES" = true ]; then
     # Pagila images
     docker rmi dpage/pgadmin4:latest 2>/dev/null && echo "  ✓ Removed pgadmin4" || true
 
+    # Alpine images (used by Kerberos sidecar)
+    docker rmi alpine:3.19 2>/dev/null && echo "  ✓ Removed alpine:3.19" || true
+    docker rmi alpine:latest 2>/dev/null && echo "  ✓ Removed alpine:latest" || true
+
     print_success "All platform images removed (will re-download on next startup)"
     echo ""
 fi
