@@ -50,7 +50,7 @@ start: ## Start OpenMetadata services
 	@echo ""
 	@echo "Services:"
 	@echo "  • PostgreSQL:      docker ps | grep platform-postgres"
-	@echo "  • Elasticsearch:   docker ps | grep openmetadata-elasticsearch"
+	@echo "  • OpenSearch:       docker ps | grep openmetadata-opensearch"
 	@echo "  • OpenMetadata UI: http://localhost:$(OPENMETADATA_PORT)"
 	@echo "  • Login:           admin@open-metadata.org / admin"
 	@echo ""
@@ -74,10 +74,10 @@ status: ## Check service health
 	@echo "Health Checks:"
 	@echo -n "  PostgreSQL: "
 	@docker exec platform-postgres pg_isready -U platform_admin >/dev/null 2>&1 && echo "✓ Ready" || echo "✗ Not ready"
-	@echo -n "  Elasticsearch: "
+	@echo -n "  OpenSearch: "
 	@curl -sf http://localhost:9200/_cluster/health >/dev/null 2>&1 && echo "✓ Healthy" || echo "✗ Not healthy"
 	@echo -n "  OpenMetadata: "
-	@curl -sf http://localhost:$(OPENMETADATA_PORT)/api/v1/health >/dev/null 2>&1 && echo "✓ Healthy" || echo "✗ Not healthy"
+	@curl -sf http://localhost:8586/healthcheck | grep -q '"healthy":true' 2>/dev/null && echo "✓ Healthy" || echo "✗ Not healthy"
 
 logs: ## Show service logs
 	@$(DOCKER_COMPOSE) logs --tail=50 --follow
