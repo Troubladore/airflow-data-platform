@@ -185,6 +185,7 @@ echo ""
 # Extract all script references from Makefile and verify they exist
 echo "Checking all script references in Makefile..."
 # Extract script paths, handle both ./ (local) and ../ (external service) paths
+# Also handle "cd dir && ./script.sh" patterns
 SCRIPT_REFS=$(grep -v '^\s*#' "$PLATFORM_DIR/Makefile" | grep -oE '@?(\./|\.\./)[a-zA-Z0-9/_-]+\.sh' | sort -u | sed 's/@//')
 
 REPO_ROOT="$(dirname "$PLATFORM_DIR")"
@@ -195,7 +196,16 @@ for script in $SCRIPT_REFS; do
     if [[ "$script" == ../* ]]; then
         script_abs="$REPO_ROOT/${script#../}"
     else
-        script_abs="$PLATFORM_DIR/$script"
+        # For ./diagnostics/... patterns after "cd ../kerberos &&", check in kerberos
+        # Extract the Makefile line containing this script to see if there's a cd command
+        script_line=$(grep -F "$script" "$PLATFORM_DIR/Makefile" | head -1)
+        if echo "$script_line" | grep -q "cd \.\./kerberos"; then
+            # Script is relative to kerberos directory
+            script_abs="$REPO_ROOT/kerberos/${script#./}"
+        else
+            # Script is relative to platform-bootstrap
+            script_abs="$PLATFORM_DIR/$script"
+        fi
     fi
 
     if [ -f "$script_abs" ]; then
