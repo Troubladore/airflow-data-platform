@@ -268,7 +268,7 @@ step_3_start_services() {
     echo ""
     echo "Running database migrations (creates schema tables)..."
     cd "$SCRIPT_DIR"
-    if COMPOSE_PROFILES=migrate docker compose up openmetadata-migrate; then
+    if docker compose up openmetadata-migrate; then
         print_success "Database migrations completed"
     else
         print_error "Database migrations failed"
