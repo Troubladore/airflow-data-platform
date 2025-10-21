@@ -32,8 +32,8 @@ echo "This will clean up the composable platform architecture:"
 echo ""
 print_list_header "Services that will be removed:"
 print_bullet "platform-infrastructure (platform-postgres, platform_network)"
-print_bullet "openmetadata (elasticsearch, server)"
-print_bullet "kerberos (sidecar)"
+print_bullet "openmetadata (opensearch, server, migration containers)"
+print_bullet "kerberos-sidecar (ticket sharing service)"
 print_bullet "pagila (if running)"
 echo ""
 print_list_header "Optional removals (you choose):"
@@ -129,8 +129,8 @@ if ask_yes_no "Remove OpenMetadata?"; then
     echo ""
 fi
 
-if ask_yes_no "Remove Kerberos?"; then
-    echo "Stopping Kerberos..."
+if ask_yes_no "Remove Kerberos sidecar service?"; then
+    echo "Stopping Kerberos sidecar..."
     cd "$REPO_ROOT/kerberos" && make stop 2>/dev/null || docker rm -f kerberos-sidecar 2>/dev/null || true
     cd "$PLATFORM_DIR"
     echo ""
