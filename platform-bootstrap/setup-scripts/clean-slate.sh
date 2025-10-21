@@ -135,11 +135,21 @@ fi
 
 if ask_yes_no "Remove Pagila?"; then
     echo "Stopping Pagila..."
-    if [ -f "$PLATFORM_DIR/setup-scripts/setup-pagila.sh" ]; then
-        "$PLATFORM_DIR/setup-scripts/setup-pagila.sh" --reset --yes
+    # Just remove Pagila containers/volumes, don't reinstall
+    docker stop pagila-postgres pgadmin4 2>/dev/null || true
+    docker rm pagila-postgres pgadmin4 2>/dev/null || true
+    if ask_yes_no "  Also remove Pagila data volume?"; then
+        docker volume rm pagila_pgdata 2>/dev/null || true
+        print_success "Pagila data removed"
     else
-        docker rm -f pagila-postgres 2>/dev/null || true
-        docker volume rm pagila_data 2>/dev/null || true
+        print_info "Pagila data preserved"
+    fi
+    # Remove pagila repository directory
+    if ask_yes_no "  Also remove pagila repository directory?"; then
+        rm -rf "$REPO_ROOT/../pagila" 2>/dev/null || true
+        print_success "Pagila repository removed"
+    else
+        print_info "Pagila repository preserved"
     fi
     echo ""
 fi
