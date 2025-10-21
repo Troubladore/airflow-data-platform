@@ -184,14 +184,24 @@ echo ""
 
 # Extract all script references from Makefile and verify they exist
 echo "Checking all script references in Makefile..."
-# Exclude comments by first removing comment lines
-SCRIPT_REFS=$(grep -v '^\s*#' "$PLATFORM_DIR/Makefile" | grep -oE '@?\./[a-zA-Z0-9/_-]+\.sh' | sort -u | sed 's/@//')
+# Extract script paths, handle both ./ (local) and ../ (external service) paths
+SCRIPT_REFS=$(grep -v '^\s*#' "$PLATFORM_DIR/Makefile" | grep -oE '@?(\./|\.\./)[a-zA-Z0-9/_-]+\.sh' | sort -u | sed 's/@//')
+
+REPO_ROOT="$(dirname "$PLATFORM_DIR")"
 
 for script in $SCRIPT_REFS; do
-    if [ -f "$PLATFORM_DIR/$script" ]; then
+    # Check relative to platform-bootstrap for ./ paths
+    # Check relative to repo root for ../ paths
+    if [[ "$script" == ../* ]]; then
+        script_abs="$REPO_ROOT/${script#../}"
+    else
+        script_abs="$PLATFORM_DIR/$script"
+    fi
+
+    if [ -f "$script_abs" ]; then
         print_check "PASS" "$script exists"
     else
-        print_check "FAIL" "$script NOT FOUND"
+        print_check "FAIL" "$script NOT FOUND (expected: $script_abs)"
         FAILED_TESTS=$((FAILED_TESTS + 1))
         FAILED_TARGETS+=("Script not found: $script")
     fi
