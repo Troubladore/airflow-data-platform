@@ -147,29 +147,19 @@ platform-status: ## Check status of platform services
 # These targets are for advanced use cases only
 
 kerberos-start: ## Start Kerberos sidecar service
-	@echo "Starting Kerberos sidecar..."
-	@docker network create platform_network 2>/dev/null || true
-	@docker volume create platform_kerberos_cache 2>/dev/null || true
-	@echo "Checking for Kerberos sidecar image..."
-	@if ! docker images platform/kerberos-sidecar:latest --format "{{.Repository}}" | grep -q "platform/kerberos-sidecar"; then \
-		echo "Building Kerberos sidecar (one-time setup)..."; \
-		cd kerberos-sidecar && $(MAKE) build || exit 1; \
-	fi
-	@$(DOCKER_COMPOSE) up -d developer-kerberos-service
-	@echo "✓ Kerberos sidecar started"
+	@echo "Starting Kerberos..."
+	@cd ../kerberos && $(MAKE) start
 
 kerberos-stop: ## Stop Kerberos sidecar
-	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.openmetadata.yml down 2>/dev/null || true
-	@echo "✓ Kerberos sidecar stopped"
+	@echo "Stopping Kerberos..."
+	@cd ../kerberos && $(MAKE) stop
 
 kerberos-test: ## Test Kerberos ticket
-	@echo -n "Kerberos service: "
-	@docker exec kerberos-platform-service klist -s 2>/dev/null && \
-		echo "✓ Valid ticket" || echo "✗ No valid ticket"
+	@cd ../kerberos && $(MAKE) test
 
 kerberos-refresh: ## Refresh Kerberos ticket
 	@echo "Refreshing Kerberos ticket..."
-	@docker exec -it kerberos-platform-service kinit $(USER)@$(COMPANY_DOMAIN)
+	@docker exec -it kerberos-sidecar kinit $(USER)@$(COMPANY_DOMAIN)
 
 kerberos-setup: ## Interactive wizard to set up Kerberos from scratch (with logging)
 	@./dev-tools/run-kerberos-setup.sh
