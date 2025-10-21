@@ -60,9 +60,9 @@ services:
     container_name: openmetadata-server
     restart: unless-stopped
 
-    # Load ONLY passwords from platform-bootstrap (secrets management)
+    # Load local .env (synchronized from platform-bootstrap/.env by wizard)
     env_file:
-      - ../platform-bootstrap/.env
+      - .env
 
     ports:
       - "${OPENMETADATA_PORT:-8585}:8585"
@@ -77,9 +77,9 @@ services:
       DB_HOST: platform-postgres
       DB_PORT: 5432
       OM_DATABASE: openmetadata_db
-      # Credentials from env_file (platform-bootstrap/.env - single source of truth)
-      DB_USER: ${OPENMETADATA_DB_USER:-openmetadata_user}
-      DB_USER_PASSWORD: ${OPENMETADATA_DB_PASSWORD:-changeme}
+      DB_USER: openmetadata_user
+      # DB_USER_PASSWORD comes from env_file - maps OPENMETADATA_DB_PASSWORD to DB_USER_PASSWORD
+      # Can't use ${OPENMETADATA_DB_PASSWORD} here - substitution happens before env_file loads
 
       # ========================================
       # Elasticsearch Configuration
