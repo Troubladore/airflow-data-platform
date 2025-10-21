@@ -154,15 +154,19 @@ step_2_configure_env() {
 
     if [ -f "$env_file" ]; then
         print_info ".env file already exists"
+        if [ "$AUTO_MODE" = true ]; then
+            print_info "Auto mode: Preserving existing .env (not overwriting)"
+            return 0
+        fi
         if ask_yes_no "Overwrite with new configuration?"; then
             echo "Creating new .env..."
         else
-            print_info "Using existing .env"
+            print_info "Using existing .env (preserving your settings)"
             return 0
         fi
     fi
 
-    # Copy example
+    # Copy example (only if .env doesn't exist or user said yes to overwrite)
     cp "$env_example" "$env_file"
     print_success "Created .env from .env.example"
 
