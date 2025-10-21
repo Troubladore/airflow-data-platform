@@ -110,35 +110,35 @@ echo ""
 echo -e "${CYAN}=== HELP/VERSION TESTS ===${NC}"
 echo ""
 
-# Test scripts that support --help
-test_script "diagnostics/krb5-auth-test.sh" "./diagnostics/krb5-auth-test.sh --help" "Help output"
-test_script "diagnostics/krb5-auth-test.sh" "./diagnostics/krb5-auth-test.sh -h" "Short help"
+# Test scripts that support --help (diagnostics now in kerberos/)
+test_script "kerberos/diagnostics/krb5-auth-test.sh" "../kerberos/diagnostics/krb5-auth-test.sh --help" "Help output"
+test_script "kerberos/diagnostics/krb5-auth-test.sh" "../kerberos/diagnostics/krb5-auth-test.sh -h" "Short help"
 
 echo ""
 echo -e "${CYAN}=== DRY RUN EXECUTION TESTS ===${NC}"
 echo ""
 
-# Test diagnostic scripts in quick/safe mode
+# Test diagnostic scripts in quick/safe mode (now in kerberos/)
 # Note: krb5-auth-test.sh exits with 1 if no valid ticket (expected in test env)
-test_script "diagnostics/krb5-auth-test.sh" "./diagnostics/krb5-auth-test.sh -q || [ \$? -eq 1 ]" "Quick mode execution"
+test_script "kerberos/diagnostics/krb5-auth-test.sh" "../kerberos/diagnostics/krb5-auth-test.sh -q || [ \$? -eq 1 ]" "Quick mode execution"
 
-# Test generate-diagnostic-context with mock data
-test_script "diagnostics/generate-diagnostic-context.sh" "
+# Test generate-diagnostic-context with mock data (now in kerberos/)
+test_script "kerberos/diagnostics/generate-diagnostic-context.sh" "
     export KRB5CCNAME=FILE:/tmp/krb5cc_test_\$\$
-    timeout 5 ./diagnostics/generate-diagnostic-context.sh --dry-run 2>/dev/null || true
+    timeout 5 ../kerberos/diagnostics/generate-diagnostic-context.sh --dry-run 2>/dev/null || true
 " "Dry run mode"
 
 # Test the test script itself (meta!)
 test_script "test-shell-syntax.sh" "./tests/test-shell-syntax.sh" "Syntax validation suite"
 
-# Test that color code detection works properly
+# Test that color code detection works properly (kerberos-sidecar now in kerberos/)
 test_script "check-build-requirements.sh" "
-    cd kerberos-sidecar/scripts
+    cd ../kerberos/kerberos-sidecar/scripts
     NO_COLOR=1 bash -c './check-build-requirements.sh 2>&1 | grep -E \"\\033|✓|✗|⚠|ℹ|═|─|▶\" && exit 1 || exit 0'
 " "No color/unicode when NO_COLOR=1"
 
-test_script "diagnostics/krb5-auth-test.sh" "
-    NO_COLOR=1 bash -c './diagnostics/krb5-auth-test.sh --help 2>&1 | grep -E \"\\033|✓|✗|⚠|ℹ|═|─|▶\" && exit 1 || exit 0'
+test_script "kerberos/diagnostics/krb5-auth-test.sh" "
+    NO_COLOR=1 bash -c '../kerberos/diagnostics/krb5-auth-test.sh --help 2>&1 | grep -E \"\\033|✓|✗|⚠|ℹ|═|─|▶\" && exit 1 || exit 0'
 " "No color/unicode in krb5-auth-test when NO_COLOR=1"
 
 echo ""
@@ -146,9 +146,9 @@ echo -e "${CYAN}=== INTERACTIVE SCRIPT SAFETY ===${NC}"
 echo ""
 
 # Test that interactive scripts handle non-interactive mode gracefully
-# Note: clean-slate.sh has multiple prompts, need to answer 'n' to all
-test_script "dev-tools/clean-slate.sh" "
-    printf 'n\nn\nn\nn\n' | timeout 2 ./dev-tools/clean-slate.sh 2>&1 | grep -q 'Cancelled'
+# Note: clean-slate.sh has multiple prompts, need to answer 'n' to all (now in setup-scripts/)
+test_script "setup-scripts/clean-slate.sh" "
+    printf 'n\nn\nn\nn\n' | timeout 2 ./setup-scripts/clean-slate.sh 2>&1 | grep -q 'Cancelled'
 " "Handles 'no' input"
 
 # Test setup-kerberos.sh can at least parse without errors
@@ -158,9 +158,9 @@ echo ""
 echo -e "${CYAN}=== BUILD REQUIREMENT CHECKS ===${NC}"
 echo ""
 
-# Test the build requirements script
+# Test the build requirements script (kerberos-sidecar now in kerberos/)
 test_script "check-build-requirements.sh" "
-    cd kerberos-sidecar/scripts
+    cd ../kerberos/kerberos-sidecar/scripts
     timeout 10 ./check-build-requirements.sh || [ \$? -ne 0 ]
 " "Build requirements check runs"
 
@@ -172,20 +172,20 @@ echo ""
 echo "Simulating demo workflow (Step 7-11 from guide)..."
 echo ""
 
-# Step 7: Building sidecar (just check the script exists and is valid)
-test_script "kerberos-sidecar/Makefile" "
-    cd kerberos-sidecar
+# Step 7: Building sidecar (kerberos-sidecar now in kerberos/)
+test_script "kerberos/kerberos-sidecar/Makefile" "
+    cd ../kerberos/kerberos-sidecar
     make help >/dev/null 2>&1
 " "Makefile help works"
 
-# Step 10: Direct SQL test script
-test_script "diagnostics/test-sql-direct.sh" "
-    ./diagnostics/test-sql-direct.sh 2>&1 | head -5 | grep -q 'Direct SQL Server Test' || \
-    ./diagnostics/test-sql-direct.sh 2>&1 | head -5 | grep -q 'Usage:'
+# Step 10: Direct SQL test script (now in kerberos/)
+test_script "kerberos/diagnostics/test-sql-direct.sh" "
+    ../kerberos/diagnostics/test-sql-direct.sh 2>&1 | head -5 | grep -q 'Direct SQL Server Test' || \
+    ../kerberos/diagnostics/test-sql-direct.sh 2>&1 | head -5 | grep -q 'Usage:'
 " "Shows usage or title"
 
-# Step 11: Container test simulation
-test_script "diagnostics/test-sql-simple.sh" "bash -n ./diagnostics/test-sql-simple.sh" "Simple SQL test syntax"
+# Step 11: Container test simulation (now in kerberos/)
+test_script "kerberos/diagnostics/test-sql-simple.sh" "bash -n ../kerberos/diagnostics/test-sql-simple.sh" "Simple SQL test syntax"
 
 echo ""
 echo -e "${CYAN}=== MAKEFILE TARGET VALIDATION ===${NC}"
