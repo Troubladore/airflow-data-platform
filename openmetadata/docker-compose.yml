@@ -60,6 +60,10 @@ services:
     container_name: openmetadata-server
     restart: unless-stopped
 
+    # Load ONLY passwords from platform-bootstrap (secrets management)
+    env_file:
+      - ../platform-bootstrap/.env
+
     ports:
       - "${OPENMETADATA_PORT:-8585}:8585"
 
@@ -67,10 +71,15 @@ services:
       # ========================================
       # Database Configuration (Shared PostgreSQL)
       # ========================================
+      # OpenMetadata builds JDBC URL from these components:
       DB_DRIVER_CLASS: org.postgresql.Driver
-      DB_URL: jdbc:postgresql://platform-postgres:5432/openmetadata_db
-      DB_USER: openmetadata_user
-      DB_USER_PASSWORD: ${OPENMETADATA_DB_PASSWORD:-changeme_openmetadata_password}
+      DB_SCHEME: postgresql
+      DB_HOST: platform-postgres
+      DB_PORT: 5432
+      OM_DATABASE: openmetadata_db
+      # Credentials from env_file (platform-bootstrap/.env - single source of truth)
+      DB_USER: ${OPENMETADATA_DB_USER:-openmetadata_user}
+      DB_USER_PASSWORD: ${OPENMETADATA_DB_PASSWORD:-changeme}
 
       # ========================================
       # Elasticsearch Configuration

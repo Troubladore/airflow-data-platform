@@ -32,10 +32,17 @@ services:
     container_name: platform-postgres
     restart: unless-stopped
 
+    # Load ONLY passwords from platform-bootstrap (secrets management)
+    env_file:
+      - ../platform-bootstrap/.env
+
     environment:
-      POSTGRES_USER: platform_admin
-      POSTGRES_PASSWORD: ${PLATFORM_DB_PASSWORD:-changeme_platform_password}
-      # Databases created by init script
+      # All credentials from env_file (platform-bootstrap/.env - single source of truth)
+      # POSTGRES_USER: Uses PLATFORM_DB_USER from env_file
+      # POSTGRES_PASSWORD: Uses PLATFORM_DB_PASSWORD from env_file
+      # OPENMETADATA_DB_PASSWORD: For init script
+      POSTGRES_USER: ${PLATFORM_DB_USER:-platform_admin}
+      POSTGRES_PASSWORD: ${PLATFORM_DB_PASSWORD:-changeme}
 
     volumes:
       # Persistent storage for all platform databases
