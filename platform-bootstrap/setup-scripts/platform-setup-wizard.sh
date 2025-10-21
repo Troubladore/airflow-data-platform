@@ -217,7 +217,7 @@ ask_corporate_infrastructure() {
 
         print_info "You'll need to configure image sources in each service's .env file:"
         if [ "$NEED_OPENMETADATA" = true ]; then
-            echo "  • openmetadata/.env - IMAGE_POSTGRES, IMAGE_ELASTICSEARCH, etc."
+            echo "  • openmetadata/.env - IMAGE_POSTGRES, IMAGE_OPENSEARCH, etc."
         fi
         if [ "$NEED_KERBEROS" = true ]; then
             echo "  • kerberos/.env - ODBC_DRIVER_URL, etc."
@@ -359,7 +359,7 @@ configure_infrastructure_env_prompts() {
 # Always offers review in corporate mode, requires config if missing
 configure_openmetadata_env_interactive() {
     local env_file="$REPO_ROOT/openmetadata/.env"
-    local required_props=("IMAGE_OPENMETADATA_SERVER" "IMAGE_ELASTICSEARCH")
+    local required_props=("IMAGE_OPENMETADATA_SERVER" "IMAGE_OPENSEARCH")
     local missing_props=()
     local all_defined=true
 
@@ -402,7 +402,7 @@ configure_openmetadata_env_interactive() {
         # Show current settings
         source "$env_file" 2>/dev/null || true
         echo "  IMAGE_OPENMETADATA_SERVER=${IMAGE_OPENMETADATA_SERVER:-[not set]}"
-        echo "  IMAGE_ELASTICSEARCH=${IMAGE_ELASTICSEARCH:-[not set]}"
+        echo "  IMAGE_OPENSEARCH=${IMAGE_OPENSEARCH:-[not set]}"
         echo ""
 
         if ask_yes_no "Do you want to review/update these corporate registry settings?"; then
@@ -433,9 +433,9 @@ configure_openmetadata_env_prompts() {
         "OpenMetadata server image"
 
     configure_env_property "$env_file" \
-        "IMAGE_ELASTICSEARCH" \
-        "${IMAGE_ELASTICSEARCH:-docker.elastic.co/elasticsearch/elasticsearch:8.11.4}" \
-        "Elasticsearch image for OpenMetadata search"
+        "IMAGE_OPENSEARCH" \
+        "${IMAGE_OPENSEARCH:-opensearchproject/opensearch:2.19.2}" \
+        "OpenSearch image for OpenMetadata search (v2.19.2 - latest supported)"
 
     echo ""
     print_success "OpenMetadata configuration complete"

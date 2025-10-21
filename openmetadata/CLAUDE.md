@@ -8,7 +8,7 @@ Standalone OpenMetadata metadata catalog service as part of the composable platf
 
 **OpenMetadata 1.10.1** (October 2025)
 - Server: `docker.getcollate.io/openmetadata/server:1.10.1`
-- Elasticsearch: `docker.elastic.co/elasticsearch/elasticsearch:8.11.4`
+- OpenSearch: `opensearchproject/opensearch:2.19.2` (Apache 2.0 licensed, OpenMetadata's official choice for PostgreSQL)
 
 ## Architecture Decisions
 
@@ -280,7 +280,44 @@ DB_USER: openmetadata_user
 - Missing DB_SCHEME caused it to default to MySQL!
 - Always check official config for required variables
 
-### 10. Setup Script Progressive Validation
+### 10. Search Backend - OpenSearch (Official Choice for PostgreSQL)
+
+**Decision:** Using OpenSearch 2.19.2 - OpenMetadata's official choice for PostgreSQL deployments.
+
+**Why OpenSearch Over Elasticsearch:**
+- **Official Support:** OpenMetadata's PostgreSQL docker-compose uses OpenSearch by default
+- **Licensing:** Apache 2.0 license (better for corporate use than Elastic License)
+- **Version:** 2.19.2 is the latest stable version supported by OpenMetadata (as of Oct 2025)
+- **Compatibility:** Fully supported by OpenMetadata with `SEARCH_TYPE: "opensearch"`
+
+**Configuration Details:**
+```yaml
+# Image version
+image: opensearchproject/opensearch:2.19.2
+
+# Critical environment variables
+- discovery.type=single-node
+- ES_JAVA_OPTS=-Xms1024m -Xmx1024m  # Uses ES_ prefix for compatibility
+- plugins.security.disabled=true
+- OPENSEARCH_INITIAL_ADMIN_PASSWORD=OpenMetadata_password123!!!
+- indices.query.bool.max_clause_count=4096
+
+# In OpenMetadata server:
+SEARCH_TYPE: "opensearch"
+ELASTICSEARCH_HOST: openmetadata-opensearch  # Still uses ELASTICSEARCH_ prefix
+```
+
+**Key Configuration Points:**
+- Uses `ES_JAVA_OPTS` not `OPENSEARCH_JAVA_OPTS` (for compatibility)
+- Environment variables still use `ELASTICSEARCH_` prefix even for OpenSearch
+- Must set `SEARCH_TYPE: "opensearch"` explicitly
+
+**Version Support:**
+- OpenMetadata supports OpenSearch up to version 2.19
+- We use 2.19.2 (latest patch release)
+- Corporate mirrors should have `opensearchproject/opensearch:2.19.2`
+
+### 11. Setup Script Progressive Validation
 
 **Decision:** 6-step progressive validation in setup.sh.
 

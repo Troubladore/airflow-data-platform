@@ -84,7 +84,7 @@ Options:
 This script performs progressive validation and setup:
   1. Check prerequisites (Docker)
   2. Configure .env file
-  3. Start services (PostgreSQL, Elasticsearch, OpenMetadata)
+  3. Start services (PostgreSQL, OpenSearch, OpenMetadata)
   4. Validate health checks
   5. Test API connectivity
   6. Summary and next steps
@@ -262,7 +262,7 @@ step_3_start_services() {
     # Create volumes if they don't exist (idempotent)
     echo "Ensuring volumes exist..."
     docker volume create platform_postgres_data 2>/dev/null || print_info "Volume platform_postgres_data already exists"
-    docker volume create openmetadata_es_data 2>/dev/null || print_info "Volume openmetadata_es_data already exists"
+    docker volume create openmetadata_opensearch_data 2>/dev/null || print_info "Volume openmetadata_opensearch_data already exists"
 
     # Run database migrations first (creates OpenMetadata schema)
     echo ""
@@ -303,11 +303,11 @@ step_4_validate_health() {
     echo "(platform-postgres health managed by platform-infrastructure)"
     echo ""
 
-    # Elasticsearch (takes longer - 2-3 minutes on first run)
-    echo "Elasticsearch (may take 2-3 minutes on first run):"
+    # OpenSearch (takes longer - 2-3 minutes on first run)
+    echo "OpenSearch (may take 2-3 minutes on first run):"
     for i in {1..90}; do
         # Check Docker healthcheck status (more reliable than direct curl since port not exposed)
-        HEALTH_STATUS=$(docker inspect --format='{{.State.Health.Status}}' openmetadata-elasticsearch 2>/dev/null || echo "unknown")
+        HEALTH_STATUS=$(docker inspect --format='{{.State.Health.Status}}' openmetadata-opensearch 2>/dev/null || echo "unknown")
 
         if [ "$HEALTH_STATUS" = "healthy" ]; then
             echo ""  # New line after progress
@@ -315,9 +315,9 @@ step_4_validate_health() {
             break
         elif [ "$HEALTH_STATUS" = "unknown" ]; then
             # Container has no healthcheck or not started yet
-            if docker ps --filter "name=openmetadata-elasticsearch" --format "{{.Status}}" | grep -q "Up"; then
+            if docker ps --filter "name=openmetadata-opensearch" --format "{{.Status}}" | grep -q "Up"; then
                 # Container running but no healthcheck - just check if port responding
-                if docker exec openmetadata-elasticsearch curl -sf http://localhost:9200/_cluster/health | grep -q '"status":"green"\|"status":"yellow"' 2>/dev/null; then
+                if docker exec openmetadata-opensearch curl -sf http://localhost:9200/_cluster/health | grep -q '"status":"green"\|"status":"yellow"' 2>/dev/null; then
                     echo ""
                     print_success "Healthy (took $((i * 2)) seconds)"
                     break
@@ -338,19 +338,19 @@ step_4_validate_health() {
             echo ""
             print_error "Timeout after 3 minutes"
             echo ""
-            echo "Elasticsearch is taking too long to start."
+            echo "OpenSearch is taking too long to start."
             echo "This is normal on first run or low-memory systems."
             echo ""
             echo "Troubleshooting:"
-            echo "  • Check logs: docker logs openmetadata-elasticsearch"
-            echo "  • Check memory: Elasticsearch needs ~1GB RAM"
-            echo "  • Check status: docker inspect openmetadata-elasticsearch"
-            echo "  • Wait longer: docker compose logs -f openmetadata-elasticsearch"
+            echo "  • Check logs: docker logs openmetadata-opensearch"
+            echo "  • Check memory: OpenSearch needs ~1GB RAM"
+            echo "  • Check status: docker inspect openmetadata-opensearch"
+            echo "  • Wait longer: docker compose logs -f openmetadata-opensearch"
             exit 1
         fi
     done
 
-    # OpenMetadata Server (starts after Elasticsearch is ready)
+    # OpenMetadata Server (starts after OpenSearch is ready)
     echo "OpenMetadata Server (usually 1-2 minutes):"
     for i in {1..90}; do
         # Check Docker healthcheck status (port is published, so we could curl, but healthcheck is more reliable)
@@ -375,7 +375,7 @@ step_4_validate_health() {
             echo ""
             echo "Troubleshooting:"
             echo "  • Check logs: docker logs openmetadata-server"
-            echo "  • Check Elasticsearch: curl http://localhost:9200"
+            echo "  • Check OpenSearch: curl http://localhost:9200/_cluster/health"
             echo "  • Check PostgreSQL: docker exec platform-postgres pg_isready"
             exit 1
         fi
@@ -418,7 +418,7 @@ step_6_summary() {
 
     echo "Services Running:"
     echo "  • PostgreSQL:      docker ps | grep platform-postgres"
-    echo "  • Elasticsearch:   docker ps | grep openmetadata-elasticsearch"
+    echo "  • OpenSearch:       docker ps | grep openmetadata-opensearch"
     echo "  • OpenMetadata UI: http://localhost:8585"
     echo ""
 

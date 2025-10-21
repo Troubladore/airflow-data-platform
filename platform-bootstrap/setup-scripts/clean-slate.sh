@@ -115,10 +115,13 @@ echo ""
 # Stop optional services first
 if ask_yes_no "Remove OpenMetadata?"; then
     echo "Stopping OpenMetadata..."
-    cd "$REPO_ROOT/openmetadata" && make stop 2>/dev/null || docker rm -f openmetadata-server openmetadata-elasticsearch 2>/dev/null || true
+    cd "$REPO_ROOT/openmetadata" && make stop 2>/dev/null || true
+    # Remove both old elasticsearch and new opensearch containers
+    docker rm -f openmetadata-server openmetadata-elasticsearch openmetadata-opensearch openmetadata-migrate 2>/dev/null || true
     cd "$PLATFORM_DIR"
-    if ask_yes_no "  Also remove OpenMetadata data volumes (Elasticsearch indices)?"; then
-        docker volume rm openmetadata_es_data 2>/dev/null || true
+    if ask_yes_no "  Also remove OpenMetadata data volumes (search indices)?"; then
+        # Remove both old elasticsearch and new opensearch volumes
+        docker volume rm openmetadata_es_data openmetadata_elasticsearch_data openmetadata_opensearch_data 2>/dev/null || true
         print_success "OpenMetadata data removed"
     else
         print_info "OpenMetadata data preserved"
@@ -135,18 +138,19 @@ fi
 
 if ask_yes_no "Remove Pagila?"; then
     echo "Stopping Pagila..."
-    # Just remove Pagila containers/volumes, don't reinstall
-    docker stop pagila-postgres pgadmin4 2>/dev/null || true
-    docker rm pagila-postgres pgadmin4 2>/dev/null || true
+    # Handle both old and new container names
+    docker stop pagila pagila-postgres pgadmin pgadmin4 2>/dev/null || true
+    docker rm pagila pagila-postgres pgadmin pgadmin4 2>/dev/null || true
     if ask_yes_no "  Also remove Pagila data volume?"; then
-        docker volume rm pagila_pgdata 2>/dev/null || true
+        # Remove all possible Pagila volume names
+        docker volume rm pagila_pgdata pagila_postgres-data 2>/dev/null || true
         print_success "Pagila data removed"
     else
         print_info "Pagila data preserved"
     fi
     # Remove pagila repository directory
     if ask_yes_no "  Also remove pagila repository directory?"; then
-        rm -rf "$REPO_ROOT/../pagila" 2>/dev/null || true
+        rm -rf "$REPO_ROOT/../pagila" "$REPO_ROOT/pagila" 2>/dev/null || true
         print_success "Pagila repository removed"
     else
         print_info "Pagila repository preserved"
@@ -197,9 +201,19 @@ if [ "$REMOVE_IMAGES" = true ]; then
     docker rmi platform/kerberos-sidecar:latest 2>/dev/null && echo "  ✓ Removed platform/kerberos-sidecar" || true
     docker rmi platform/kerberos-test:latest 2>/dev/null && echo "  ✓ Removed platform/kerberos-test" || true
 
-    # OpenMetadata images
-    docker rmi docker.getcollate.io/openmetadata/server:1.2.0 2>/dev/null && echo "  ✓ Removed openmetadata/server" || true
-    docker rmi docker.elastic.co/elasticsearch/elasticsearch:8.10.2 2>/dev/null && echo "  ✓ Removed elasticsearch" || true
+    # OpenMetadata images (remove all versions we've used)
+    docker rmi docker.getcollate.io/openmetadata/server:1.2.0 2>/dev/null && echo "  ✓ Removed openmetadata/server:1.2.0" || true
+    docker rmi docker.getcollate.io/openmetadata/server:1.10.1 2>/dev/null && echo "  ✓ Removed openmetadata/server:1.10.1" || true
+
+    # Elasticsearch images (old - before migration)
+    docker rmi docker.elastic.co/elasticsearch/elasticsearch:8.10.2 2>/dev/null && echo "  ✓ Removed elasticsearch:8.10.2" || true
+    docker rmi docker.elastic.co/elasticsearch/elasticsearch:8.11.4 2>/dev/null && echo "  ✓ Removed elasticsearch:8.11.4" || true
+    docker rmi docker.elastic.co/elasticsearch/elasticsearch:8.15.0 2>/dev/null && echo "  ✓ Removed elasticsearch:8.15.0" || true
+
+    # OpenSearch images (new - after migration)
+    docker rmi opensearchproject/opensearch:2.11.1 2>/dev/null && echo "  ✓ Removed opensearch:2.11.1" || true
+    docker rmi opensearchproject/opensearch:2.19.2 2>/dev/null && echo "  ✓ Removed opensearch:2.19.2" || true
+    docker rmi opensearchproject/opensearch:latest 2>/dev/null && echo "  ✓ Removed opensearch:latest" || true
 
     # PostgreSQL images (all versions used by platform services)
     docker rmi postgres:17.5-alpine 2>/dev/null && echo "  ✓ Removed postgres:17.5-alpine" || true
@@ -208,6 +222,10 @@ if [ "$REMOVE_IMAGES" = true ]; then
 
     # Pagila images
     docker rmi dpage/pgadmin4:latest 2>/dev/null && echo "  ✓ Removed pgadmin4" || true
+
+    # Alpine images (used by Kerberos sidecar)
+    docker rmi alpine:3.19 2>/dev/null && echo "  ✓ Removed alpine:3.19" || true
+    docker rmi alpine:latest 2>/dev/null && echo "  ✓ Removed alpine:latest" || true
 
     print_success "All platform images removed (will re-download on next startup)"
     echo ""
