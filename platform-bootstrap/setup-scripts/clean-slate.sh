@@ -49,11 +49,11 @@ ask_yes_no() {
 
 # Ask about images
 REMOVE_IMAGES=false
-if ask_yes_no "Remove built sidecar image? (forces rebuild next time)"; then
+if ask_yes_no "Remove ALL platform images? (forces re-download/rebuild next time)"; then
     REMOVE_IMAGES=true
-    print_arrow "WARN" "Will remove: platform/kerberos-sidecar:latest"
+    print_arrow "WARN" "Will remove: All platform, OpenMetadata, PostgreSQL, Elasticsearch images"
 else
-    print_arrow "PASS" "Will keep: platform/kerberos-sidecar:latest (reusable)"
+    print_arrow "PASS" "Will keep: Downloaded images (faster next startup)"
 fi
 
 echo ""
@@ -189,13 +189,35 @@ if [ "$CLEAR_TICKET_CACHE" = true ]; then
     fi
 fi
 
-# Remove built images if requested
+# Remove platform images if requested
 if [ "$REMOVE_IMAGES" = true ]; then
-    echo "Removing built images..."
-    docker rmi platform/kerberos-sidecar:latest 2>/dev/null && print_success "Removed kerberos-sidecar image" || print_info "kerberos-sidecar image not found"
-    docker rmi platform/kerberos-test:latest 2>/dev/null && print_success "Removed kerberos-test image" || print_info "kerberos-test image not found"
+    echo "Removing all platform images..."
+
+    # Built images (platform namespace)
+    docker rmi platform/kerberos-sidecar:latest 2>/dev/null && echo "  ✓ Removed platform/kerberos-sidecar" || true
+    docker rmi platform/kerberos-test:latest 2>/dev/null && echo "  ✓ Removed platform/kerberos-test" || true
+
+    # OpenMetadata images
+    docker rmi docker.getcollate.io/openmetadata/server:1.2.0 2>/dev/null && echo "  ✓ Removed openmetadata/server" || true
+    docker rmi docker.elastic.co/elasticsearch/elasticsearch:8.10.2 2>/dev/null && echo "  ✓ Removed elasticsearch" || true
+
+    # PostgreSQL images (all versions used by platform services)
+    docker rmi postgres:17.5-alpine 2>/dev/null && echo "  ✓ Removed postgres:17.5-alpine" || true
+    docker rmi postgres:17 2>/dev/null && echo "  ✓ Removed postgres:17" || true
+    docker rmi postgres:15 2>/dev/null && echo "  ✓ Removed postgres:15" || true
+
+    # Pagila images
+    docker rmi dpage/pgadmin4:latest 2>/dev/null && echo "  ✓ Removed pgadmin4" || true
+
+    print_success "All platform images removed (will re-download on next startup)"
     echo ""
 fi
+
+# Clean up anonymous volumes
+echo "Removing anonymous/orphaned volumes..."
+docker volume prune -f >/dev/null 2>&1 || true
+print_success "Anonymous volumes cleaned"
+echo ""
 
 # Clean host-side Kerberos tickets if requested
 if [ "$CLEAR_HOST_TICKETS" = true ]; then
