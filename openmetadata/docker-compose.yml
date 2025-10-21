@@ -17,6 +17,43 @@
 
 services:
   # ============================================
+  # Database Migration (Runs once on first startup)
+  # ============================================
+  # Creates OpenMetadata schema tables
+  # Must complete before openmetadata-server starts
+  # ============================================
+  openmetadata-migrate:
+    image: ${IMAGE_OPENMETADATA_SERVER:-docker.getcollate.io/openmetadata/server:1.2.0}
+    container_name: openmetadata-migrate
+    command: "./bootstrap/bootstrap_storage.sh migrate-all"
+
+    env_file:
+      - .env
+
+    environment:
+      # Database configuration (same as main server)
+      DB_DRIVER_CLASS: org.postgresql.Driver
+      DB_SCHEME: postgresql
+      DB_HOST: platform-postgres
+      DB_PORT: 5432
+      OM_DATABASE: openmetadata_db
+      DB_USER: openmetadata_user
+
+      # Elasticsearch configuration
+      ELASTICSEARCH_HOST: openmetadata-elasticsearch
+      ELASTICSEARCH_PORT: 9200
+
+      # Basic settings
+      OPENMETADATA_CLUSTER_NAME: ${OPENMETADATA_CLUSTER_NAME:-local-dev}
+
+    networks:
+      - platform-net
+
+    # Only run this container with: docker compose up openmetadata-migrate
+    # Or make it a profile
+    profiles: ["migrate"]
+
+  # ============================================
   # Elasticsearch (Search & Indexing)
   # ============================================
   # Provides full-text search for metadata catalog

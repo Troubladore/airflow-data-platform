@@ -264,10 +264,20 @@ step_3_start_services() {
     docker volume create platform_postgres_data 2>/dev/null || print_info "Volume platform_postgres_data already exists"
     docker volume create openmetadata_es_data 2>/dev/null || print_info "Volume openmetadata_es_data already exists"
 
+    # Run database migrations first (creates OpenMetadata schema)
+    echo ""
+    echo "Running database migrations (creates schema tables)..."
+    cd "$SCRIPT_DIR"
+    if COMPOSE_PROFILES=migrate docker compose up openmetadata-migrate; then
+        print_success "Database migrations completed"
+    else
+        print_error "Database migrations failed"
+        exit 1
+    fi
+
+    echo ""
     echo "Starting services (this may take 2-3 minutes on first run)..."
     echo ""
-
-    cd "$SCRIPT_DIR"
 
     if docker compose up -d; then
         print_success "Services started"
