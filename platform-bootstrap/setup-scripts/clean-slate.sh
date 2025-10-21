@@ -201,31 +201,37 @@ if [ "$REMOVE_IMAGES" = true ]; then
     docker rmi platform/kerberos-sidecar:latest 2>/dev/null && echo "  ✓ Removed platform/kerberos-sidecar" || true
     docker rmi platform/kerberos-test:latest 2>/dev/null && echo "  ✓ Removed platform/kerberos-test" || true
 
-    # OpenMetadata images (remove all versions we've used)
-    docker rmi docker.getcollate.io/openmetadata/server:1.2.0 2>/dev/null && echo "  ✓ Removed openmetadata/server:1.2.0" || true
-    docker rmi docker.getcollate.io/openmetadata/server:1.10.1 2>/dev/null && echo "  ✓ Removed openmetadata/server:1.10.1" || true
+    # Remove images by pattern (works for any registry including corporate)
+    echo ""
+    echo "Removing OpenMetadata images from any registry..."
+    for img in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "openmetadata/server" | grep -E "1.2.0|1.10.1"); do
+        docker rmi "$img" 2>/dev/null && echo "  ✓ Removed $img" || true
+    done
 
-    # Elasticsearch images (old - before migration)
-    docker rmi docker.elastic.co/elasticsearch/elasticsearch:8.10.2 2>/dev/null && echo "  ✓ Removed elasticsearch:8.10.2" || true
-    docker rmi docker.elastic.co/elasticsearch/elasticsearch:8.11.4 2>/dev/null && echo "  ✓ Removed elasticsearch:8.11.4" || true
-    docker rmi docker.elastic.co/elasticsearch/elasticsearch:8.15.0 2>/dev/null && echo "  ✓ Removed elasticsearch:8.15.0" || true
+    echo "Removing Elasticsearch images from any registry..."
+    for img in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "elasticsearch/elasticsearch" | grep -E "8.10.2|8.11.4|8.15.0"); do
+        docker rmi "$img" 2>/dev/null && echo "  ✓ Removed $img" || true
+    done
 
-    # OpenSearch images (new - after migration)
-    docker rmi opensearchproject/opensearch:2.11.1 2>/dev/null && echo "  ✓ Removed opensearch:2.11.1" || true
-    docker rmi opensearchproject/opensearch:2.19.2 2>/dev/null && echo "  ✓ Removed opensearch:2.19.2" || true
-    docker rmi opensearchproject/opensearch:latest 2>/dev/null && echo "  ✓ Removed opensearch:latest" || true
+    echo "Removing OpenSearch images from any registry..."
+    for img in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "opensearch" | grep -E "2.11.1|2.19.2|latest"); do
+        docker rmi "$img" 2>/dev/null && echo "  ✓ Removed $img" || true
+    done
 
-    # PostgreSQL images (all versions used by platform services)
-    docker rmi postgres:17.5-alpine 2>/dev/null && echo "  ✓ Removed postgres:17.5-alpine" || true
-    docker rmi postgres:17 2>/dev/null && echo "  ✓ Removed postgres:17" || true
-    docker rmi postgres:15 2>/dev/null && echo "  ✓ Removed postgres:15" || true
+    echo "Removing PostgreSQL images from any registry..."
+    for img in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "postgres" | grep -E "17.5-alpine|17|15"); do
+        docker rmi "$img" 2>/dev/null && echo "  ✓ Removed $img" || true
+    done
 
-    # Pagila images
-    docker rmi dpage/pgadmin4:latest 2>/dev/null && echo "  ✓ Removed pgadmin4" || true
+    echo "Removing pgAdmin images from any registry..."
+    for img in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "pgadmin4"); do
+        docker rmi "$img" 2>/dev/null && echo "  ✓ Removed $img" || true
+    done
 
-    # Alpine images (used by Kerberos sidecar)
-    docker rmi alpine:3.19 2>/dev/null && echo "  ✓ Removed alpine:3.19" || true
-    docker rmi alpine:latest 2>/dev/null && echo "  ✓ Removed alpine:latest" || true
+    echo "Removing Alpine images from any registry..."
+    for img in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "alpine" | grep -E "3.19|latest"); do
+        docker rmi "$img" 2>/dev/null && echo "  ✓ Removed $img" || true
+    done
 
     print_success "All platform images removed (will re-download on next startup)"
     echo ""
