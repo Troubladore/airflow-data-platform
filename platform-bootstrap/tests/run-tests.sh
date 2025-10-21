@@ -85,12 +85,12 @@ print_section "4. INTEGRATION TESTS"
 
 # Test that library can be sourced
 TEMP_TEST=$(mktemp)
-cat > "$TEMP_TEST" <<'EOF'
+cat > "$TEMP_TEST" <<EOF
 #!/bin/bash
-source "$(dirname "$0")/../lib/kerberos-diagnostics.sh"
+source "$PROJECT_ROOT/lib/kerberos-diagnostics.sh"
 reset_diagnostics
 detect_environment >/dev/null
-[[ -n "${DIAG_RESULTS[environment]}" ]] || exit 1
+[[ -n "\${DIAG_RESULTS[environment]}" ]] || exit 1
 EOF
 
 chmod +x "$TEMP_TEST"
@@ -98,7 +98,7 @@ run_test_section "  Library loading" "$TEMP_TEST"
 rm -f "$TEMP_TEST"
 
 # Test that test-sql-direct.sh has valid syntax after fix
-run_test_section "  test-sql-direct.sh syntax" "bash -n '$PROJECT_ROOT/diagnostics/test-sql-direct.sh'"
+run_test_section "  test-sql-direct.sh syntax" "bash -n '$PROJECT_ROOT/../kerberos/diagnostics/test-sql-direct.sh'"
 
 echo ""
 
@@ -107,6 +107,7 @@ print_section "5. COMPOSABLE ARCHITECTURE"
 
 run_test_section "  Architecture pattern" "$SCRIPT_DIR/test-composable-architecture.sh"
 run_test_section "  OpenMetadata setup" "$SCRIPT_DIR/test-openmetadata-setup.sh"
+run_test_section "  Corporate env config" "$SCRIPT_DIR/test-corporate-env-config.sh"
 
 echo ""
 
