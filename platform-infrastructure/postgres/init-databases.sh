@@ -27,14 +27,14 @@ echo ""
 echo "Creating OpenMetadata database..."
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
-    -- Create user
-    CREATE USER openmetadata_user WITH PASSWORD '${OPENMETADATA_DB_PASSWORD:-changeme_openmetadata_password}';
+    -- Create user (credentials from platform-bootstrap/.env)
+    CREATE USER ${OPENMETADATA_DB_USER:-openmetadata_user} WITH PASSWORD '${OPENMETADATA_DB_PASSWORD:-changeme}';
 
     -- Create database
-    CREATE DATABASE openmetadata_db OWNER openmetadata_user;
+    CREATE DATABASE openmetadata_db OWNER ${OPENMETADATA_DB_USER:-openmetadata_user};
 
     -- Grant privileges
-    GRANT ALL PRIVILEGES ON DATABASE openmetadata_db TO openmetadata_user;
+    GRANT ALL PRIVILEGES ON DATABASE openmetadata_db TO ${OPENMETADATA_DB_USER:-openmetadata_user};
 
     -- Connect and set up extensions if needed
     \c openmetadata_db
@@ -43,7 +43,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
     CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
     -- Grant schema privileges
-    GRANT ALL ON SCHEMA public TO openmetadata_user;
+    GRANT ALL ON SCHEMA public TO ${OPENMETADATA_DB_USER:-openmetadata_user};
 EOSQL
 
 echo "✓ OpenMetadata database created (openmetadata_db)"

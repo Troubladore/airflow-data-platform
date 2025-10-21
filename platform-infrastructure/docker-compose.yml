@@ -1,0 +1,80 @@
+# Platform Shared Infrastructure
+# ===============================
+# Foundational services for the data platform
+# Always starts first - provides shared resources for all services
+#
+# Services:
+#   - platform-postgres: Shared OLTP database for platform services
+#     (OpenMetadata metadata, Airflow metastore, future platform DBs)
+#   - platform_network: Shared Docker network for service communication
+#
+# Note: This is NOT for warehouse/OLAP workloads
+#       Warehouse PostgreSQL instances are separate per datakit
+
+services:
+  # ============================================
+  # Shared Platform PostgreSQL (OLTP)
+  # ============================================
+  # Multi-tenant PostgreSQL for platform services
+  # Each service gets its own database on this shared instance
+  #
+  # Databases:
+  #   - openmetadata_db: OpenMetadata metadata catalog
+  #   - airflow_db: Airflow metastore (when Astronomer used)
+  #   - [future platform services]
+  #
+  # NOT used for:
+  #   - Warehouse data (Bronze/Silver/Gold) - separate instances
+  #   - Application databases (like Pagila) - separate instances
+  # ============================================
+  platform-postgres:
+    image: ${IMAGE_POSTGRES:-postgres:17.5-alpine}
+    container_name: platform-postgres
+    restart: unless-stopped
+
+    # Load ONLY passwords from platform-bootstrap (secrets management)
+    env_file:
+      - ../platform-bootstrap/.env
+
+    environment:
+      # All credentials from env_file (platform-bootstrap/.env - single source of truth)
+      # POSTGRES_USER: Uses PLATFORM_DB_USER from env_file
+      # POSTGRES_PASSWORD: Uses PLATFORM_DB_PASSWORD from env_file
+      # OPENMETADATA_DB_PASSWORD: For init script
+      POSTGRES_USER: ${PLATFORM_DB_USER:-platform_admin}
+      POSTGRES_PASSWORD: ${PLATFORM_DB_PASSWORD:-changeme}
+
+    volumes:
+      # Persistent storage for all platform databases
+      - platform_postgres_data:/var/lib/postgresql/data
+      # Init script creates multiple databases on first startup
+      - ./postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
+
+    networks:
+      - platform-net
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platform_admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ============================================
+# Volumes
+# ============================================
+
+volumes:
+  # Shared PostgreSQL data (all platform databases)
+  platform_postgres_data:
+    name: platform_postgres_data
+
+# ============================================
+# Networks
+# ============================================
+
+networks:
+  # Shared platform network
+  # All platform services (OpenMetadata, Airflow, Kerberos) connect to this
+  platform-net:
+    name: platform_network
+    driver: bridge

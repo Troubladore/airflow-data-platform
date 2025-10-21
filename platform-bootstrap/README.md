@@ -1,12 +1,36 @@
-# Platform Bootstrap for Developers
+# Platform Bootstrap - Service Orchestrator
 
-Minimal setup to get developers productive with Astronomer + enterprise requirements.
+Orchestrates composable platform services for local development.
 
-## 🎯 What This Does
+## 🎯 Composable Architecture
 
-1. **Shares your existing Kerberos ticket** (no complex Kerberos setup)
-2. **Provides SQLModel framework** (consistent data patterns)
-3. **Mocks unavailable services** (Delinea, etc.)
+Each service is **standalone and independent** (following the Pagila pattern):
+
+- **../openmetadata/** - Metadata catalog (PostgreSQL + Elasticsearch + OpenMetadata)
+- **../kerberos/** - Kerberos ticket sharing for SQL Server auth
+- **../pagila/** - PostgreSQL sample database for testing
+
+## 🚀 Quick Start
+
+### Configuration (.env)
+
+```bash
+cp .env.example .env
+# Edit .env to enable/disable services:
+ENABLE_KERBEROS=false       # Set true if you need SQL Server auth
+ENABLE_OPENMETADATA=true    # Metadata catalog
+```
+
+### Start Platform
+
+```bash
+cd platform-bootstrap
+make platform-start    # Starts services configured in .env
+```
+
+**Examples:**
+- Local testing (no domain): `ENABLE_KERBEROS=false, ENABLE_OPENMETADATA=true`
+- Full platform: `ENABLE_KERBEROS=true, ENABLE_OPENMETADATA=true`
 
 Note: Docker caches images automatically - no local registry service needed!
 

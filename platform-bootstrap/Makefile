@@ -35,9 +35,8 @@ help: ## Show this help message
 # Installation & Setup
 # ==========================================
 
-install: ## Run interactive setup wizard (Kerberos + platform services)
-	@echo "Running Kerberos setup wizard..."
-	@./dev-tools/setup-kerberos.sh
+setup: ## Run comprehensive platform setup wizard (recommended for first-time setup)
+	@./setup-scripts/platform-setup-wizard.sh
 
 setup-pagila: ## Setup pagila test database (idempotent)
 	@./setup-scripts/setup-pagila.sh
@@ -45,65 +44,94 @@ setup-pagila: ## Setup pagila test database (idempotent)
 setup-pagila-reset: ## Remove and reinstall pagila test database
 	@./setup-scripts/setup-pagila.sh --reset
 
-# Future modular setup scripts:
-# setup-kerberos: ./setup-scripts/setup-kerberos.sh (extract from wizard later)
-# setup-openmetadata: ./setup-scripts/setup-openmetadata.sh (if complex setup needed)
-
 # ==========================================
 # Platform Services
 # ==========================================
 
-platform-start: ## Start all platform services (Kerberos + OpenMetadata)
-	@echo "Starting platform services..."
+platform-start: ## Start platform services (configured in .env)
+	@echo "Starting platform services (configured in .env)..."
 	@echo ""
-	@# Create network and volumes if needed
-	@docker network create platform_network 2>/dev/null || true
-	@docker volume create platform_kerberos_cache 2>/dev/null || true
-	@echo "Checking for Kerberos sidecar image..."
-	@if ! docker images platform/kerberos-sidecar:latest --format "{{.Repository}}" | grep -q "platform/kerberos-sidecar"; then \
-		echo "Building Kerberos sidecar (one-time setup)..."; \
-		cd kerberos-sidecar && $(MAKE) build || exit 1; \
+	@if [ ! -f .env ]; then \
+		echo "⚠️  No .env file found in platform-bootstrap/"; \
+		echo "Create one: cp .env.example .env"; \
+		exit 1; \
+	fi
+	@# Check what services are enabled
+	@if [ "$(ENABLE_KERBEROS)" = "true" ]; then \
+		echo "✓ Kerberos: ENABLED"; \
+	else \
+		echo "○ Kerberos: DISABLED"; \
+	fi
+	@if [ "$(ENABLE_OPENMETADATA)" = "true" ]; then \
+		echo "✓ OpenMetadata: ENABLED"; \
+	else \
+		echo "○ OpenMetadata: DISABLED"; \
+	fi
+	@if [ "$(ENABLE_KERBEROS)" != "true" ] && [ "$(ENABLE_OPENMETADATA)" != "true" ]; then \
+		echo ""; \
+		echo "⚠️  No optional services enabled"; \
+		echo "Infrastructure will still start (always needed for Airflow)"; \
 	fi
 	@echo ""
-	@echo "Starting services (this may take 2-3 minutes on first run)..."
-	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.openmetadata.yml up -d
-	@echo ""
+	@# ALWAYS start platform-infrastructure first (foundation)
+	@echo "Starting platform infrastructure (always required)..."; \
+	cd ../platform-infrastructure && $(MAKE) start || exit 1; \
+	echo ""
+	@# Start optional services
+	@if [ "$(ENABLE_KERBEROS)" = "true" ]; then \
+		echo "Starting Kerberos..."; \
+		cd ../kerberos && $(MAKE) start || exit 1; \
+		echo ""; \
+	fi
+	@if [ "$(ENABLE_OPENMETADATA)" = "true" ]; then \
+		echo "Starting OpenMetadata..."; \
+		cd ../openmetadata && $(MAKE) start || exit 1; \
+		echo ""; \
+	fi
 	@echo "✓ Platform services started"
 	@echo ""
-	@echo "Services:"
-	@echo "  • Kerberos Sidecar:  docker ps | grep kerberos-platform-service"
-	@echo "  • Platform PostgreSQL: docker ps | grep platform-postgres"
-	@echo "  • OpenMetadata UI:   http://localhost:8585"
-	@echo "  • Login:             admin@open-metadata.org / admin"
+	@echo "Active services:"
+	@echo "  • Platform PostgreSQL: docker ps | grep platform-postgres (foundation)"
+	@echo "  • Platform Network:    platform_network (shared)"
+	@if [ "$(ENABLE_KERBEROS)" = "true" ]; then \
+		echo "  • Kerberos Sidecar:    docker ps | grep kerberos-sidecar"; \
+	fi
+	@if [ "$(ENABLE_OPENMETADATA)" = "true" ]; then \
+		echo "  • OpenMetadata UI:     http://localhost:8585"; \
+		echo "  • Login:               admin@open-metadata.org / admin"; \
+	fi
 	@echo ""
-	@echo "Next steps:"
-	@echo "  1. Check status: make platform-status"
-	@echo "  2. Create project: astro dev init my-project"
-	@echo "  3. Or run ingestion: cd examples/openmetadata-ingestion && astro dev start"
-	@echo ""
-	@echo "Optional: Start mock services with 'make mock-start' if needed"
+	@echo "Configuration: Edit .env to enable/disable optional services"
+	@echo "Status: make platform-status"
 
 platform-stop: ## Stop all platform services
 	@echo "Stopping platform services..."
-	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.openmetadata.yml down
+	@# Stop optional services first
+	@cd ../kerberos && $(MAKE) stop 2>/dev/null || true
+	@cd ../openmetadata && $(MAKE) stop 2>/dev/null || true
+	@# Stop infrastructure last
+	@cd ../platform-infrastructure && $(MAKE) stop 2>/dev/null || true
 	@echo "✓ Platform services stopped"
 
 platform-status: ## Check status of platform services
 	@echo "Platform Services Status:"
 	@echo "========================"
 	@echo ""
-	@echo "Core Services:"
-	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.openmetadata.yml ps 2>/dev/null || echo "No services running"
+	@# Infrastructure status (always check - it's the foundation)
+	@echo "Infrastructure (always running):"
+	@cd ../platform-infrastructure && $(MAKE) status 2>/dev/null || echo "  Not running"
 	@echo ""
-	@echo "Health Checks:"
-	@echo -n "  Kerberos: "
-	@docker exec kerberos-platform-service klist -s 2>/dev/null && echo "✓ Valid ticket" || echo "✗ No ticket"
-	@echo -n "  OpenMetadata: "
-	@curl -sf http://localhost:8585/api/v1/health >/dev/null 2>&1 && echo "✓ Healthy" || echo "✗ Not healthy"
-	@echo -n "  PostgreSQL: "
-	@docker exec platform-postgres pg_isready -U platform_admin >/dev/null 2>&1 && echo "✓ Ready" || echo "✗ Not ready"
-	@echo -n "  Elasticsearch: "
-	@curl -sf http://localhost:9200/_cluster/health >/dev/null 2>&1 && echo "✓ Healthy" || echo "✗ Not healthy"
+	@# Optional services
+	@if [ "$(ENABLE_KERBEROS)" = "true" ]; then \
+		echo "Kerberos:"; \
+		cd ../kerberos && $(MAKE) status 2>/dev/null || echo "  Not running"; \
+		echo ""; \
+	fi
+	@if [ "$(ENABLE_OPENMETADATA)" = "true" ]; then \
+		echo "OpenMetadata:"; \
+		cd ../openmetadata && $(MAKE) status 2>/dev/null || echo "  Not running"; \
+		echo ""; \
+	fi
 
 # ==========================================
 # Note: Registry Removed
@@ -119,35 +147,25 @@ platform-status: ## Check status of platform services
 # These targets are for advanced use cases only
 
 kerberos-start: ## Start Kerberos sidecar service
-	@echo "Starting Kerberos sidecar..."
-	@docker network create platform_network 2>/dev/null || true
-	@docker volume create platform_kerberos_cache 2>/dev/null || true
-	@echo "Checking for Kerberos sidecar image..."
-	@if ! docker images platform/kerberos-sidecar:latest --format "{{.Repository}}" | grep -q "platform/kerberos-sidecar"; then \
-		echo "Building Kerberos sidecar (one-time setup)..."; \
-		cd kerberos-sidecar && $(MAKE) build || exit 1; \
-	fi
-	@$(DOCKER_COMPOSE) up -d developer-kerberos-service
-	@echo "✓ Kerberos sidecar started"
+	@echo "Starting Kerberos..."
+	@cd ../kerberos && $(MAKE) start
 
 kerberos-stop: ## Stop Kerberos sidecar
-	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.openmetadata.yml down 2>/dev/null || true
-	@echo "✓ Kerberos sidecar stopped"
+	@echo "Stopping Kerberos..."
+	@cd ../kerberos && $(MAKE) stop
 
 kerberos-test: ## Test Kerberos ticket
-	@echo -n "Kerberos service: "
-	@docker exec kerberos-platform-service klist -s 2>/dev/null && \
-		echo "✓ Valid ticket" || echo "✗ No valid ticket"
+	@cd ../kerberos && $(MAKE) test
 
 kerberos-refresh: ## Refresh Kerberos ticket
 	@echo "Refreshing Kerberos ticket..."
-	@docker exec -it kerberos-platform-service kinit $(USER)@$(COMPANY_DOMAIN)
+	@docker exec -it kerberos-sidecar kinit $(USER)@$(COMPANY_DOMAIN)
 
 kerberos-setup: ## Interactive wizard to set up Kerberos from scratch (with logging)
 	@./dev-tools/run-kerberos-setup.sh
 
 kerberos-diagnose: ## Diagnose Kerberos configuration issues
-	@./diagnostics/diagnose-kerberos.sh
+	@cd ../kerberos && ./diagnostics/diagnose-kerberos.sh
 
 test-kerberos-simple: ## Test that Kerberos tickets are shared with containers
 	@echo "Testing Kerberos ticket sharing..."
@@ -233,10 +251,10 @@ clean-kerberos: ## Remove only Kerberos sidecar (keeps volumes)
 # Full cleanup
 clean: platform-stop ## Clean up all platform services (interactive - asks about volumes)
 	@echo "Cleaning up platform services..."
-	@echo "1" | ./dev-tools/clean-slate.sh || true
+	@echo "1" | ./setup-scripts/clean-slate.sh || true
 
 clean-slate: ## Interactive cleanup (guided prompts for all components)
-	@./dev-tools/clean-slate.sh
+	@./setup-scripts/clean-slate.sh
 
 clean-all: clean-openmetadata clean-pagila clean-kerberos ## Remove all platform components and volumes
 	@echo "Removing platform network..."

@@ -1,15 +1,25 @@
-# Developer Workstation Kerberos Service
-# ========================================
-# Platform-level Kerberos for developer workstations
-# (Before int/qa/prod infrastructure exists)
+# Kerberos Sidecar Service
+# =========================
+# Provides Kerberos ticket sharing for SQL Server authentication
+#
+# Architecture: Single sidecar container that manages Kerberos tickets
+# - Copies tickets from host (local development)
+# - Shares tickets with other services via volume mount
+# - Refreshes tickets automatically
+#
+# Usage:
+#   make build    # Build the sidecar image
+#   make start    # Start Kerberos service
+#   make stop     # Stop Kerberos service
+#   make status   # Check service health
 
 services:
   # Platform-level Kerberos sidecar for developers
-  developer-kerberos-service:
+  kerberos-sidecar:
     # Custom sidecar image (built locally, cached by Docker)
-    # Build: docker build -t platform/kerberos-sidecar:latest .
+    # Build: make build
     image: platform/kerberos-sidecar:latest
-    container_name: kerberos-platform-service
+    container_name: kerberos-sidecar
     restart: unless-stopped
 
     environment:
@@ -47,7 +57,7 @@ services:
       - krb_password
 
     networks:
-      - platform-net
+      - kerberos-net
 
     healthcheck:
       test: ["CMD", "klist", "-s"]
@@ -55,31 +65,28 @@ services:
       timeout: 10s
       retries: 3
 
-  # Mock Delinea for development (OPTIONAL - not needed for Kerberos)
-  # (Real Delinea isn't accessible from workstations)
-  # Start separately with: make mock-start
-  #
-  # mock-delinea:
-  #   image: ${IMAGE_MOCKSERVER:-mockserver/mockserver:latest}
-  #   container_name: mock-delinea
-  #   ports:
-  #     - "8443:1080"
-  #   environment:
-  #     MOCKSERVER_INITIALIZATION_JSON_PATH: /config/delinea-mock.json
-  #   volumes:
-  #     - ./config/delinea-mock.json:/config/delinea-mock.json:ro
-  #   networks:
-  #     - platform-net
+# ============================================
+# Volumes
+# ============================================
 
 volumes:
   kerberos_cache:
     name: platform_kerberos_cache
-    external: true
+
+# ============================================
+# Networks
+# ============================================
 
 networks:
-  platform-net:
+  # Shared platform network (managed by platform-infrastructure)
+  # Kerberos tickets accessible to all services on this network
+  kerberos-net:
     name: platform_network
     external: true
+
+# ============================================
+# Secrets
+# ============================================
 
 secrets:
   krb_password:

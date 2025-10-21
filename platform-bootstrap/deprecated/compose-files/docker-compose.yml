@@ -1,0 +1,107 @@
+# Developer Workstation Kerberos Service
+# ========================================
+# Platform-level Kerberos for developer workstations
+# (Before int/qa/prod infrastructure exists)
+
+services:
+  # Platform-level Kerberos sidecar for developers
+  developer-kerberos-service:
+    profiles: ["kerberos"]
+    # Custom sidecar image (built locally, cached by Docker)
+    # Build: docker build -t platform/kerberos-sidecar:latest .
+    image: platform/kerberos-sidecar:latest
+    container_name: kerberos-platform-service
+    restart: unless-stopped
+
+    environment:
+      # Ticket mode: copy (local dev) or create (production)
+      # - copy: Copies your existing kinit tickets from host
+      # - create: Creates tickets via password/keytab
+      TICKET_MODE: ${TICKET_MODE:-copy}
+
+      # Developer mode configuration
+      ENVIRONMENT: development
+      KRB_PRINCIPAL: ${USER}@${COMPANY_DOMAIN}
+      KRB_REALM: ${COMPANY_DOMAIN}
+
+      # Copy mode refreshes tickets from host every 5 minutes
+      # (No password or keytab needed for local development)
+      COPY_INTERVAL: ${COPY_INTERVAL:-300}
+
+      # Create mode settings (for production/K8s)
+      # Uncomment when using TICKET_MODE=create:
+      # USE_PASSWORD: "true"
+      # KRB_PASSWORD_COMMAND: "cat /run/secrets/krb_password"
+      # RENEWAL_INTERVAL: 1800
+
+    volumes:
+      # Share ticket cache with all local containers
+      - kerberos_cache:/krb5/cache:rw
+
+      # Use developer's existing krb5.conf
+      - ${KRB5_CONF_PATH:-/etc/krb5.conf}:/krb5/conf/krb5.conf:ro
+
+      # Mount ticket directory from .env configuration
+      - ${KERBEROS_TICKET_DIR:-${HOME}/.krb5-cache}:/host/tickets:ro
+
+    secrets:
+      - krb_password
+
+    networks:
+      - platform-net
+
+    healthcheck:
+      test: ["CMD", "klist", "-s"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+  # OpenMetadata Kerberos Integration (extends openmetadata-server from docker-compose.openmetadata.yml)
+  # This adds Kerberos volumes and env vars when BOTH kerberos and openmetadata profiles are active
+  # Note: Docker Compose merges this with the base openmetadata-server definition
+  openmetadata-server:
+    profiles: ["kerberos"]  # Only applies when Kerberos is enabled
+    environment:
+      # Kerberos Configuration (For Ad-hoc SQL Server Testing)
+      KRB5CCNAME: /krb5/cache/krb5cc
+      KRB5_CONFIG: /etc/krb5.conf
+
+    volumes:
+      # Kerberos integration (for testing connections in UI)
+      - kerberos_cache:/krb5/cache:ro
+      - ${KRB5_CONF_PATH:-/etc/krb5.conf}:/etc/krb5.conf:ro
+
+    depends_on:
+      developer-kerberos-service:
+        condition: service_started
+        required: false  # Don't fail if Kerberos service not available
+
+  # Mock Delinea for development (OPTIONAL - not needed for Kerberos)
+  # (Real Delinea isn't accessible from workstations)
+  # Start separately with: make mock-start
+  #
+  # mock-delinea:
+  #   image: ${IMAGE_MOCKSERVER:-mockserver/mockserver:latest}
+  #   container_name: mock-delinea
+  #   ports:
+  #     - "8443:1080"
+  #   environment:
+  #     MOCKSERVER_INITIALIZATION_JSON_PATH: /config/delinea-mock.json
+  #   volumes:
+  #     - ./config/delinea-mock.json:/config/delinea-mock.json:ro
+  #   networks:
+  #     - platform-net
+
+volumes:
+  kerberos_cache:
+    name: platform_kerberos_cache
+    # Don't mark as external - create it if needed (empty is fine when Kerberos disabled)
+
+networks:
+  platform-net:
+    name: platform_network
+    external: true
+
+secrets:
+  krb_password:
+    file: ./.secrets/krb_password.txt
