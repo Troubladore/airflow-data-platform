@@ -175,7 +175,7 @@ kerberos-setup: ## Interactive wizard to set up Kerberos from scratch (with logg
 	@./dev-tools/run-kerberos-setup.sh
 
 kerberos-diagnose: ## Diagnose Kerberos configuration issues
-	@./diagnostics/diagnose-kerberos.sh
+	@cd ../kerberos && ./diagnostics/diagnose-kerberos.sh
 
 test-kerberos-simple: ## Test that Kerberos tickets are shared with containers
 	@echo "Testing Kerberos ticket sharing..."
@@ -261,10 +261,10 @@ clean-kerberos: ## Remove only Kerberos sidecar (keeps volumes)
 # Full cleanup
 clean: platform-stop ## Clean up all platform services (interactive - asks about volumes)
 	@echo "Cleaning up platform services..."
-	@echo "1" | ./dev-tools/clean-slate.sh || true
+	@echo "1" | ./setup-scripts/clean-slate.sh || true
 
 clean-slate: ## Interactive cleanup (guided prompts for all components)
-	@./dev-tools/clean-slate.sh
+	@./setup-scripts/clean-slate.sh
 
 clean-all: clean-openmetadata clean-pagila clean-kerberos ## Remove all platform components and volumes
 	@echo "Removing platform network..."

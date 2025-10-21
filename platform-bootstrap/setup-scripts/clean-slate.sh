@@ -28,12 +28,13 @@ fi
 print_title "Clean Slate - Platform Docker Cleanup" "🧹"
 echo "========================================="
 echo ""
-print_list_header "This will remove:"
-print_bullet "Kerberos sidecar container"
-print_bullet "OpenMetadata services (Server, Elasticsearch, PostgreSQL)"
-print_bullet "Pagila test database (if running)"
-print_bullet "Mock services containers"
-print_bullet "platform_network"
+echo "This will clean up the composable platform architecture:"
+echo ""
+print_list_header "Services that will be removed:"
+print_bullet "platform-infrastructure (platform-postgres, platform_network)"
+print_bullet "openmetadata (elasticsearch, server)"
+print_bullet "kerberos (sidecar)"
+print_bullet "pagila (if running)"
 echo ""
 print_list_header "Optional removals (you choose):"
 echo ""
@@ -105,83 +106,84 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 0
 fi
 
-echo ""
-echo "Stopping and removing containers..."
+REPO_ROOT="$(dirname "$PLATFORM_DIR")"
 
-# Ask about OpenMetadata (call modular script)
-if ask_yes_no "Remove OpenMetadata services?"; then
-    echo ""
-    if [ -f "$PLATFORM_DIR/setup-scripts/cleanup-openmetadata.sh" ]; then
-        "$PLATFORM_DIR/setup-scripts/cleanup-openmetadata.sh" --yes
+echo ""
+echo "Stopping and removing services..."
+echo ""
+
+# Stop optional services first
+if ask_yes_no "Remove OpenMetadata?"; then
+    echo "Stopping OpenMetadata..."
+    cd "$REPO_ROOT/openmetadata" && make stop 2>/dev/null || docker rm -f openmetadata-server openmetadata-elasticsearch 2>/dev/null || true
+    cd "$PLATFORM_DIR"
+    if ask_yes_no "  Also remove OpenMetadata data volumes (Elasticsearch indices)?"; then
+        docker volume rm openmetadata_es_data 2>/dev/null || true
+        print_success "OpenMetadata data removed"
     else
-        print_warning "cleanup-openmetadata.sh not found, using fallback"
-        docker compose -f docker-compose.yml -f docker-compose.openmetadata.yml down 2>/dev/null || true
+        print_info "OpenMetadata data preserved"
     fi
     echo ""
 fi
 
-# Ask about Pagila (reuse setup script's --reset)
-if ask_yes_no "Remove Pagila test database?"; then
+if ask_yes_no "Remove Kerberos?"; then
+    echo "Stopping Kerberos..."
+    cd "$REPO_ROOT/kerberos" && make stop 2>/dev/null || docker rm -f kerberos-sidecar 2>/dev/null || true
+    cd "$PLATFORM_DIR"
     echo ""
+fi
+
+if ask_yes_no "Remove Pagila?"; then
+    echo "Stopping Pagila..."
     if [ -f "$PLATFORM_DIR/setup-scripts/setup-pagila.sh" ]; then
         "$PLATFORM_DIR/setup-scripts/setup-pagila.sh" --reset --yes
     else
-        print_warning "setup-pagila.sh not found, using fallback"
         docker rm -f pagila-postgres 2>/dev/null || true
         docker volume rm pagila_data 2>/dev/null || true
     fi
     echo ""
 fi
 
-# Stop base services
-docker compose down 2>/dev/null || echo "  (no base services to stop)"
-docker compose -f docker-compose.mock-services.yml down 2>/dev/null || echo "  (no mock services)"
-
-# Remove any remaining containers by name
-docker rm -f kerberos-platform-service 2>/dev/null || true
-docker rm -f mock-delinea 2>/dev/null || true
-
-echo ""
-echo "Removing Docker resources..."
-
-# Handle ticket cache based on purge level
-if [ "$CLEAR_TICKET_CACHE" = true ]; then
-    # Complete purge - remove volume entirely
-    if docker volume rm platform_kerberos_cache 2>/dev/null; then
-        print_status "PASS" "Removed platform_kerberos_cache volume (tickets cleared)"
+# Infrastructure cleanup (ask last - it's the foundation)
+if ask_yes_no "Remove platform-infrastructure (PostgreSQL + network)?"; then
+    echo ""
+    print_warning "This removes the SHARED foundation!"
+    print_warning "Affects: Airflow metastore, OpenMetadata catalog, all platform DBs"
+    if ask_yes_no "  Are you sure? This deletes ALL platform data!"; then
+        echo "Stopping infrastructure..."
+        cd "$REPO_ROOT/platform-infrastructure" && make stop 2>/dev/null || docker rm -f platform-postgres 2>/dev/null || true
+        cd "$PLATFORM_DIR"
+        if ask_yes_no "    Remove platform_postgres_data volume (DELETES ALL DATA)?"; then
+            docker volume rm platform_postgres_data 2>/dev/null || true
+            print_warning "Platform data deleted!"
+        else
+            print_info "Platform data preserved"
+        fi
+        docker network rm platform_network 2>/dev/null || true
     else
-        echo "  platform_kerberos_cache: not found or in use"
+        print_info "Infrastructure preserved"
     fi
-else
-    # Just clean - keep volume and tickets
-    print_status "PASS" "Keeping platform_kerberos_cache volume (tickets preserved)"
-fi
-
-# Remove network
-if docker network rm platform_network 2>/dev/null; then
-    print_status "PASS" "Removed platform_network"
-else
-    echo "  platform_network: not found or in use"
+    echo ""
 fi
 
 echo ""
+echo "Cleaning up Docker resources..."
+echo ""
+
+# Handle ticket cache volume
+if [ "$CLEAR_TICKET_CACHE" = true ]; then
+    if docker volume rm platform_kerberos_cache 2>/dev/null; then
+        print_success "Removed platform_kerberos_cache volume"
+    else
+        print_info "platform_kerberos_cache: not found"
+    fi
+fi
 
 # Remove built images if requested
 if [ "$REMOVE_IMAGES" = true ]; then
     echo "Removing built images..."
-
-    if docker rmi platform/kerberos-sidecar:latest 2>/dev/null; then
-        print_status "PASS" "Removed platform/kerberos-sidecar:latest"
-    else
-        echo "  platform/kerberos-sidecar:latest: not found"
-    fi
-
-    if docker rmi platform/kerberos-test:latest 2>/dev/null; then
-        print_status "PASS" "Removed platform/kerberos-test:latest"
-    else
-        echo "  platform/kerberos-test:latest: not found"
-    fi
-
+    docker rmi platform/kerberos-sidecar:latest 2>/dev/null && print_success "Removed kerberos-sidecar image" || print_info "kerberos-sidecar image not found"
+    docker rmi platform/kerberos-test:latest 2>/dev/null && print_success "Removed kerberos-test image" || print_info "kerberos-test image not found"
     echo ""
 fi
 
