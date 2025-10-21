@@ -262,7 +262,7 @@ step_3_start_services() {
     # Create volumes if they don't exist (idempotent)
     echo "Ensuring volumes exist..."
     docker volume create platform_postgres_data 2>/dev/null || print_info "Volume platform_postgres_data already exists"
-    docker volume create openmetadata_es_data 2>/dev/null || print_info "Volume openmetadata_es_data already exists"
+    docker volume create openmetadata_opensearch_data 2>/dev/null || print_info "Volume openmetadata_opensearch_data already exists"
 
     # Run database migrations first (creates OpenMetadata schema)
     echo ""
