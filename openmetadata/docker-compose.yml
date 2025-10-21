@@ -121,8 +121,10 @@ services:
 
 volumes:
   # Elasticsearch indices (OpenMetadata-specific data)
+  # May already exist from previous setup - use external to avoid warning
   openmetadata_es_data:
     name: openmetadata_es_data
+    external: true
 
   # Note: platform_postgres_data volume is managed by platform-infrastructure service
 
