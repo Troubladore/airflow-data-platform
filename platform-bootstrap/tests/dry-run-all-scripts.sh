@@ -191,8 +191,8 @@ echo ""
 echo -e "${CYAN}=== MAKEFILE TARGET VALIDATION ===${NC}"
 echo ""
 
-# Test that all Makefile targets work
-test_script "Makefile targets" "./tests/test-makefile-targets.sh >/dev/null 2>&1 && echo 'All targets valid'" "All make commands work"
+# Test that all Makefile targets work (exit code 0 = pass)
+test_script "Makefile targets" "./tests/test-makefile-targets.sh" "All make commands work"
 
 echo ""
 echo -e "${BOLD}============================================${NC}"
