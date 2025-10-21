@@ -39,9 +39,10 @@ services:
       OM_DATABASE: openmetadata_db
       DB_USER: openmetadata_user
 
-      # Elasticsearch configuration
-      ELASTICSEARCH_HOST: openmetadata-elasticsearch
+      # OpenSearch configuration (environment vars still use ELASTICSEARCH prefix for compatibility)
+      ELASTICSEARCH_HOST: openmetadata-opensearch
       ELASTICSEARCH_PORT: 9200
+      SEARCH_TYPE: opensearch
 
       # Basic settings
       OPENMETADATA_CLUSTER_NAME: ${OPENMETADATA_CLUSTER_NAME:-local-dev}
@@ -50,42 +51,52 @@ services:
       - platform-net
 
     depends_on:
-      openmetadata-elasticsearch:
+      openmetadata-opensearch:
         condition: service_healthy
 
     # This is a one-shot container - exits after migration completes
     restart: "no"
 
   # ============================================
-  # Elasticsearch (Search & Indexing)
+  # OpenSearch (Search & Indexing)
   # ============================================
   # Provides full-text search for metadata catalog
+  # Using OpenSearch (Apache 2.0 licensed) - OpenMetadata's official choice for PostgreSQL
+  # Version 2.19.2 - Latest stable version supported by OpenMetadata (as of Oct 2025)
   # ============================================
-  openmetadata-elasticsearch:
-    image: ${IMAGE_ELASTICSEARCH:-docker.elastic.co/elasticsearch/elasticsearch:8.11.4}
-    container_name: openmetadata-elasticsearch
+  openmetadata-opensearch:
+    image: ${IMAGE_OPENSEARCH:-opensearchproject/opensearch:2.19.2}
+    container_name: openmetadata-opensearch
     restart: unless-stopped
 
     environment:
       # Single-node mode (suitable for local development)
       - discovery.type=single-node
-      # Security disabled for local development
-      - xpack.security.enabled=false
-      # Memory allocation
-      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      # Memory allocation (1GB heap for both min and max) - uses ES_JAVA_OPTS for compatibility
+      - ES_JAVA_OPTS=-Xms1024m -Xmx1024m
+      # Disable security plugins for local development
+      - plugins.security.disabled=true
+      # Set initial admin password (required even with security disabled)
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=OpenMetadata_password123!!!
+      # Increase max clause count for complex queries
+      - indices.query.bool.max_clause_count=4096
 
     volumes:
       # Persistent storage for search indices
-      - openmetadata_es_data:/usr/share/elasticsearch/data
+      - openmetadata_opensearch_data:/usr/share/opensearch/data
 
     networks:
       - platform-net  # Connect to shared platform network
 
+    ports:
+      - "9200:9200"  # REST API
+      - "9300:9300"  # Node communication
+
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -q '\"status\":\"\\(green\\|yellow\\)\"' || exit 1"]
-      interval: 30s
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health?pretty | grep status | grep -qE 'green|yellow' || exit 1"]
+      interval: 15s
       timeout: 10s
-      retries: 5
+      retries: 10
 
   # ============================================
   # OpenMetadata Server (UI + API + Connectors)
@@ -134,14 +145,15 @@ services:
       MIGRATION_LIMIT_PARAM: 1200
 
       # ========================================
-      # Elasticsearch Configuration
+      # OpenSearch Configuration
       # ========================================
-      ELASTICSEARCH_HOST: openmetadata-elasticsearch
+      # Note: Environment variables still use ELASTICSEARCH prefix for backward compatibility
+      ELASTICSEARCH_HOST: openmetadata-opensearch
       ELASTICSEARCH_PORT: 9200
       ELASTICSEARCH_SCHEME: http
       ELASTICSEARCH_USER: ""
       ELASTICSEARCH_PASSWORD: ""
-      SEARCH_TYPE: "elasticsearch"
+      SEARCH_TYPE: "opensearch"  # CRITICAL: Must be "opensearch" not "elasticsearch"
       ELASTICSEARCH_TRUST_STORE_PATH: ""
       ELASTICSEARCH_TRUST_STORE_PASSWORD: ""
       ELASTICSEARCH_CONNECTION_TIMEOUT_SECS: 5
@@ -301,7 +313,7 @@ services:
       WEB_CONF_PRAGMA: ""
 
     depends_on:
-      openmetadata-elasticsearch:
+      openmetadata-opensearch:
         condition: service_healthy
       openmetadata-migrate:
         condition: service_completed_successfully
@@ -323,10 +335,10 @@ services:
 # ============================================
 
 volumes:
-  # Elasticsearch indices (OpenMetadata-specific data)
+  # OpenSearch indices (OpenMetadata-specific data)
   # May already exist from previous setup - use external to avoid warning
-  openmetadata_es_data:
-    name: openmetadata_es_data
+  openmetadata_opensearch_data:
+    name: openmetadata_opensearch_data
     external: true
 
   # Note: platform_postgres_data volume is managed by platform-infrastructure service
