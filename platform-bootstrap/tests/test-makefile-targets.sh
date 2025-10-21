@@ -132,7 +132,7 @@ print_header "SETUP & CONFIGURATION TARGETS"
 echo ""
 
 test_make_target "kerberos-setup" "check-script" "Run setup wizard"
-test_make_target "kerberos-diagnose" "check-script" "Run diagnostics"
+test_make_target "kerberos-diagnose" "dry-run" "Run diagnostics"
 
 echo ""
 print_header "SERVICE MANAGEMENT TARGETS"
