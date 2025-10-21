@@ -394,8 +394,8 @@ step_5_test_api() {
 
     echo "Testing API connectivity..."
 
-    if curl -sf http://localhost:8585/api/v1/health | grep -q "healthy"; then
-        print_success "API is responding"
+    if curl -sf http://localhost:8586/healthcheck | grep -q '"healthy":true'; then
+        print_success "API is healthy and responding"
     else
         print_warning "API responded but health check unclear"
     fi

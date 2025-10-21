@@ -18,7 +18,7 @@ PLATFORM_DIR="$(dirname "$SCRIPT_DIR")"
 # Can be overridden in .env with PAGILA_REPO_URL
 PAGILA_REPO_URL_DEFAULT="https://github.com/Troubladore/pagila.git"
 PAGILA_DIR="$(dirname "$(dirname "$PLATFORM_DIR")")/pagila"
-CONTAINER_NAME="pagila-postgres"
+CONTAINER_NAME="pagila"  # Matches docker-compose.yml service name
 
 # ==========================================
 # Source Libraries
