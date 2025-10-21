@@ -198,8 +198,23 @@ step_2_configure_env() {
 step_3_start_services() {
     print_step 3 "Starting OpenMetadata Services"
 
-    # Check for existing containers
-    EXISTING_CONTAINERS=$(docker ps -a --filter "name=platform-postgres" --filter "name=openmetadata-" --format "{{.Names}}" 2>/dev/null)
+    # Verify platform-infrastructure is running (prerequisite)
+    if ! docker ps --filter "name=platform-postgres" --format "{{.Names}}" | grep -q "platform-postgres"; then
+        print_error "platform-postgres not running!"
+        echo ""
+        echo "OpenMetadata requires platform-infrastructure to be running first."
+        echo ""
+        echo "Start it with:"
+        echo "  cd ../platform-infrastructure && make start"
+        echo "  OR"
+        echo "  cd ../platform-bootstrap && make platform-start"
+        exit 1
+    fi
+    print_success "Prerequisite: platform-infrastructure is running"
+    echo ""
+
+    # Check for existing OpenMetadata containers (NOT platform-postgres - that's infrastructure)
+    EXISTING_CONTAINERS=$(docker ps -a --filter "name=openmetadata-" --format "{{.Names}}" 2>/dev/null)
 
     if [ -n "$EXISTING_CONTAINERS" ]; then
         echo "Found existing OpenMetadata containers:"
@@ -274,23 +289,9 @@ step_3_start_services() {
 step_4_validate_health() {
     print_step 4 "Validating Service Health"
 
-    echo "Waiting for services to become healthy..."
+    echo "Waiting for OpenMetadata services to become healthy..."
+    echo "(platform-postgres health managed by platform-infrastructure)"
     echo ""
-
-    # PostgreSQL
-    echo -n "PostgreSQL: "
-    for i in {1..30}; do
-        if docker exec platform-postgres pg_isready -U platform_admin >/dev/null 2>&1; then
-            print_success "Healthy"
-            break
-        fi
-        sleep 2
-        if [ $i -eq 30 ]; then
-            print_error "Timeout"
-            echo "Check logs: docker logs platform-postgres"
-            exit 1
-        fi
-    done
 
     # Elasticsearch (takes longer - 2-3 minutes on first run)
     echo "Elasticsearch (may take 2-3 minutes on first run):"
