@@ -233,6 +233,214 @@ ask_corporate_infrastructure() {
 # Configure Services
 # ==========================================
 
+# Interactive configuration for a single .env property
+# Args: $1=env_file, $2=property_name, $3=current_value, $4=description
+configure_env_property() {
+    local env_file="$1"
+    local property="$2"
+    local current_value="$3"
+    local description="$4"
+
+    echo ""
+    echo "$property"
+    echo "  Description: $description"
+    echo "  Current: ${current_value:-[not set]}"
+    echo ""
+    read -p "  New value (press Enter to keep current): " new_value
+
+    if [ -n "$new_value" ]; then
+        # Update the value using | delimiter to avoid sed issues with URLs
+        if grep -q "^${property}=" "$env_file" 2>/dev/null; then
+            sed -i "s|^${property}=.*|${property}=${new_value}|" "$env_file"
+        else
+            echo "${property}=${new_value}" >> "$env_file"
+        fi
+        print_success "Updated: $property=$new_value"
+    else
+        print_info "Kept: $property=$current_value"
+    fi
+}
+
+# Configure infrastructure .env for corporate environments
+# Always offers review in corporate mode, requires config if missing
+configure_infrastructure_env_interactive() {
+    local env_file="$REPO_ROOT/platform-infrastructure/.env"
+    local required_props=("IMAGE_POSTGRES")
+    local missing_props=()
+    local all_defined=true
+
+    print_section "Infrastructure Configuration"
+
+    # Check if .env exists
+    if [ ! -f "$env_file" ]; then
+        print_info "No .env file found in platform-infrastructure/"
+        echo "Creating from template..."
+        cp "$REPO_ROOT/platform-infrastructure/.env.example" "$env_file"
+
+        # Generate password
+        if command -v openssl >/dev/null 2>&1; then
+            INFRA_PASS=$(openssl rand -base64 24)
+        else
+            INFRA_PASS=$(head -c 24 /dev/urandom | base64)
+        fi
+        sed -i "s|PLATFORM_DB_PASSWORD=.*|PLATFORM_DB_PASSWORD=$INFRA_PASS|" "$env_file"
+
+        print_success "Created platform-infrastructure/.env with secure password"
+        echo ""
+    fi
+
+    # Check which required properties are defined (not commented out)
+    for prop in "${required_props[@]}"; do
+        if ! grep -q "^${prop}=" "$env_file"; then
+            missing_props+=("$prop")
+            all_defined=false
+        fi
+    done
+
+    # In corporate mode, ALWAYS offer to review settings
+    if [ "$all_defined" = false ]; then
+        # Some properties missing - MUST configure
+        echo "Some required properties are not configured:"
+        for prop in "${missing_props[@]}"; do
+            echo "  • $prop"
+        done
+        echo ""
+        echo "Since configuration is incomplete, let's review ALL settings..."
+        echo ""
+
+        # Prompt for ALL properties when ANY are missing
+        configure_infrastructure_env_prompts "$env_file"
+    else
+        # All properties defined - but in corporate mode, still offer review
+        print_info "Current Docker image configuration:"
+        echo ""
+        # Show current settings
+        source "$env_file" 2>/dev/null || true
+        echo "  IMAGE_POSTGRES=${IMAGE_POSTGRES:-[not set]}"
+        echo ""
+
+        if ask_yes_no "Do you want to review/update these corporate registry settings?"; then
+            # Prompt for ALL properties
+            configure_infrastructure_env_prompts "$env_file"
+        else
+            print_info "Using existing configuration"
+        fi
+    fi
+}
+
+# Prompt for each infrastructure property
+configure_infrastructure_env_prompts() {
+    local env_file="$1"
+
+    # Load current values
+    source "$env_file" 2>/dev/null || true
+
+    echo ""
+    print_info "Configure ALL Docker image sources for corporate environment"
+    echo ""
+    echo "Press Enter to keep current values, or enter new corporate registry paths."
+    echo ""
+    echo "Examples:"
+    echo "  • Public:    postgres:17.5-alpine"
+    echo "  • Corporate: artifactory.company.com/docker-remote/library/postgres:17.5-alpine"
+    echo ""
+
+    # Prompt for ALL properties (not just missing ones)
+    configure_env_property "$env_file" \
+        "IMAGE_POSTGRES" \
+        "${IMAGE_POSTGRES:-postgres:17.5-alpine}" \
+        "PostgreSQL image for platform services"
+
+    echo ""
+    print_success "Infrastructure configuration complete"
+}
+
+# Configure OpenMetadata .env for corporate environments
+# Always offers review in corporate mode, requires config if missing
+configure_openmetadata_env_interactive() {
+    local env_file="$REPO_ROOT/openmetadata/.env"
+    local required_props=("IMAGE_OPENMETADATA_SERVER" "IMAGE_ELASTICSEARCH")
+    local missing_props=()
+    local all_defined=true
+
+    print_section "OpenMetadata Configuration"
+
+    # Check if .env exists
+    if [ ! -f "$env_file" ]; then
+        print_info "No .env file found in openmetadata/"
+        echo "Creating from template..."
+        cp "$REPO_ROOT/openmetadata/.env.example" "$env_file"
+        print_success "Created openmetadata/.env"
+        echo ""
+    fi
+
+    # Check which required properties are defined (not commented out)
+    for prop in "${required_props[@]}"; do
+        if ! grep -q "^${prop}=" "$env_file"; then
+            missing_props+=("$prop")
+            all_defined=false
+        fi
+    done
+
+    # In corporate mode, ALWAYS offer to review settings
+    if [ "$all_defined" = false ]; then
+        # Some properties missing - MUST configure
+        echo "Some required properties are not configured:"
+        for prop in "${missing_props[@]}"; do
+            echo "  • $prop"
+        done
+        echo ""
+        echo "Since configuration is incomplete, let's review ALL settings..."
+        echo ""
+
+        # Prompt for ALL properties when ANY are missing
+        configure_openmetadata_env_prompts "$env_file"
+    else
+        # All properties defined - but in corporate mode, still offer review
+        print_info "Current Docker image configuration:"
+        echo ""
+        # Show current settings
+        source "$env_file" 2>/dev/null || true
+        echo "  IMAGE_OPENMETADATA_SERVER=${IMAGE_OPENMETADATA_SERVER:-[not set]}"
+        echo "  IMAGE_ELASTICSEARCH=${IMAGE_ELASTICSEARCH:-[not set]}"
+        echo ""
+
+        if ask_yes_no "Do you want to review/update these corporate registry settings?"; then
+            # Prompt for ALL properties
+            configure_openmetadata_env_prompts "$env_file"
+        else
+            print_info "Using existing configuration"
+        fi
+    fi
+}
+
+# Prompt for OpenMetadata Docker images
+configure_openmetadata_env_prompts() {
+    local env_file="$1"
+
+    # Load current values
+    source "$env_file" 2>/dev/null || true
+
+    echo ""
+    print_info "Configure ALL Docker image sources for OpenMetadata"
+    echo ""
+    echo "Press Enter to keep current values, or enter new corporate registry paths."
+    echo ""
+
+    configure_env_property "$env_file" \
+        "IMAGE_OPENMETADATA_SERVER" \
+        "${IMAGE_OPENMETADATA_SERVER:-docker.getcollate.io/openmetadata/server:1.10.1}" \
+        "OpenMetadata server image"
+
+    configure_env_property "$env_file" \
+        "IMAGE_ELASTICSEARCH" \
+        "${IMAGE_ELASTICSEARCH:-docker.elastic.co/elasticsearch/elasticsearch:8.11.4}" \
+        "Elasticsearch image for OpenMetadata search"
+
+    echo ""
+    print_success "OpenMetadata configuration complete"
+}
+
 configure_platform_env() {
     print_section "Platform Configuration"
 
@@ -261,19 +469,25 @@ setup_infrastructure() {
     echo "  • Network: platform_network for service communication"
     echo ""
 
-    # Ensure infrastructure .env exists
-    if [ ! -f "$REPO_ROOT/platform-infrastructure/.env" ]; then
-        cp "$REPO_ROOT/platform-infrastructure/.env.example" "$REPO_ROOT/platform-infrastructure/.env"
-        # Generate password
-        if command -v openssl >/dev/null 2>&1; then
-            INFRA_PASS=$(openssl rand -base64 24)
-        else
-            INFRA_PASS=$(head -c 24 /dev/urandom | base64)
-        fi
-        sed -i "s|PLATFORM_DB_PASSWORD=.*|PLATFORM_DB_PASSWORD=$INFRA_PASS|" "$REPO_ROOT/platform-infrastructure/.env"
-        print_success "Generated infrastructure .env with secure password"
+    # If corporate mode, configure image sources BEFORE starting services
+    if [ "$NEED_ARTIFACTORY" = true ]; then
+        configure_infrastructure_env_interactive
+        echo ""
     else
-        print_info "Infrastructure .env already exists"
+        # Non-corporate mode: Just ensure .env exists with defaults
+        if [ ! -f "$REPO_ROOT/platform-infrastructure/.env" ]; then
+            cp "$REPO_ROOT/platform-infrastructure/.env.example" "$REPO_ROOT/platform-infrastructure/.env"
+            # Generate password
+            if command -v openssl >/dev/null 2>&1; then
+                INFRA_PASS=$(openssl rand -base64 24)
+            else
+                INFRA_PASS=$(head -c 24 /dev/urandom | base64)
+            fi
+            sed -i "s|PLATFORM_DB_PASSWORD=.*|PLATFORM_DB_PASSWORD=$INFRA_PASS|" "$REPO_ROOT/platform-infrastructure/.env"
+            print_success "Generated infrastructure .env with secure password"
+        else
+            print_info "Infrastructure .env already exists"
+        fi
     fi
 
     # Start infrastructure
@@ -298,6 +512,12 @@ setup_openmetadata() {
 
     echo "Setting up OpenMetadata..."
     echo ""
+
+    # If corporate mode, configure OpenMetadata image sources first
+    if [ "$NEED_ARTIFACTORY" = true ]; then
+        configure_openmetadata_env_interactive
+        echo ""
+    fi
 
     # Call OpenMetadata's progressive validation setup
     if cd "$REPO_ROOT/openmetadata" && ./setup.sh --auto; then
