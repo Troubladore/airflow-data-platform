@@ -251,8 +251,9 @@ else
     echo ""
 
     cd "$(dirname "$PAGILA_DIR")"
-    if git clone "$PAGILA_REPO_URL" pagila; then
-        print_success "Pagila cloned successfully"
+    # Clone develop branch (our fork's working branch, main tracks upstream)
+    if git clone -b develop "$PAGILA_REPO_URL" pagila; then
+        print_success "Pagila cloned successfully (develop branch)"
         cd "$PLATFORM_DIR"
     else
         print_error "Failed to clone pagila"
