@@ -535,9 +535,9 @@ EOF
     print_info "Running diagnostic to detect ticket location..."
     echo ""
 
-    if [ -f "$PLATFORM_DIR/diagnostics/diagnose-kerberos.sh" ]; then
+    if [ -f "$SCRIPT_DIR/diagnostics/diagnose-kerberos.sh" ]; then
         # Run diagnostic and capture output
-        local diag_output=$("$PLATFORM_DIR/diagnostics/diagnose-kerberos.sh" 2>&1)
+        local diag_output=$("$SCRIPT_DIR/diagnostics/diagnose-kerberos.sh" 2>&1)
 
         # Try to extract configuration from diagnostic output
         DETECTED_TICKET_DIR=$(echo "$diag_output" | grep "^KERBEROS_TICKET_DIR=" | cut -d= -f2)
