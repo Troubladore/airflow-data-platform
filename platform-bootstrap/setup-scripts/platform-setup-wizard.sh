@@ -207,7 +207,7 @@ ask_corporate_infrastructure() {
     echo "Artifactory / Internal Registries"
     echo "  • Internal Docker registry (artifactory.company.com)"
     echo "  • Internal PyPI mirror"
-    echo "  • Internal git servers"
+    echo "  • Internal git servers (for pagila, examples, etc.)"
     echo ""
 
     if ask_yes_no "Configure corporate infrastructure?"; then
@@ -221,6 +221,9 @@ ask_corporate_infrastructure() {
         fi
         if [ "$NEED_KERBEROS" = true ]; then
             echo "  • kerberos/.env - ODBC_DRIVER_URL, etc."
+        fi
+        if [ "$NEED_PAGILA" = true ]; then
+            echo "  • platform-bootstrap/.env - PAGILA_REPO_URL for internal git"
         fi
         echo ""
         print_info "Also run: docker login artifactory.company.com"
@@ -454,6 +457,48 @@ configure_platform_env() {
     # Update service toggles
     sed -i "s/ENABLE_KERBEROS=.*/ENABLE_KERBEROS=$NEED_KERBEROS/" "$PLATFORM_DIR/.env"
     sed -i "s/ENABLE_OPENMETADATA=.*/ENABLE_OPENMETADATA=$NEED_OPENMETADATA/" "$PLATFORM_DIR/.env"
+
+    # Configure Pagila repository URL if in corporate mode and pagila is enabled
+    if [ "$NEED_ARTIFACTORY" = true ] && [ "$NEED_PAGILA" = true ]; then
+        echo ""
+        print_info "Pagila Repository Configuration"
+        echo ""
+        echo "Pagila is cloned from a git repository."
+        echo "Default: https://github.com/Troubladore/pagila.git"
+        echo ""
+        echo "If your organization blocks public GitHub or maintains an internal fork,"
+        echo "you can specify your corporate git server URL here."
+        echo ""
+        echo "Examples:"
+        echo "  • Public:    https://github.com/Troubladore/pagila.git"
+        echo "  • Corporate: https://git.company.com/data-platform/pagila.git"
+        echo "  • Corporate: https://gitlab.company.com/engineering/pagila.git"
+        echo ""
+
+        # Check current value
+        current_url=$(grep "^PAGILA_REPO_URL=" "$PLATFORM_DIR/.env" 2>/dev/null | cut -d= -f2-)
+        if [ -n "$current_url" ]; then
+            echo "Current: $current_url"
+        else
+            echo "Current: (not set - will use default)"
+        fi
+        echo ""
+
+        read -p "Pagila repository URL [press Enter to keep current/default]: " pagila_url
+
+        if [ -n "$pagila_url" ]; then
+            # Update or add the URL
+            if grep -q "^PAGILA_REPO_URL=" "$PLATFORM_DIR/.env"; then
+                sed -i "s|^PAGILA_REPO_URL=.*|PAGILA_REPO_URL=$pagila_url|" "$PLATFORM_DIR/.env"
+            else
+                echo "PAGILA_REPO_URL=$pagila_url" >> "$PLATFORM_DIR/.env"
+            fi
+            print_success "Pagila URL configured: $pagila_url"
+        else
+            print_info "Using default Pagila URL"
+        fi
+        echo ""
+    fi
 
     print_success "Platform configuration updated"
     echo ""
