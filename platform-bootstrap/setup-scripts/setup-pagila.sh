@@ -290,8 +290,8 @@ if [ ! -f "$PAGILA_ENV_FILE" ]; then
             RANDOM_PASSWORD=$(head -c 32 /dev/urandom | base64)
         fi
 
-        # Replace default password with random one
-        sed -i "s/POSTGRES_PASSWORD=changeme_generate_random_password/POSTGRES_PASSWORD=$RANDOM_PASSWORD/" "$PAGILA_ENV_FILE"
+        # Replace default password with random one (use | as delimiter since password may contain /)
+        sed -i "s|POSTGRES_PASSWORD=changeme_generate_random_password|POSTGRES_PASSWORD=$RANDOM_PASSWORD|" "$PAGILA_ENV_FILE"
 
         print_success ".env created with random password"
         echo ""
