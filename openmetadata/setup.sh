@@ -185,6 +185,8 @@ step_2_configure_env() {
     # Update passwords in .env (use | as delimiter to avoid issues with / in base64)
     sed -i "s|PLATFORM_DB_PASSWORD=.*|PLATFORM_DB_PASSWORD=$PLATFORM_PASS|" "$env_file"
     sed -i "s|OPENMETADATA_DB_PASSWORD=.*|OPENMETADATA_DB_PASSWORD=$OPENMETADATA_PASS|" "$env_file"
+    # Also update DB_USER_PASSWORD to match OPENMETADATA_DB_PASSWORD (OpenMetadata expects this name)
+    sed -i "s|DB_USER_PASSWORD=.*|DB_USER_PASSWORD=$OPENMETADATA_PASS|" "$env_file"
 
     print_success "Generated secure database passwords"
     echo ""
