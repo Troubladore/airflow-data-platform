@@ -138,9 +138,9 @@ fi
 
 if ask_yes_no "Remove Pagila?"; then
     echo "Stopping Pagila..."
-    # Handle both old and new container names
-    docker stop pagila pagila-postgres pgadmin pgadmin4 2>/dev/null || true
-    docker rm pagila pagila-postgres pgadmin pgadmin4 2>/dev/null || true
+    # Handle both old and new container names (including jsonb restore container)
+    docker stop pagila pagila-postgres pagila-jsonb-restore pgadmin pgadmin4 2>/dev/null || true
+    docker rm pagila pagila-postgres pagila-jsonb-restore pgadmin pgadmin4 2>/dev/null || true
     if ask_yes_no "  Also remove Pagila data volume?"; then
         # Remove all possible Pagila volume names
         docker volume rm pagila_pgdata pagila_postgres-data 2>/dev/null || true
@@ -204,22 +204,27 @@ if [ "$REMOVE_IMAGES" = true ]; then
     # Remove images by pattern (works for any registry including corporate)
     echo ""
     echo "Removing OpenMetadata images from any registry..."
-    for img in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "openmetadata/server" | grep -E "1.2.0|1.10.1"); do
+    # Remove ANY openmetadata image (version-agnostic)
+    for img in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -i "openmetadata"); do
         docker rmi "$img" 2>/dev/null && echo "  ✓ Removed $img" || true
     done
 
     echo "Removing Elasticsearch images from any registry..."
-    for img in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "elasticsearch/elasticsearch" | grep -E "8.10.2|8.11.4|8.15.0"); do
+    # Remove ANY elasticsearch image
+    for img in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -i "elasticsearch"); do
         docker rmi "$img" 2>/dev/null && echo "  ✓ Removed $img" || true
     done
 
     echo "Removing OpenSearch images from any registry..."
-    for img in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "opensearch" | grep -E "2.11.1|2.19.2|latest"); do
+    # Remove ANY opensearch image
+    for img in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -i "opensearch"); do
         docker rmi "$img" 2>/dev/null && echo "  ✓ Removed $img" || true
     done
 
     echo "Removing PostgreSQL images from any registry..."
-    for img in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "postgres" | grep -E "17.5-alpine|17|15"); do
+    # Remove ANY postgres image (including corporate registry paths)
+    # This catches postgres:*, */postgres:*, artifactory.*/postgres:*, etc.
+    for img in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -i "postgres"); do
         docker rmi "$img" 2>/dev/null && echo "  ✓ Removed $img" || true
     done
 
@@ -229,7 +234,8 @@ if [ "$REMOVE_IMAGES" = true ]; then
     done
 
     echo "Removing Alpine images from any registry..."
-    for img in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "alpine" | grep -E "3.19|latest"); do
+    # Remove ANY standalone alpine image (but not postgres:*-alpine, etc.)
+    for img in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "^alpine:|/alpine:"); do
         docker rmi "$img" 2>/dev/null && echo "  ✓ Removed $img" || true
     done
 

@@ -170,23 +170,21 @@ step_2_configure_env() {
     cp "$env_example" "$env_file"
     print_success "Created .env from .env.example"
 
-    # Generate random passwords
+    # Generate random password for OpenMetadata database user
     echo ""
-    echo "Generating secure passwords..."
+    echo "Generating secure password..."
 
     if command -v openssl >/dev/null 2>&1; then
-        PLATFORM_PASS=$(openssl rand -base64 24)
         OPENMETADATA_PASS=$(openssl rand -base64 24)
     else
-        PLATFORM_PASS=$(head -c 24 /dev/urandom | base64)
         OPENMETADATA_PASS=$(head -c 24 /dev/urandom | base64)
     fi
 
-    # Update passwords in .env (use | as delimiter to avoid issues with / in base64)
-    sed -i "s|PLATFORM_DB_PASSWORD=.*|PLATFORM_DB_PASSWORD=$PLATFORM_PASS|" "$env_file"
-    sed -i "s|OPENMETADATA_DB_PASSWORD=.*|OPENMETADATA_DB_PASSWORD=$OPENMETADATA_PASS|" "$env_file"
+    # Update password in .env (use | as delimiter to avoid issues with / in base64)
+    sed -i "s|DB_USER_PASSWORD=.*|DB_USER_PASSWORD=$OPENMETADATA_PASS|" "$env_file"
 
-    print_success "Generated secure database passwords"
+    print_success "Generated secure database password"
+    print_info "Note: Update OPENMETADATA_DB_PASSWORD in platform-bootstrap/.env to match"
     echo ""
     print_success "Configuration complete"
 }

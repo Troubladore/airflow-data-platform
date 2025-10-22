@@ -18,7 +18,7 @@ PLATFORM_DIR="$(dirname "$SCRIPT_DIR")"
 # Can be overridden in .env with PAGILA_REPO_URL
 PAGILA_REPO_URL_DEFAULT="https://github.com/Troubladore/pagila.git"
 PAGILA_DIR="$(dirname "$(dirname "$PLATFORM_DIR")")/pagila"
-CONTAINER_NAME="pagila"  # Matches docker-compose.yml service name
+CONTAINER_NAME="pagila-postgres"  # Matches docker-compose.yml container name
 
 # ==========================================
 # Source Libraries
@@ -251,8 +251,9 @@ else
     echo ""
 
     cd "$(dirname "$PAGILA_DIR")"
-    if git clone "$PAGILA_REPO_URL" pagila; then
-        print_success "Pagila cloned successfully"
+    # Clone develop branch (our fork's working branch, main tracks upstream)
+    if git clone -b develop "$PAGILA_REPO_URL" pagila; then
+        print_success "Pagila cloned successfully (develop branch)"
         cd "$PLATFORM_DIR"
     else
         print_error "Failed to clone pagila"
@@ -289,8 +290,8 @@ if [ ! -f "$PAGILA_ENV_FILE" ]; then
             RANDOM_PASSWORD=$(head -c 32 /dev/urandom | base64)
         fi
 
-        # Replace default password with random one
-        sed -i "s/POSTGRES_PASSWORD=changeme_generate_random_password/POSTGRES_PASSWORD=$RANDOM_PASSWORD/" "$PAGILA_ENV_FILE"
+        # Replace default password with random one (use | as delimiter since password may contain /)
+        sed -i "s|POSTGRES_PASSWORD=changeme_generate_random_password|POSTGRES_PASSWORD=$RANDOM_PASSWORD|" "$PAGILA_ENV_FILE"
 
         print_success ".env created with random password"
         echo ""
@@ -302,6 +303,7 @@ if [ ! -f "$PAGILA_ENV_FILE" ]; then
 
         cat > "$PAGILA_ENV_FILE" << EOF
 # Pagila Configuration (auto-generated)
+# Uses same image as platform-postgres for consistency
 IMAGE_POSTGRES=${IMAGE_POSTGRES:-postgres:17.5-alpine}
 POSTGRES_PASSWORD=$(openssl rand -base64 32 2>/dev/null || echo "postgres")
 PAGILA_PORT=5432
@@ -348,7 +350,8 @@ if [ "${SKIP_START:-false}" = false ]; then
     echo ""
 
     # Get PostgreSQL image (respects corporate .env)
-    POSTGRES_IMAGE="${IMAGE_POSTGRES:-postgres:15}"
+    # Default matches platform-postgres for consistency
+    POSTGRES_IMAGE="${IMAGE_POSTGRES:-postgres:17.5-alpine}"
     print_info "Using PostgreSQL image: $POSTGRES_IMAGE"
 
     if [[ "$POSTGRES_IMAGE" == *"artifactory"* ]]; then
@@ -373,6 +376,24 @@ if [ "${SKIP_START:-false}" = false ]; then
         fi
 
         cd "$PLATFORM_DIR"
+
+        # Wait for PostgreSQL to be ready (same as docker run path)
+        echo ""
+        echo -n "Waiting for PostgreSQL to initialize"
+        for i in {1..30}; do
+            if docker exec "$CONTAINER_NAME" pg_isready -U postgres >/dev/null 2>&1; then
+                echo " ✓"
+                break
+            fi
+            sleep 1
+            echo -n "."
+
+            if [ $i -eq 30 ]; then
+                echo ""
+                print_error "PostgreSQL did not start in time"
+                exit 1
+            fi
+        done
     else
         # Fallback: Start with docker run
         print_info "Starting pagila with docker run (pagila repo has no docker-compose.yml)"
