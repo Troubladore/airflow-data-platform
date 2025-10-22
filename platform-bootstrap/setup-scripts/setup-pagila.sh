@@ -303,6 +303,7 @@ if [ ! -f "$PAGILA_ENV_FILE" ]; then
 
         cat > "$PAGILA_ENV_FILE" << EOF
 # Pagila Configuration (auto-generated)
+# Uses same image as platform-postgres for consistency
 IMAGE_POSTGRES=${IMAGE_POSTGRES:-postgres:17.5-alpine}
 POSTGRES_PASSWORD=$(openssl rand -base64 32 2>/dev/null || echo "postgres")
 PAGILA_PORT=5432
@@ -349,7 +350,8 @@ if [ "${SKIP_START:-false}" = false ]; then
     echo ""
 
     # Get PostgreSQL image (respects corporate .env)
-    POSTGRES_IMAGE="${IMAGE_POSTGRES:-postgres:15}"
+    # Default matches platform-postgres for consistency
+    POSTGRES_IMAGE="${IMAGE_POSTGRES:-postgres:17.5-alpine}"
     print_info "Using PostgreSQL image: $POSTGRES_IMAGE"
 
     if [[ "$POSTGRES_IMAGE" == *"artifactory"* ]]; then
