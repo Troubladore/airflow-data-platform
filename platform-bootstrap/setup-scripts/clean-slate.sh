@@ -138,9 +138,9 @@ fi
 
 if ask_yes_no "Remove Pagila?"; then
     echo "Stopping Pagila..."
-    # Handle both old and new container names
-    docker stop pagila pagila-postgres pgadmin pgadmin4 2>/dev/null || true
-    docker rm pagila pagila-postgres pgadmin pgadmin4 2>/dev/null || true
+    # Handle both old and new container names (including jsonb restore container)
+    docker stop pagila pagila-postgres pagila-jsonb-restore pgadmin pgadmin4 2>/dev/null || true
+    docker rm pagila pagila-postgres pagila-jsonb-restore pgadmin pgadmin4 2>/dev/null || true
     if ask_yes_no "  Also remove Pagila data volume?"; then
         # Remove all possible Pagila volume names
         docker volume rm pagila_pgdata pagila_postgres-data 2>/dev/null || true
