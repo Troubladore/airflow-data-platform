@@ -506,7 +506,7 @@ echo ""
 # ==========================================
 
 echo "Connection details:"
-echo "  Host (from platform):  pagila:5432"
+echo "  Host (from platform):  pagila-postgres:5432"
 echo "  Host (from host):      localhost:${PAGILA_PORT:-5432}"
 echo "  Database:              pagila"
 echo "  Username:              postgres"
