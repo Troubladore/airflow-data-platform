@@ -373,6 +373,24 @@ if [ "${SKIP_START:-false}" = false ]; then
         fi
 
         cd "$PLATFORM_DIR"
+
+        # Wait for PostgreSQL to be ready (same as docker run path)
+        echo ""
+        echo -n "Waiting for PostgreSQL to initialize"
+        for i in {1..30}; do
+            if docker exec "$CONTAINER_NAME" pg_isready -U postgres >/dev/null 2>&1; then
+                echo " ✓"
+                break
+            fi
+            sleep 1
+            echo -n "."
+
+            if [ $i -eq 30 ]; then
+                echo ""
+                print_error "PostgreSQL did not start in time"
+                exit 1
+            fi
+        done
     else
         # Fallback: Start with docker run
         print_info "Starting pagila with docker run (pagila repo has no docker-compose.yml)"
@@ -487,7 +505,7 @@ echo ""
 # ==========================================
 
 echo "Connection details:"
-echo "  Host (from platform):  pagila-postgres:5432"
+echo "  Host (from platform):  pagila:5432"
 echo "  Host (from host):      localhost:${PAGILA_PORT:-5432}"
 echo "  Database:              pagila"
 echo "  Username:              postgres"
