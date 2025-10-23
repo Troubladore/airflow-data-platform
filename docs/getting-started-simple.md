@@ -13,7 +13,7 @@ The platform provides **enhancement services** that work alongside Astronomer fo
 
 These services run locally alongside your Astronomer projects, providing an integrated data platform experience.
 
-**Note:** All services are **idempotent** (safe to rerun) and support corporate environments (Artifactory images, internal git servers).
+**Note:** All services are **idempotent** (safe to rerun) and support custom Docker images (private registries, pre-built images, corporate Artifactory).
 
 ## 📋 Prerequisites
 
@@ -36,8 +36,6 @@ python3 --version    # Python 3.8+
 </details>
 
 ## 🚀 Setup Platform Services
-
-### Option 1: Guided Setup (Recommended for First-Time Users)
 
 Use the interactive setup wizard that guides you through every step:
 
@@ -71,34 +69,7 @@ make setup-pagila
 
 The setup is **modular and idempotent** - each component can be set up independently and is safe to rerun.
 
-### Option 2: Manual Setup (For Experienced Users)
-
-If you prefer manual configuration or are re-configuring an existing setup:
-
-```bash
-# 1. Clone the platform repository
-git clone https://github.com/Troubladore/airflow-data-platform.git
-cd airflow-data-platform/platform-bootstrap
-
-# 2. Configure for your organization
-cp .env.example .env
-# Edit .env for corporate images/git (if needed)
-
-# 3. Get Kerberos ticket (if using SQL Server)
-kinit your.username@COMPANY.COM
-
-# 4. Start the platform services
-make platform-start
-
-# This starts (always-on):
-# ✓ Kerberos sidecar (ticket sharing for SQL Server)
-# ✓ Platform PostgreSQL (metadata storage)
-# ✓ OpenMetadata Server (http://localhost:8585)
-# ✓ Elasticsearch (search indexing)
-
-# 5. Setup test data (optional)
-make setup-pagila
-```
+**Using Custom Docker Images?** If you've pre-built your own Docker images following our [Custom Image Requirements](custom-image-requirements.md), simply select "prebuilt" mode when the wizard asks about image configuration. The wizard handles all the configuration for you.
 
 ## ✅ Verify Services
 
