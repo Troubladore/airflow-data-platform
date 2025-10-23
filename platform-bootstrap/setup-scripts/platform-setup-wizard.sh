@@ -514,6 +514,22 @@ setup_infrastructure() {
     echo "  • Network: platform_network for service communication"
     echo ""
 
+    # Ask about PostgreSQL authentication mode for development
+    local auth_method=""
+    echo "PostgreSQL Authentication Configuration:"
+    echo ""
+    echo "For local development, you can use password-less authentication."
+    echo "This makes development easier but should NEVER be used in production."
+    echo ""
+    if ask_yes_no "Enable password-less PostgreSQL for development?"; then
+        auth_method="trust"
+        print_warning "Password-less mode enabled - DEVELOPMENT ONLY!"
+    else
+        auth_method=""
+        print_info "Using standard password authentication (secure)"
+    fi
+    echo ""
+
     # If corporate mode, configure image sources BEFORE starting services
     if [ "$NEED_ARTIFACTORY" = true ]; then
         configure_infrastructure_env_interactive
@@ -522,17 +538,33 @@ setup_infrastructure() {
         # Non-corporate mode: Just ensure .env exists with defaults
         if [ ! -f "$REPO_ROOT/platform-infrastructure/.env" ]; then
             cp "$REPO_ROOT/platform-infrastructure/.env.example" "$REPO_ROOT/platform-infrastructure/.env"
-            # Generate password
-            if command -v openssl >/dev/null 2>&1; then
-                INFRA_PASS=$(openssl rand -base64 24)
+            # Generate password only if not using trust mode
+            if [ "$auth_method" != "trust" ]; then
+                if command -v openssl >/dev/null 2>&1; then
+                    INFRA_PASS=$(openssl rand -base64 24)
+                else
+                    INFRA_PASS=$(head -c 24 /dev/urandom | base64)
+                fi
+                sed -i "s|PLATFORM_DB_PASSWORD=.*|PLATFORM_DB_PASSWORD=$INFRA_PASS|" "$REPO_ROOT/platform-infrastructure/.env"
+                print_success "Generated infrastructure .env with secure password"
             else
-                INFRA_PASS=$(head -c 24 /dev/urandom | base64)
+                print_success "Created infrastructure .env (password-less mode)"
             fi
-            sed -i "s|PLATFORM_DB_PASSWORD=.*|PLATFORM_DB_PASSWORD=$INFRA_PASS|" "$REPO_ROOT/platform-infrastructure/.env"
-            print_success "Generated infrastructure .env with secure password"
         else
             print_info "Infrastructure .env already exists"
         fi
+    fi
+
+    # Write POSTGRES_HOST_AUTH_METHOD to platform-bootstrap/.env
+    if [ -n "$auth_method" ]; then
+        if grep -q "^POSTGRES_HOST_AUTH_METHOD=" "$PLATFORM_DIR/.env" 2>/dev/null; then
+            sed -i "s|^POSTGRES_HOST_AUTH_METHOD=.*|POSTGRES_HOST_AUTH_METHOD=$auth_method|" "$PLATFORM_DIR/.env"
+        else
+            echo "" >> "$PLATFORM_DIR/.env"
+            echo "# PostgreSQL authentication mode (trust = no password for dev)" >> "$PLATFORM_DIR/.env"
+            echo "POSTGRES_HOST_AUTH_METHOD=$auth_method" >> "$PLATFORM_DIR/.env"
+        fi
+        print_success "Configured POSTGRES_HOST_AUTH_METHOD=$auth_method in platform-bootstrap/.env"
     fi
 
     # Start infrastructure

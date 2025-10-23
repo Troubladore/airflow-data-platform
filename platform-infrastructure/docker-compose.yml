@@ -43,6 +43,9 @@ services:
       # OPENMETADATA_DB_PASSWORD: For init script
       POSTGRES_USER: ${PLATFORM_DB_USER:-platform_admin}
       POSTGRES_PASSWORD: ${PLATFORM_DB_PASSWORD:-changeme}
+      # Optional: Password-less mode for development (set via setup wizard)
+      # If POSTGRES_HOST_AUTH_METHOD=trust is set, password is ignored
+      POSTGRES_HOST_AUTH_METHOD: ${POSTGRES_HOST_AUTH_METHOD:-}
 
     volumes:
       # Persistent storage for all platform databases

@@ -947,18 +947,32 @@ step_9_test_ticket_sharing() {
         source "$PLATFORM_DIR/.env" 2>/dev/null || true
     fi
 
-    local test_image="${IMAGE_PYTHON:-python:3.11-alpine}"
+    # Use IMAGE_KERBEROS_TEST if set, otherwise fall back to IMAGE_PYTHON
+    local test_image="${IMAGE_KERBEROS_TEST:-${IMAGE_PYTHON:-python:3.11-alpine}}"
 
-    # Detect package manager based on image
-    local install_cmd="apk add --no-cache krb5"  # Alpine default
-    if [[ "$test_image" == *"debian"* ]] || [[ "$test_image" == *"ubuntu"* ]] || [[ "$test_image" == *":3.11"* ]] && [[ "$test_image" != *"alpine"* ]]; then
-        install_cmd="apt-get update -qq && apt-get install -y -qq krb5-user"
-    elif [[ "$test_image" == *"chainguard"* ]] || [[ "$test_image" == *"wolfi"* ]]; then
-        install_cmd="apk add --no-cache krb5"  # Wolfi uses apk
+    # Check image mode
+    local image_mode="${IMAGE_MODE:-layered}"
+
+    local test_command=""
+    if [ "$image_mode" = "prebuilt" ]; then
+        # Prebuilt mode - assume krb5 is already installed
+        print_info "Using test image (prebuilt mode): ${CYAN}$test_image${NC}"
+        echo -e "  Mode: Prebuilt - expecting krb5 pre-installed"
+        test_command="python /app/test.py"
+    else
+        # Layered mode - install packages at runtime
+        # Detect package manager based on image
+        local install_cmd="apk add --no-cache krb5"  # Alpine default
+        if [[ "$test_image" == *"debian"* ]] || [[ "$test_image" == *"ubuntu"* ]] || [[ "$test_image" == *":3.11"* ]] && [[ "$test_image" != *"alpine"* ]]; then
+            install_cmd="apt-get update -qq && apt-get install -y -qq krb5-user"
+        elif [[ "$test_image" == *"chainguard"* ]] || [[ "$test_image" == *"wolfi"* ]]; then
+            install_cmd="apk add --no-cache krb5"  # Wolfi uses apk
+        fi
+
+        print_info "Using test image (layered mode): ${CYAN}$test_image${NC}"
+        echo -e "  Package install: $install_cmd"
+        test_command="$install_cmd >/dev/null 2>&1 && python /app/test.py"
     fi
-
-    print_info "Using test image: ${CYAN}$test_image${NC}"
-    echo -e "  Package install: $install_cmd"
     echo ""
 
     # Run the test
@@ -968,7 +982,7 @@ step_9_test_ticket_sharing() {
         -v "$PLATFORM_DIR/test_kerberos_simple.py:/app/test.py" \
         -e KRB5CCNAME=/krb5/cache/krb5cc \
         "$test_image" \
-        sh -c "$install_cmd >/dev/null 2>&1 && python /app/test.py" 2>&1 | tee /tmp/kerberos-test-output.txt | grep -q "SUCCESS"; then
+        sh -c "$test_command" 2>&1 | tee /tmp/kerberos-test-output.txt | grep -q "SUCCESS"; then
 
         echo ""
         print_success "Ticket sharing test PASSED!"
