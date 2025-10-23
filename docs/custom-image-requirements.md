@@ -1,8 +1,8 @@
-# Corporate Image Requirements
+# Custom Image Requirements
 
 ## Overview
 
-This document specifies the exact requirements for custom Docker images used by the Airflow Data Platform. If you're building corporate images, they must meet these requirements for the platform to function correctly.
+This document specifies the exact requirements for custom Docker images used by the Airflow Data Platform. Whether you're building images for corporate environments, security compliance, or just want full control over your dependencies, these images must meet specific requirements for the platform to function correctly.
 
 ## Image Modes
 
@@ -18,7 +18,7 @@ The platform supports two modes for handling Docker images:
 - **Behavior**: Platform assumes all dependencies are pre-installed
 - **Flexibility**: Limited - images must be complete
 - **Performance**: Faster startup (no installation)
-- **Use Case**: Production, corporate environments with pre-approved images
+- **Use Case**: Production, environments with pre-approved or custom-built images
 
 ### Configuration
 
@@ -103,9 +103,9 @@ docker run IMAGE_KERBEROS_TEST sh -c "python /app/test.py"
 - Java runtime
 - Standard OpenSearch configuration support
 
-## Sample Dockerfiles for Corporate Images
+## Sample Dockerfiles for Custom Images
 
-### Python Runtime with Corporate Requirements
+### Python Runtime with Custom Requirements
 
 ```dockerfile
 # docs/dockerfiles/python-runtime/Dockerfile
@@ -114,9 +114,9 @@ FROM python:3.11-alpine
 # REQUIRED: Shell must be available
 # Already present in python:3.11-alpine
 
-# Corporate additions
-# Add corporate CA certificates
-COPY corporate-ca.crt /usr/local/share/ca-certificates/
+# Custom additions (optional)
+# Add CA certificates if needed (for corporate environments)
+COPY ca-certificates.crt /usr/local/share/ca-certificates/
 RUN update-ca-certificates
 
 # Pre-install common packages to reduce runtime delays
@@ -126,9 +126,9 @@ RUN apk add --no-cache \
     libffi-dev \
     openssl-dev
 
-# Configure pip for corporate PyPI
-RUN pip config set global.index-url https://pypi.company.com/simple
-RUN pip config set global.trusted-host pypi.company.com
+# Configure pip for private PyPI (if using)
+RUN pip config set global.index-url https://pypi.yourorg.com/simple
+RUN pip config set global.trusted-host pypi.yourorg.com
 
 # IMPORTANT: Keep shell and package manager available
 # Platform will run: sh -c "pip install X" at runtime
@@ -143,14 +143,14 @@ FROM python:3.11-alpine
 # REQUIRED: Shell and package manager
 # Platform needs to run: sh -c "apk add krb5"
 
-# Corporate requirements
-COPY corporate-ca.crt /usr/local/share/ca-certificates/
+# Custom requirements (optional)
+COPY ca-certificates.crt /usr/local/share/ca-certificates/
 RUN update-ca-certificates
 
 # Pre-install krb5 to speed up testing (optional optimization)
 RUN apk add --no-cache krb5 krb5-libs
 
-# Add any corporate Kerberos configurations
+# Add any custom Kerberos configurations
 COPY krb5.conf /etc/krb5.conf
 
 # IMPORTANT: Must retain ability to run shell commands
@@ -189,11 +189,11 @@ COPY pg_hba.conf /etc/postgresql/pg_hba.conf
 
 ```bash
 # Python runtime image (for DAGs, general Python tasks)
-IMAGE_PYTHON=myorg/python:3.11-corporate
+IMAGE_PYTHON=myorg/python:3.11-custom
 
 # Kerberos test image (for validation during setup)
 # If not set, uses IMAGE_PYTHON
-IMAGE_KERBEROS_TEST=myorg/kerberos-test:3.11-corporate
+IMAGE_KERBEROS_TEST=myorg/kerberos-test:3.11-custom
 
 # PostgreSQL image
 IMAGE_POSTGRES=myorg/postgres:17.5-hardened

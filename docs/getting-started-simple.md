@@ -13,7 +13,7 @@ The platform provides **enhancement services** that work alongside Astronomer fo
 
 These services run locally alongside your Astronomer projects, providing an integrated data platform experience.
 
-**Note:** All services are **idempotent** (safe to rerun) and support corporate environments (Artifactory images, internal git servers).
+**Note:** All services are **idempotent** (safe to rerun) and support custom Docker images (private registries, pre-built images, corporate Artifactory).
 
 ## 📋 Prerequisites
 
@@ -166,6 +166,33 @@ Now that platform services are running, explore how to use them:
 **Learn the Architecture:**
 - [Platform Architecture Vision](platform-architecture-vision.md)
 - [OpenMetadata Integration Design](openmetadata-integration-design.md)
+
+## 🐳 Using Custom Docker Images
+
+The platform fully supports custom Docker images, whether you're in a corporate environment with private registries or just want full control over your image builds.
+
+**Why use custom images?**
+- **Security**: Pre-scan and approve all dependencies
+- **Performance**: Pre-install packages to avoid runtime downloads
+- **Compliance**: Include corporate certificates and configurations
+- **Reproducibility**: Know exactly what's in your images
+
+**Quick Start:**
+```bash
+# Configure custom images in platform-bootstrap/.env
+IMAGE_PYTHON=myorg/python:3.11-custom
+IMAGE_POSTGRES=myorg/postgres:17.5-custom
+IMAGE_KERBEROS_TEST=myorg/kerberos-test:3.11
+
+# Set mode to use pre-built images (optional)
+IMAGE_MODE=prebuilt  # Skip runtime package installation
+```
+
+**Learn More:**
+- [Custom Image Requirements](custom-image-requirements.md) - Full specifications and Dockerfile examples
+- [Sample Dockerfiles](dockerfiles/) - Ready-to-use templates for each image type
+
+The platform works with both standard Docker Hub images and your custom-built images seamlessly.
 
 ## 🚨 Troubleshooting
 
