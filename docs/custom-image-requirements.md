@@ -48,8 +48,9 @@ Ready-to-use templates for each image type with complete requirements and exampl
   - Alpine and Ubuntu/Debian variants
   - Data science and Airflow-optimized examples
 
-- **[PostgreSQL Custom Image](dockerfiles/postgres-custom.md)** - For databases with custom configurations
+- **[PostgreSQL Base Image](dockerfiles/postgres-base.md)** - Foundation for all platform databases
   - Default: `postgres:17.5-alpine`
+  - Used for both Pagila example database and platform service databases
   - Password-less development mode support
   - Multi-database setup examples
 
@@ -59,11 +60,17 @@ Ready-to-use templates for each image type with complete requirements and exampl
   - Corporate hardened variants
 
 ### Platform Service Images
-For OpenMetadata and OpenSearch, the platform uses standard images:
-- **OpenMetadata Server**: `docker.getcollate.io/openmetadata/server:1.10.1`
-- **OpenSearch**: `opensearchproject/opensearch:2.19.2`
+By default, the platform pulls from public repositories, but the setup wizard will offer you the chance to specify custom images:
 
-These typically don't need customization unless you're in an air-gapped environment.
+- **OpenMetadata Server** - Metadata catalog service
+  - Default: `docker.getcollate.io/openmetadata/server:1.10.1`
+  - No special setup needed (runs as-is)
+  - Custom images typically only needed for air-gapped environments
+
+- **OpenSearch** - Search and indexing engine
+  - Default: `opensearchproject/opensearch:2.19.2`
+  - No special setup needed (runs as-is)
+  - Custom images typically only needed for air-gapped environments
 
 ## Using Your Custom Images
 

@@ -1,13 +1,13 @@
-# PostgreSQL Custom Image Dockerfile
+# PostgreSQL Base Image Dockerfile
 
 ## What Is This Image For?
 
-The PostgreSQL image serves as the database foundation for the platform, with three distinct use cases:
-- **Platform PostgreSQL**: Hosts OpenMetadata and Airflow metadata (admin OLTP)
-- **Pagila Database**: Provides sample data for testing and examples (app OLTP)
-- **Warehouse PostgreSQL**: Stores business data in Bronze/Silver/Gold layers (OLAP)
+The PostgreSQL base image serves as the foundation for all platform databases. This single image is reused across:
+- **Platform Service Databases**: Hosts OpenMetadata and Airflow metadata (admin OLTP)
+- **Pagila Example Database**: Provides sample DVD rental data for testing and examples
+- **Future Warehouse Databases**: Will store business data in Bronze/Silver/Gold layers (OLAP)
 
-This image must support standard PostgreSQL operations while meeting corporate security, performance, and compliance requirements. The same base image can be configured differently for each use case.
+The same base image is configured differently for each use case through environment variables and initialization scripts. This ensures consistency while allowing flexibility for different database purposes.
 
 ## Technical Requirements
 
