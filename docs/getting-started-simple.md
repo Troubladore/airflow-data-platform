@@ -37,8 +37,6 @@ python3 --version    # Python 3.8+
 
 ## 🚀 Setup Platform Services
 
-### Option 1: Guided Setup (Recommended for First-Time Users)
-
 Use the interactive setup wizard that guides you through every step:
 
 ```bash
@@ -70,35 +68,6 @@ make setup-pagila
 ```
 
 The setup is **modular and idempotent** - each component can be set up independently and is safe to rerun.
-
-### Option 2: Manual Setup (For Experienced Users)
-
-If you prefer manual configuration or are re-configuring an existing setup:
-
-```bash
-# 1. Clone the platform repository
-git clone https://github.com/Troubladore/airflow-data-platform.git
-cd airflow-data-platform/platform-bootstrap
-
-# 2. Configure for your organization
-cp .env.example .env
-# Edit .env for corporate images/git (if needed)
-
-# 3. Get Kerberos ticket (if using SQL Server)
-kinit your.username@COMPANY.COM
-
-# 4. Start the platform services
-make platform-start
-
-# This starts (always-on):
-# ✓ Kerberos sidecar (ticket sharing for SQL Server)
-# ✓ Platform PostgreSQL (metadata storage)
-# ✓ OpenMetadata Server (http://localhost:8585)
-# ✓ Elasticsearch (search indexing)
-
-# 5. Setup test data (optional)
-make setup-pagila
-```
 
 ## ✅ Verify Services
 
