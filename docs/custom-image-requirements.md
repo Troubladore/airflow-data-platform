@@ -4,6 +4,15 @@
 
 This document specifies the exact requirements for custom Docker images used by the Airflow Data Platform. Whether you're building images for corporate environments, security compliance, or just want full control over your dependencies, these images must meet specific requirements for the platform to function correctly.
 
+## Why Use Custom Images?
+
+- **Security**: Pre-scan and approve all dependencies before deployment
+- **Performance**: Pre-install packages to avoid runtime downloads and speed up container startup
+- **Compliance**: Include corporate certificates, security tools, and audit configurations
+- **Reproducibility**: Know exactly what's in your images for consistent deployments
+- **Air-gapped Environments**: Work in environments without internet access
+- **Private Registries**: Use your organization's private Docker registry
+
 ## Image Modes
 
 The platform supports two modes for handling Docker images:
@@ -20,16 +29,14 @@ The platform supports two modes for handling Docker images:
 - **Performance**: Faster startup (no installation)
 - **Use Case**: Production, environments with pre-approved or custom-built images
 
-### Configuration
+### How to Use
 
-Set in `platform-bootstrap/.env`:
-```bash
-# Default: layered - installs packages at runtime
-IMAGE_MODE=layered
+1. **Build your images** following the Dockerfile examples below
+2. **Tag your images** with memorable names (e.g., `myorg/python:3.11-custom`)
+3. **Run the setup wizard** (`./dev-tools/setup-kerberos.sh`)
+4. **Select "prebuilt" mode** when the wizard asks about image configuration
 
-# Or: prebuilt - uses images as-is, no runtime installation
-IMAGE_MODE=prebuilt
-```
+The wizard handles all configuration automatically - no manual .env editing needed!
 
 ## Image Variables and Requirements
 
@@ -183,25 +190,20 @@ COPY pg_hba.conf /etc/postgresql/pg_hba.conf
 # Must support /docker-entrypoint-initdb.d/ scripts
 ```
 
-## Configuration
+## Using Your Custom Images
 
-### Add to platform-bootstrap/.env
+When you run the setup wizard, it will:
+1. Ask if you're using custom/corporate images
+2. Prompt for your image names (e.g., `myorg/python:3.11-custom`)
+3. Ask whether to use "layered" or "prebuilt" mode
+4. Configure everything automatically
 
-```bash
-# Python runtime image (for DAGs, general Python tasks)
-IMAGE_PYTHON=myorg/python:3.11-custom
-
-# Kerberos test image (for validation during setup)
-# If not set, uses IMAGE_PYTHON
-IMAGE_KERBEROS_TEST=myorg/kerberos-test:3.11-custom
-
-# PostgreSQL image
-IMAGE_POSTGRES=myorg/postgres:17.5-hardened
-
-# OpenMetadata images
-IMAGE_OPENMETADATA_SERVER=myorg/openmetadata:1.10.1
-IMAGE_OPENSEARCH=myorg/opensearch:2.19.2
-```
+Example image names you might use:
+- **Python runtime**: `myorg/python:3.11-custom`
+- **Kerberos test**: `myorg/kerberos-test:3.11-custom`
+- **PostgreSQL**: `myorg/postgres:17.5-hardened`
+- **OpenMetadata**: `myorg/openmetadata:1.10.1`
+- **OpenSearch**: `myorg/opensearch:2.19.2`
 
 ## Testing Your Images
 
@@ -257,3 +259,10 @@ The platform currently requires:
 4. **Environment variable** support
 
 Future versions may support distroless/minimal images, but current version requires these capabilities.
+
+## Sample Dockerfiles
+
+Ready-to-use Dockerfile templates for each image type:
+- [Kerberos Test Image](dockerfiles/kerberos-test.md) - For validating ticket sharing
+- [Python Runtime Image](dockerfiles/python-runtime.md) - For DAGs and general Python execution
+- [PostgreSQL Custom Image](dockerfiles/postgres-custom.md) - For database with custom configurations

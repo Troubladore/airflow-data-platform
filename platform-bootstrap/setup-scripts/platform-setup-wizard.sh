@@ -37,6 +37,7 @@ NEED_ARTIFACTORY=false
 DETECTED_DOMAIN=""
 DETECTED_USERNAME=""
 HAS_KERBEROS_TICKET=false
+IMAGE_MODE=""
 
 # ==========================================
 # Utility Functions
@@ -215,6 +216,21 @@ ask_corporate_infrastructure() {
         print_success "Corporate infrastructure: ENABLED"
         echo ""
 
+        # Ask about image mode
+        echo "How are your custom images built?"
+        echo ""
+        echo "  • Layered: Images have base tools, platform installs packages at runtime"
+        echo "  • Prebuilt: Images include ALL dependencies, no runtime installation"
+        echo ""
+        if ask_yes_no "Are your images prebuilt with all dependencies?"; then
+            IMAGE_MODE="prebuilt"
+            print_success "Using prebuilt mode - faster startup, no runtime downloads"
+        else
+            IMAGE_MODE="layered"
+            print_info "Using layered mode - packages installed at runtime"
+        fi
+        echo ""
+
         print_info "You'll need to configure image sources in each service's .env file:"
         if [ "$NEED_OPENMETADATA" = true ]; then
             echo "  • openmetadata/.env - IMAGE_POSTGRES, IMAGE_OPENSEARCH, etc."
@@ -228,6 +244,7 @@ ask_corporate_infrastructure() {
         echo ""
         print_info "Also run: docker login artifactory.company.com"
     else
+        IMAGE_MODE="layered"  # Default for public images
         print_info "Corporate infrastructure: DISABLED (using public registries)"
     fi
 }
@@ -457,6 +474,18 @@ configure_platform_env() {
     # Update service toggles
     sed -i "s/ENABLE_KERBEROS=.*/ENABLE_KERBEROS=$NEED_KERBEROS/" "$PLATFORM_DIR/.env"
     sed -i "s/ENABLE_OPENMETADATA=.*/ENABLE_OPENMETADATA=$NEED_OPENMETADATA/" "$PLATFORM_DIR/.env"
+
+    # Write IMAGE_MODE if set
+    if [ -n "$IMAGE_MODE" ]; then
+        if grep -q "^IMAGE_MODE=" "$PLATFORM_DIR/.env" 2>/dev/null; then
+            sed -i "s|^IMAGE_MODE=.*|IMAGE_MODE=$IMAGE_MODE|" "$PLATFORM_DIR/.env"
+        else
+            echo "" >> "$PLATFORM_DIR/.env"
+            echo "# Image mode (layered = runtime install, prebuilt = no runtime install)" >> "$PLATFORM_DIR/.env"
+            echo "IMAGE_MODE=$IMAGE_MODE" >> "$PLATFORM_DIR/.env"
+        fi
+        print_success "Configured IMAGE_MODE=$IMAGE_MODE"
+    fi
 
     # Configure Pagila repository URL if in corporate mode and pagila is enabled
     if [ "$NEED_ARTIFACTORY" = true ] && [ "$NEED_PAGILA" = true ]; then
