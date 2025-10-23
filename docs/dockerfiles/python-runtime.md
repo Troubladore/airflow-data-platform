@@ -10,6 +10,24 @@ The Python runtime image serves as the general-purpose Python execution environm
 
 This image must balance flexibility (ability to install packages) with security (corporate compliance) and performance (fast startup times).
 
+## Technical Requirements
+
+**Environment Variable**: `IMAGE_PYTHON`
+**Default**: `python:3.11-alpine`
+
+### Minimum Requirements
+- Python 3.11+
+- Shell: `/bin/sh` or `/bin/bash`
+- Package manager: `apk` (Alpine) or `apt` (Debian/Ubuntu)
+- Ability to install packages at runtime (layered mode) or pre-installed (prebuilt mode)
+
+### Platform Usage
+```bash
+# The platform expects to be able to run:
+docker run IMAGE_PYTHON sh -c "commands"
+docker run IMAGE_PYTHON sh -c "pip install package && python script.py"
+```
+
 ## Requirements by Mode
 
 ### Layered Mode (Default)

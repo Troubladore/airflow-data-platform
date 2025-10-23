@@ -9,6 +9,27 @@ The PostgreSQL image serves as the database foundation for the platform, with th
 
 This image must support standard PostgreSQL operations while meeting corporate security, performance, and compliance requirements. The same base image can be configured differently for each use case.
 
+## Technical Requirements
+
+**Environment Variable**: `IMAGE_POSTGRES`
+**Default**: `postgres:17.5-alpine`
+
+### Minimum Requirements
+- PostgreSQL 17.5+
+- Standard PostgreSQL environment variable support (POSTGRES_USER, POSTGRES_PASSWORD, etc.)
+- `/docker-entrypoint-initdb.d/` script execution on first startup
+- Volume mounting capability for `/var/lib/postgresql/data`
+- Support for `POSTGRES_HOST_AUTH_METHOD` for password-less development
+
+### Platform Usage
+```bash
+# Standard with password:
+docker run -e POSTGRES_PASSWORD=pass IMAGE_POSTGRES
+
+# Password-less development mode:
+docker run -e POSTGRES_HOST_AUTH_METHOD=trust IMAGE_POSTGRES
+```
+
 ## Requirements
 
 ### Standard Requirements (All Images)

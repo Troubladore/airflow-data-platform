@@ -9,6 +9,26 @@ The Kerberos test image validates that your platform's Kerberos ticket sharing m
 
 This is a critical validation step ensuring your SQL Server connections will work across all platform services.
 
+## Technical Requirements
+
+**Environment Variable**: `IMAGE_KERBEROS_TEST`
+**Default**: Same as `IMAGE_PYTHON` (typically `python:3.11-alpine`)
+
+### Minimum Requirements
+- Python 3.11+
+- Shell: `/bin/sh` or `/bin/bash`
+- Volume mounting capability for `/krb5/cache`
+- Package manager (layered mode) or pre-installed krb5 (prebuilt mode)
+
+### Platform Usage
+```bash
+# Layered mode - installs krb5 at runtime:
+docker run IMAGE_KERBEROS_TEST sh -c "apk add krb5 && python /app/test.py"
+
+# Prebuilt mode - expects krb5 already installed:
+docker run IMAGE_KERBEROS_TEST sh -c "python /app/test.py"
+```
+
 ## Requirements by Mode
 
 ### Layered Mode (Default)
