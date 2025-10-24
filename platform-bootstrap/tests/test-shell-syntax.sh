@@ -38,6 +38,7 @@ CRITICAL_SCRIPTS=(
     "diagnostics/test-sql-simple.sh"
     "diagnostics/generate-diagnostic-context.sh"
     "dev-tools/run-kerberos-setup.sh"
+    "../kerberos/setup.sh"  # Main Kerberos setup script with corporate image prompts
 )
 
 echo "Validating critical scripts..."

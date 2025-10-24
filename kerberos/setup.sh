@@ -694,9 +694,9 @@ step_6_corporate_environment() {
         # IMAGE_PYTHON (for testing scripts)
         echo ""
         print_info "2. Python (for testing scripts):"
-        echo "   Public default:" python:3.11-alpine (from registry-1.docker.io)"
+        echo "   Public default: python:3.11-alpine (from registry-1.docker.io)"
         echo ""
-        echo "   Golden images:" You can substitute your organization's approved image"
+        echo "   Golden images: You can substitute your organization's approved image"
         echo "                   Examples: python:3.11-slim, chainguard/python:latest, etc."
         echo ""
         echo "   Corporate example:"
@@ -708,7 +708,7 @@ step_6_corporate_environment() {
         # IMAGE_MOCKSERVER (mock services)
         echo ""
         print_info "3. MockServer (for mock Delinea service):"
-        echo "   Public default:" mockserver/mockserver:latest (from registry-1.docker.io)"
+        echo "   Public default: mockserver/mockserver:latest (from registry-1.docker.io)"
         echo ""
         echo "   Corporate example:"
         echo "   artifactory.yourcompany.com/docker-remote/mockserver/mockserver:latest"
@@ -718,7 +718,7 @@ step_6_corporate_environment() {
         # IMAGE_ASTRONOMER (for when they create Airflow projects)
         echo ""
         print_info "4. Astronomer Runtime (for your Airflow projects):"
-        echo "   Public default:" quay.io/astronomer/astro-runtime:11.10.0"
+        echo "   Public default: quay.io/astronomer/astro-runtime:11.10.0"
         echo "                   (from quay.io registry)"
         echo ""
         echo "   Corporate example:"
@@ -732,7 +732,7 @@ step_6_corporate_environment() {
         echo "   Public default:"
         echo "   https://download.microsoft.com/download/3/5/5/355d7943-a338-41a7-858d-53b259ea33f5/"
         echo ""
-        echo "   Files:" msodbcsql18_18.3.2.1-1_amd64.apk"
+        echo "   Files: msodbcsql18_18.3.2.1-1_amd64.apk"
         echo "          mssql-tools18_18.3.1.1-1_amd64.apk"
         echo ""
         echo "   Corporate example:"
