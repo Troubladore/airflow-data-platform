@@ -98,6 +98,7 @@ SCRIPTS_TO_TEST=(
     "diagnostics/generate-diagnostic-context.sh"
     "dev-tools/run-kerberos-setup.sh"
     "kerberos-sidecar/scripts/check-build-requirements.sh"
+    "../kerberos/setup.sh"  # Main Kerberos setup with corporate image configuration
 )
 
 for script in "${SCRIPTS_TO_TEST[@]}"; do
