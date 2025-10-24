@@ -1,7 +1,7 @@
 #!/bin/bash
-# Test Corporate Environment Configuration
-# =========================================
-# Validates the interactive .env configuration feature for corporate environments
+# Test Custom Image Configuration
+# ================================
+# Validates the interactive .env configuration feature for custom image sources
 # Tests function existence, syntax, and .env manipulation logic
 
 set -e
@@ -49,10 +49,10 @@ test_result() {
 }
 
 echo ""
-print_header "Corporate Environment Configuration Tests"
+print_header "Custom Image Configuration Tests"
 echo ""
 echo "Testing the interactive .env configuration feature"
-echo "This validates proper handling of corporate image sources"
+echo "This validates proper handling of custom image sources"
 echo ""
 
 # Test both wizard versions - v2 is now the default
@@ -151,7 +151,7 @@ echo ""
 # Test 4: setup_infrastructure checks NEED_ARTIFACTORY
 # ==========================================
 
-print_info "Test 4: Custom/Corporate mode conditional logic"
+print_info "Test 4: Custom image mode conditional logic"
 echo ""
 
 if [[ "$WIZARD_SCRIPT" == *"wizard-v2.sh" ]]; then
@@ -350,13 +350,13 @@ if [ $TESTS_FAILED -gt 0 ]; then
     echo ""
     exit 1
 else
-    print_success "All corporate environment configuration tests passed!"
+    print_success "All custom image configuration tests passed!"
     echo ""
     echo "Validated:"
     echo "  ✓ Script syntax is valid"
     echo "  ✓ All required functions exist"
     echo "  ✓ sed uses URL-safe | delimiter"
-    echo "  ✓ Corporate mode checked via NEED_ARTIFACTORY"
+    echo "  ✓ Custom image mode checked via USE_CUSTOM_IMAGES/NEED_ARTIFACTORY"
     echo "  ✓ Configuration happens BEFORE docker pull"
     echo "  ✓ .env manipulation logic works correctly"
     echo "  ✓ Commented properties detected as missing"
