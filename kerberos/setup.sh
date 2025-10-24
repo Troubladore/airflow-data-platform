@@ -6,13 +6,27 @@
 
 set -e
 
-# Colors for output
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+# Find the platform root and source the formatting library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLATFORM_DIR="$(dirname "$SCRIPT_DIR")/platform-bootstrap"
+
+# Source the shared formatting library
+if [ -f "$PLATFORM_DIR/lib/formatting.sh" ]; then
+    source "$PLATFORM_DIR/lib/formatting.sh"
+else
+    # Fallback if library not found - define minimal formatting
+    echo "Warning: formatting library not found at $PLATFORM_DIR/lib/formatting.sh" >&2
+    GREEN='' RED='' YELLOW='' CYAN='' BLUE='' BOLD='' NC=''
+    CHECK_MARK="+" CROSS_MARK="x" WARNING_SIGN="!" INFO_SIGN="i"
+    print_header() { echo ""; echo "=== $1 ==="; echo ""; }
+    print_section() { echo ""; echo "--- $1 ---"; echo ""; }
+    print_check() { echo "[$1] $2"; }
+    print_success() { echo "+ $1"; }
+    print_error() { echo "x $1"; }
+    print_warning() { echo "! $1"; }
+    print_info() { echo "i $1"; }
+    print_divider() { echo "========================================"; }
+fi
 
 # Progress state file for resume capability
 STATE_FILE="/tmp/.kerberos-setup-state"
@@ -33,9 +47,9 @@ CORPORATE_ENV=false
 
 print_banner() {
     clear
-    echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║${NC}          ${BLUE}Kerberos Setup Wizard for Airflow Development${NC}         ${CYAN}║${NC}"
-    echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+    print_divider
+    echo "          Kerberos Setup Wizard for Airflow Development"
+    print_divider
     echo ""
 }
 
@@ -43,26 +57,15 @@ print_step() {
     local step_num=$1
     local step_desc=$2
     echo ""
-    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-    echo -e "${CYAN}Step ${step_num}/${TOTAL_STEPS}: ${step_desc}${NC}"
-    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-    echo ""
+    print_section "Step ${step_num}/${TOTAL_STEPS}: ${step_desc}"
 }
 
-print_success() {
-    echo -e "${GREEN}✓${NC} $1"
-}
+# print_success, print_error, print_warning, print_info are already in formatting.sh
+# No need to redefine them
 
-print_error() {
-    echo -e "${RED}✗${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}⚠${NC}  $1"
-}
-
-print_info() {
-    echo -e "${CYAN}ℹ${NC}  $1"
+print_command() {
+    # Print a command (indented for clarity)
+    echo "  $1"
 }
 
 save_state() {
@@ -143,7 +146,7 @@ step_1_prerequisites() {
         print_error "Not found"
         echo ""
         echo "  Kerberos tools are required. Install with:"
-        echo -e "  ${CYAN}sudo apt-get update && sudo apt-get install -y krb5-user${NC}"
+        print_command "sudo apt-get update && sudo apt-get install -y krb5-user"
         all_ok=false
     fi
 
@@ -160,9 +163,9 @@ step_1_prerequisites() {
             print_error "Not running"
             echo ""
             echo "  Start Docker with:"
-            echo -e "  ${CYAN}sudo systemctl start docker${NC}"
+            print_command "sudo systemctl start docker"
             echo "  or"
-            echo -e "  ${CYAN}sudo service docker start${NC}"
+            print_command "sudo service docker start"
             all_ok=false
         fi
     else
@@ -243,7 +246,7 @@ step_2_krb5_conf() {
         echo ""
         echo "  The file /etc/krb5.conf is required for Kerberos authentication."
         echo ""
-        echo -e "  ${YELLOW}Options:${NC}"
+        print_warning "Options:"
         echo "  1. Contact your IT department for the correct krb5.conf"
         echo "  2. Copy it from another working system"
         echo "  3. Use your organization's domain controller DNS to auto-configure"
@@ -307,7 +310,7 @@ step_3_test_kdc() {
             echo ""
             print_info "We'll verify in the next step by actually obtaining a ticket"
             echo ""
-            echo -e "  ${YELLOW}Possible solutions:${NC}"
+            print_warning "Possible solutions:"
             echo "  1. Connect to your corporate VPN"
             echo "  2. Check your network connection"
             echo "  3. Verify krb5.conf has correct KDC address"
@@ -406,7 +409,7 @@ step_4_kerberos_ticket() {
     fi
 
     echo ""
-    echo -e "Running: ${CYAN}kinit $principal${NC}"
+    print_info "Running: kinit $principal"
     echo ""
 
     if kinit "$principal"; then
@@ -424,7 +427,7 @@ step_4_kerberos_ticket() {
         echo ""
         print_error "Failed to obtain Kerberos ticket"
         echo ""
-        echo -e "  ${YELLOW}Possible issues:${NC}"
+        print_warning "Possible issues:"
         echo "  1. Incorrect password"
         echo "  2. Not connected to VPN"
         echo "  3. Username or domain is incorrect"
@@ -679,9 +682,9 @@ step_6_corporate_environment() {
         echo ""
 
         # IMAGE_ALPINE (for sidecar base + testing)
-        echo -e "${CYAN}1. Alpine Linux (sidecar base + diagnostic tests):${NC}"
-        echo "   ${YELLOW}Public default:${NC} alpine:3.19 (from registry-1.docker.io)"
-        echo "   ${YELLOW}Also pulls:${NC}     alpine:latest"
+        print_info "1. Alpine Linux (sidecar base + diagnostic tests):"
+        echo "   Public default: alpine:3.19 (from registry-1.docker.io)"
+        echo "   Also pulls:     alpine:latest"
         echo ""
         echo "   Corporate example:"
         echo "   artifactory.yourcompany.com/docker-remote/library/alpine:3.19"
@@ -690,10 +693,10 @@ step_6_corporate_environment() {
 
         # IMAGE_PYTHON (for testing scripts)
         echo ""
-        echo -e "${CYAN}2. Python (for testing scripts):${NC}"
-        echo "   ${YELLOW}Public default:${NC} python:3.11-alpine (from registry-1.docker.io)"
+        print_info "2. Python (for testing scripts):"
+        echo "   Public default:" python:3.11-alpine (from registry-1.docker.io)"
         echo ""
-        echo "   ${YELLOW}Golden images:${NC} You can substitute your organization's approved image"
+        echo "   Golden images:" You can substitute your organization's approved image"
         echo "                   Examples: python:3.11-slim, chainguard/python:latest, etc."
         echo ""
         echo "   Corporate example:"
@@ -704,8 +707,8 @@ step_6_corporate_environment() {
 
         # IMAGE_MOCKSERVER (mock services)
         echo ""
-        echo -e "${CYAN}3. MockServer (for mock Delinea service):${NC}"
-        echo "   ${YELLOW}Public default:${NC} mockserver/mockserver:latest (from registry-1.docker.io)"
+        print_info "3. MockServer (for mock Delinea service):"
+        echo "   Public default:" mockserver/mockserver:latest (from registry-1.docker.io)"
         echo ""
         echo "   Corporate example:"
         echo "   artifactory.yourcompany.com/docker-remote/mockserver/mockserver:latest"
@@ -714,8 +717,8 @@ step_6_corporate_environment() {
 
         # IMAGE_ASTRONOMER (for when they create Airflow projects)
         echo ""
-        echo -e "${CYAN}4. Astronomer Runtime (for your Airflow projects):${NC}"
-        echo "   ${YELLOW}Public default:${NC} quay.io/astronomer/astro-runtime:11.10.0"
+        print_info "4. Astronomer Runtime (for your Airflow projects):"
+        echo "   Public default:" quay.io/astronomer/astro-runtime:11.10.0"
         echo "                   (from quay.io registry)"
         echo ""
         echo "   Corporate example:"
@@ -725,11 +728,11 @@ step_6_corporate_environment() {
 
         # ODBC_DRIVER_URL (Microsoft binaries)
         echo ""
-        echo -e "${CYAN}5. Microsoft ODBC Drivers (binary downloads):${NC}"
-        echo -e "   ${YELLOW}Public default:${NC}"
+        print_info "5. Microsoft ODBC Drivers (binary downloads):"
+        echo "   Public default:"
         echo "   https://download.microsoft.com/download/3/5/5/355d7943-a338-41a7-858d-53b259ea33f5/"
         echo ""
-        echo "   ${YELLOW}Files:${NC} msodbcsql18_18.3.2.1-1_amd64.apk"
+        echo "   Files:" msodbcsql18_18.3.2.1-1_amd64.apk"
         echo "          mssql-tools18_18.3.1.1-1_amd64.apk"
         echo ""
         echo "   Corporate example:"
@@ -781,7 +784,7 @@ step_6_corporate_environment() {
         print_warning "IMPORTANT: Docker login required!"
         echo ""
         echo "Before building, you must authenticate to your Artifactory:"
-        echo -e "  ${CYAN}docker login artifactory.yourcompany.com${NC}"
+        print_command "docker login artifactory.yourcompany.com"
         echo ""
 
         if ask_yes_no "Have you already run docker login for your Artifactory?" "y"; then
@@ -790,7 +793,7 @@ step_6_corporate_environment() {
             echo ""
             print_info "Please login to Artifactory now:"
             echo ""
-            echo -e "  ${CYAN}docker login ${image_alpine%%/*}${NC}"
+            print_command "docker login ${image_alpine%%/*}"
             echo ""
             read -p "Press Enter after you've logged in..."
         fi
@@ -922,7 +925,7 @@ step_8_start_services() {
         print_error "Failed to start services"
         echo ""
         echo "  Check the logs with:"
-        echo -e "  ${CYAN}docker compose logs${NC}"
+        print_command "docker compose logs"
         return 1
     fi
 }
@@ -956,8 +959,8 @@ step_9_test_ticket_sharing() {
     local test_command=""
     if [ "$image_mode" = "prebuilt" ]; then
         # Prebuilt mode - assume krb5 is already installed
-        print_info "Using test image (prebuilt mode): ${CYAN}$test_image${NC}"
-        echo -e "  Mode: Prebuilt - expecting krb5 pre-installed"
+        print_info "Using test image (prebuilt mode): $test_image"
+        echo "  Mode: Prebuilt - expecting krb5 pre-installed"
         test_command="python /app/test.py"
     else
         # Layered mode - install packages at runtime
@@ -969,8 +972,8 @@ step_9_test_ticket_sharing() {
             install_cmd="apk add --no-cache krb5"  # Wolfi uses apk
         fi
 
-        print_info "Using test image (layered mode): ${CYAN}$test_image${NC}"
-        echo -e "  Package install: $install_cmd"
+        print_info "Using test image (layered mode): $test_image"
+        echo "  Package install: $install_cmd"
         test_command="$install_cmd >/dev/null 2>&1 && python /app/test.py"
     fi
     echo ""
@@ -999,14 +1002,14 @@ step_9_test_ticket_sharing() {
         # Smart failure analysis
         local test_output=$(cat /tmp/kerberos-test-output.txt 2>/dev/null || echo "")
 
-        echo -e "${BLUE}Analyzing failure...${NC}"
+        print_info "Analyzing failure..."
         echo ""
 
         # Check 1: Is sidecar even running?
         if ! docker ps --format "{{.Names}}" | grep -q "kerberos-platform-service"; then
             print_error "ROOT CAUSE: Kerberos sidecar is NOT running"
             echo ""
-            echo -e "${BLUE}FIX:${NC}"
+            print_info "FIX:"
             echo "  Sidecar failed to start in Step 9. Check logs:"
             echo "    ${CYAN}docker compose logs developer-kerberos-service${NC}"
 
@@ -1019,15 +1022,15 @@ step_9_test_ticket_sharing() {
             if docker exec kerberos-platform-service klist -s 2>/dev/null; then
                 print_warning "Sidecar HAS ticket, but not sharing it"
                 echo ""
-                echo -e "${BLUE}FIX:${NC}"
+                print_info "FIX:"
                 echo "  Check what's in volume:"
                 echo "    ${CYAN}docker exec kerberos-platform-service ls -la /krb5/cache/${NC}"
             else
                 print_error "Sidecar does NOT have ticket"
                 echo ""
-                echo -e "${BLUE}FIX:${NC}"
+                print_info "FIX:"
                 echo -e "  Sidecar can't obtain tickets. Check logs:"
-                echo -e "    ${CYAN}docker logs kerberos-platform-service --tail 30${NC}"
+                print_command "docker logs kerberos-platform-service --tail 30"
                 echo ""
                 echo -e "  Common causes:"
                 echo -e "    - Wrong ticket path in .env (KERBEROS_TICKET_DIR)"
@@ -1230,60 +1233,57 @@ step_11_test_sql_via_sidecar() {
 
 show_summary() {
     print_banner
-    echo -e "${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║${NC}                    ${GREEN}Setup Complete!${NC}                             ${GREEN}║${NC}"
-    echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}"
+    print_success "Setup Complete!"
+    print_divider
     echo ""
 
-    echo -e "${CYAN}Configuration Summary:${NC}"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    print_header "Configuration Summary"
 
     # Show configuration
     if [ -f "$PLATFORM_DIR/.env" ]; then
         grep -E "^(COMPANY_DOMAIN|KERBEROS_TICKET_DIR)=" "$PLATFORM_DIR/.env" 2>/dev/null | sed 's/^/  /' || echo "  (configuration not found)"
     fi
 
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    print_divider
     echo ""
 
-    echo -e "${CYAN}Running Services:${NC}"
+    print_header "Running Services"
     docker compose ps 2>/dev/null | sed 's/^/  /'
     echo ""
 
-    echo -e "${CYAN}What's Next:${NC}"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    print_header "What's Next"
     echo ""
-    echo -e "  1. ${GREEN}Create or start your Airflow project:${NC}"
-    echo -e "     ${CYAN}astro dev init my-project${NC}    # New project"
-    echo -e "     ${CYAN}cd my-project && astro dev start${NC}"
+    echo "  1. Create or start your Airflow project:"
+    print_command "astro dev init my-project    # New project"
+    print_command "cd my-project && astro dev start"
     echo ""
-    echo -e "  2. ${GREEN}Your Airflow containers will automatically have access to:${NC}"
+    echo "  2. Your Airflow containers will automatically have access to:"
     echo "     • Kerberos tickets (for SQL Server authentication)"
     echo "     • Shared network (platform_network)"
     echo ""
-    echo -e "  3. ${GREEN}Useful commands:${NC}"
-    echo -e "     ${CYAN}make platform-status${NC}       # Check service status"
-    echo -e "     ${CYAN}make kerberos-test${NC}         # Verify Kerberos ticket"
-    echo -e "     ${CYAN}make test-kerberos-simple${NC}  # Test ticket sharing"
-    echo -e "     ${CYAN}docker compose logs${NC}        # View service logs"
+    echo "  3. Useful commands:"
+    print_command "make platform-status       # Check service status"
+    print_command "make kerberos-test         # Verify Kerberos ticket"
+    print_command "make test-kerberos-simple  # Test ticket sharing"
+    print_command "docker compose logs        # View service logs"
     echo ""
-    echo -e "  4. ${GREEN}Managing Kerberos tickets:${NC}"
-    echo -e "     ${CYAN}klist${NC}                      # Check ticket status"
-    echo -e "     ${CYAN}kinit $DETECTED_USERNAME@$DETECTED_DOMAIN${NC}  # Renew ticket"
-    echo -e "     ${CYAN}./diagnostics/diagnose-kerberos.sh${NC}  # Troubleshoot issues"
+    echo "  4. Managing Kerberos tickets:"
+    print_command "klist                      # Check ticket status"
+    print_command "kinit $DETECTED_USERNAME@$DETECTED_DOMAIN  # Renew ticket"
+    print_command "./diagnostics/diagnose-kerberos.sh  # Troubleshoot issues"
     echo ""
-    echo -e "  5. ${GREEN}When done for the day:${NC}"
-    echo -e "     ${CYAN}make platform-stop${NC}         # Stop all services"
+    echo "  5. When done for the day:"
+    print_command "make platform-stop         # Stop all services"
     echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    print_divider
     echo ""
 
     if [ -n "$DETECTED_DOMAIN" ]; then
-        print_info "Your domain: ${CYAN}$DETECTED_DOMAIN${NC}"
+        print_info "Your domain: $DETECTED_DOMAIN"
     fi
 
     if [ -n "$DETECTED_USERNAME" ]; then
-        print_info "Your username: ${CYAN}$DETECTED_USERNAME${NC}"
+        print_info "Your username: $DETECTED_USERNAME"
     fi
 
     echo ""

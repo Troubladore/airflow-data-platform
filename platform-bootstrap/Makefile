@@ -35,7 +35,10 @@ help: ## Show this help message
 # Installation & Setup
 # ==========================================
 
-setup: ## Run comprehensive platform setup wizard (recommended for first-time setup)
+setup: ## Run streamlined platform setup wizard V2 (asks all questions upfront)
+	@./setup-scripts/platform-setup-wizard-v2.sh
+
+setup-original: ## Run original platform setup wizard (legacy version)
 	@./setup-scripts/platform-setup-wizard.sh
 
 setup-pagila: ## Setup pagila test database (idempotent)

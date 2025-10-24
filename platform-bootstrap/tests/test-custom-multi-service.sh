@@ -1,7 +1,7 @@
 #!/bin/bash
-# Test Corporate Configuration for Multiple Services
-# ====================================================
-# Validates that corporate mode configures ALL services' Docker images
+# Test Custom Configuration for Multiple Services
+# ================================================
+# Validates that custom image mode configures ALL services' Docker images
 # Tests that missing properties trigger review of ALL settings
 
 set -e

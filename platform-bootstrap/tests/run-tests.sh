@@ -107,7 +107,8 @@ print_section "5. COMPOSABLE ARCHITECTURE"
 
 run_test_section "  Architecture pattern" "$SCRIPT_DIR/test-composable-architecture.sh"
 run_test_section "  OpenMetadata setup" "$SCRIPT_DIR/test-openmetadata-setup.sh"
-run_test_section "  Corporate env config" "$SCRIPT_DIR/test-corporate-env-config.sh"
+run_test_section "  Custom image config" "$SCRIPT_DIR/test-custom-image-config.sh"
+run_test_section "  Image mode behavior" "$SCRIPT_DIR/test-image-mode-behavior.sh"
 
 echo ""
 
