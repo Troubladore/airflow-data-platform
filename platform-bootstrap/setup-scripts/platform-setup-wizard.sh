@@ -264,20 +264,30 @@ configure_env_property() {
     echo ""
     echo "$property"
     echo "  Description: $description"
-    echo "  Current: ${current_value:-[not set]}"
+
+    # Check if this appears to be a custom/corporate registry path
+    if [[ "$current_value" == *"artifactory"* ]] || [[ "$current_value" == *"company"* ]] || [[ "$current_value" == *"corp"* ]]; then
+        print_success "  Saved value: $current_value"
+    else
+        echo "  Current: ${current_value:-[not set]}"
+    fi
+
     echo ""
     read -p "  New value (press Enter to keep current): " new_value
 
     if [ -n "$new_value" ]; then
         # Update the value using | delimiter to avoid sed issues with URLs
-        if grep -q "^${property}=" "$env_file" 2>/dev/null; then
-            sed -i "s|^${property}=.*|${property}=${new_value}|" "$env_file"
+        # First check if property exists (commented or uncommented)
+        if grep -q "^#*${property}=" "$env_file" 2>/dev/null; then
+            # Replace both commented and uncommented versions
+            sed -i "s|^#*${property}=.*|${property}=${new_value}|" "$env_file"
         else
+            # Property doesn't exist at all, add it
             echo "${property}=${new_value}" >> "$env_file"
         fi
         print_success "Updated: $property=$new_value"
     else
-        print_info "Kept: $property=$current_value"
+        print_success "Keeping saved value: $current_value"
     fi
 }
 
@@ -332,18 +342,27 @@ configure_infrastructure_env_interactive() {
         configure_infrastructure_env_prompts "$env_file"
     else
         # All properties defined - but in corporate mode, still offer review
-        print_info "Current Docker image configuration:"
+        print_success "Found existing custom image configuration!"
+        echo ""
+        print_info "Your previously saved Docker image settings:"
         echo ""
         # Show current settings
         source "$env_file" 2>/dev/null || true
+        # Also check for commented values if uncommented ones don't exist
+        if [ -z "$IMAGE_POSTGRES" ]; then
+            # Try to extract from commented line
+            IMAGE_POSTGRES=$(grep "^#IMAGE_POSTGRES=" "$env_file" 2>/dev/null | cut -d= -f2-)
+        fi
         echo "  IMAGE_POSTGRES=${IMAGE_POSTGRES:-[not set]}"
         echo ""
 
         if ask_yes_no "Do you want to review/update these corporate registry settings?"; then
+            echo ""
+            print_info "Showing your saved values - press Enter to keep them"
             # Prompt for ALL properties
             configure_infrastructure_env_prompts "$env_file"
         else
-            print_info "Using existing configuration"
+            print_success "Keeping your existing custom image configuration"
         fi
     fi
 }
@@ -352,8 +371,14 @@ configure_infrastructure_env_interactive() {
 configure_infrastructure_env_prompts() {
     local env_file="$1"
 
-    # Load current values
+    # Load current values (uncommented lines)
     source "$env_file" 2>/dev/null || true
+
+    # Also check for commented values if uncommented ones don't exist
+    if [ -z "$IMAGE_POSTGRES" ]; then
+        # Try to extract from commented line
+        IMAGE_POSTGRES=$(grep "^#IMAGE_POSTGRES=" "$env_file" 2>/dev/null | cut -d= -f2-)
+    fi
 
     echo ""
     print_info "Configure ALL Docker image sources for corporate environment"
@@ -417,19 +442,32 @@ configure_openmetadata_env_interactive() {
         configure_openmetadata_env_prompts "$env_file"
     else
         # All properties defined - but in corporate mode, still offer review
-        print_info "Current Docker image configuration:"
+        print_success "Found existing custom image configuration!"
+        echo ""
+        print_info "Your previously saved Docker image settings:"
         echo ""
         # Show current settings
         source "$env_file" 2>/dev/null || true
+        # Also check for commented values if uncommented ones don't exist
+        if [ -z "$IMAGE_OPENMETADATA_SERVER" ]; then
+            # Try to extract from commented line
+            IMAGE_OPENMETADATA_SERVER=$(grep "^#IMAGE_OPENMETADATA_SERVER=" "$env_file" 2>/dev/null | cut -d= -f2-)
+        fi
+        if [ -z "$IMAGE_OPENSEARCH" ]; then
+            # Try to extract from commented line
+            IMAGE_OPENSEARCH=$(grep "^#IMAGE_OPENSEARCH=" "$env_file" 2>/dev/null | cut -d= -f2-)
+        fi
         echo "  IMAGE_OPENMETADATA_SERVER=${IMAGE_OPENMETADATA_SERVER:-[not set]}"
         echo "  IMAGE_OPENSEARCH=${IMAGE_OPENSEARCH:-[not set]}"
         echo ""
 
         if ask_yes_no "Do you want to review/update these corporate registry settings?"; then
+            echo ""
+            print_info "Showing your saved values - press Enter to keep them"
             # Prompt for ALL properties
             configure_openmetadata_env_prompts "$env_file"
         else
-            print_info "Using existing configuration"
+            print_success "Keeping your existing custom image configuration"
         fi
     fi
 }
@@ -438,8 +476,18 @@ configure_openmetadata_env_interactive() {
 configure_openmetadata_env_prompts() {
     local env_file="$1"
 
-    # Load current values
+    # Load current values (uncommented lines)
     source "$env_file" 2>/dev/null || true
+
+    # Also check for commented values if uncommented ones don't exist
+    if [ -z "$IMAGE_OPENMETADATA_SERVER" ]; then
+        # Try to extract from commented line
+        IMAGE_OPENMETADATA_SERVER=$(grep "^#IMAGE_OPENMETADATA_SERVER=" "$env_file" 2>/dev/null | cut -d= -f2-)
+    fi
+    if [ -z "$IMAGE_OPENSEARCH" ]; then
+        # Try to extract from commented line
+        IMAGE_OPENSEARCH=$(grep "^#IMAGE_OPENSEARCH=" "$env_file" 2>/dev/null | cut -d= -f2-)
+    fi
 
     echo ""
     print_info "Configure ALL Docker image sources for OpenMetadata"
