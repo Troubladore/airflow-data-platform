@@ -1,0 +1,55 @@
+service: openmetadata
+version: "1.0"
+description: "OpenMetadata teardown"
+requires: []
+
+steps:
+  - id: openmetadata_teardown_confirm
+    type: boolean
+    prompt: "Are you sure you want to tear down OpenMetadata? (y/n):"
+    state_key: services.openmetadata.teardown.confirm
+    default_value: false
+    next:
+      when_value:
+        true: stop_service
+        false: finish
+
+  - id: stop_service
+    type: action
+    action: openmetadata.stop_service
+    next: openmetadata_remove_volumes
+
+  - id: openmetadata_remove_volumes
+    type: boolean
+    prompt: "Remove OpenMetadata data volumes? (y/n):"
+    state_key: services.openmetadata.teardown.remove_volumes
+    default_value: false
+    next:
+      when_value:
+        true: remove_volumes_action
+        false: openmetadata_remove_images
+
+  - id: remove_volumes_action
+    type: action
+    action: openmetadata.remove_volumes
+    next: openmetadata_remove_images
+
+  - id: openmetadata_remove_images
+    type: boolean
+    prompt: "Remove OpenMetadata Docker images? (y/n):"
+    state_key: services.openmetadata.teardown.remove_images
+    default_value: false
+    next:
+      when_value:
+        true: remove_images_action
+        false: clean_config
+
+  - id: remove_images_action
+    type: action
+    action: openmetadata.remove_images
+    next: clean_config
+
+  - id: clean_config
+    type: action
+    action: openmetadata.clean_config
+    next: finish

@@ -1,0 +1,73 @@
+service: postgres
+version: 1.0
+description: "PostgreSQL database configuration"
+requires: []
+provides:
+  - db.postgres
+
+steps:
+  - id: postgres_image
+    type: string
+    prompt: "PostgreSQL image [{current_value}]:"
+    state_key: services.postgres.image
+    default_from: services.postgres.image
+    default_value: postgres:17.5-alpine
+    validator: postgres.validate_image_url
+    next:
+      when_changed: postgres_prebuilt
+      when_unchanged: postgres_auth
+
+  - id: postgres_prebuilt
+    type: boolean
+    prompt: "Use prebuilt image? (y/n):"
+    state_key: services.postgres.prebuilt
+    default_value: false
+    next: postgres_auth
+
+  - id: postgres_auth
+    type: enum
+    prompt: "PostgreSQL authentication method:"
+    state_key: services.postgres.auth_method
+    default_value: md5
+    options:
+      - value: md5
+        label: "MD5 password authentication"
+      - value: trust
+        label: "Trust (no password)"
+      - value: scram-sha-256
+        label: "SCRAM-SHA-256 (most secure)"
+    next:
+      when_value:
+        md5: postgres_password
+        scram-sha-256: postgres_password
+        trust: postgres_port
+
+  - id: postgres_password
+    type: string
+    prompt: "PostgreSQL password:"
+    state_key: services.postgres.password
+    default_value: changeme
+    next: postgres_port
+
+  - id: postgres_port
+    type: integer
+    prompt: "PostgreSQL port [5432]:"
+    state_key: services.postgres.port
+    default_value: 5432
+    validator: postgres.validate_port
+    next: postgres_save
+
+  - id: postgres_save
+    type: action
+    action: postgres.save_config
+    next: postgres_init
+
+  - id: postgres_init
+    type: action
+    action: postgres.init_database
+    next: postgres_start
+
+  - id: postgres_start
+    type: action
+    action: postgres.start_service
+    next: finish

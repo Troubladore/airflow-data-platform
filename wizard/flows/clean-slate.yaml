@@ -1,0 +1,49 @@
+name: clean-slate
+version: "1.0"
+description: "Clean-slate wizard - orchestrates service teardown"
+
+# Service selection - which services to tear down
+service_selection:
+  - id: select_teardown_services
+    type: multi_select
+    prompt: "Select services to tear down:"
+    state_key: teardown_selections
+    options:
+      - value: postgres
+        label: "PostgreSQL - Database"
+      - value: openmetadata
+        label: "OpenMetadata - Data catalog"
+      - value: kerberos
+        label: "Kerberos - Authentication"
+      - value: pagila
+        label: "Pagila - Sample database"
+
+# Services to tear down (CRITICAL: reverse topological ordering)
+# Dependents MUST tear down BEFORE their dependencies
+targets:
+  - service: pagila
+    teardown: true
+    enabled: false
+    depends_on:
+      - postgres  # Pagila depends on postgres, so tears down BEFORE it
+
+  - service: openmetadata
+    teardown: true
+    enabled: false
+    depends_on:
+      - postgres  # OpenMetadata depends on postgres, so tears down BEFORE it
+
+  - service: kerberos
+    teardown: true
+    enabled: false
+    depends_on: []
+
+  - service: postgres
+    teardown: true
+    enabled: false
+    depends_on: []  # Postgres torn down LAST (no dependencies in teardown)
+
+# Execution policy
+policy:
+  ordering: reverse-topological  # Teardown order is REVERSE of setup
+  on_failure: abort

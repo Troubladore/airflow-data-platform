@@ -1,0 +1,26 @@
+service: pagila
+version: 1.0
+description: "Pagila sample database for PostgreSQL"
+requires:
+  - db.postgres
+provides:
+  - sample.pagila
+
+steps:
+  - id: pagila_repo_url
+    type: string
+    prompt: "Pagila repository URL:"
+    state_key: services.pagila.repo_url
+    default_value: https://github.com/devrimgunduz/pagila.git
+    validator: pagila.validate_git_url
+    next: pagila_save
+
+  - id: pagila_save
+    type: action
+    action: pagila.save_config
+    next: pagila_install
+
+  - id: pagila_install
+    type: action
+    action: pagila.install_pagila
+    next: finish

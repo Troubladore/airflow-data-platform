@@ -1,0 +1,33 @@
+service: kerberos
+version: "1.0"
+description: "Kerberos authentication service setup"
+
+provides:
+  - kerberos
+
+requires: []
+
+steps:
+  - id: domain_input
+    type: string
+    state_key: services.kerberos.domain
+    prompt: "Enter Kerberos domain (e.g., COMPANY.COM):"
+    validator: kerberos.validate_domain
+    next: image_input
+
+  - id: image_input
+    type: string
+    state_key: services.kerberos.image
+    prompt: "Enter Docker image for Kerberos (e.g., ubuntu:22.04):"
+    validator: kerberos.validate_image_url
+    next: test_kerberos_action
+
+  - id: test_kerberos_action
+    type: action
+    action: kerberos.test_kerberos
+    next: save_config_action
+
+  - id: save_config_action
+    type: action
+    action: kerberos.save_config
+    next: finish

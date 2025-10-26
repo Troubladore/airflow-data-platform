@@ -1,0 +1,42 @@
+name: setup
+version: "1.0"
+description: "Platform setup wizard - orchestrates service installation"
+
+# Service selection - which services to enable
+service_selection:
+  - id: select_services
+    type: multi_select
+    prompt: "Select services to install (space-separated):"
+    state_key: selected_services
+    options:
+      - value: openmetadata
+        label: "OpenMetadata - Data catalog"
+      - value: kerberos
+        label: "Kerberos - Authentication"
+      - value: pagila
+        label: "Pagila - Sample database"
+
+# Services to orchestrate (postgres always enabled)
+targets:
+  - service: postgres
+    enabled: true
+    depends_on: []
+
+  - service: openmetadata
+    enabled: false
+    depends_on:
+      - postgres
+
+  - service: kerberos
+    enabled: false
+    depends_on: []
+
+  - service: pagila
+    enabled: false
+    depends_on:
+      - postgres
+
+# Execution policy
+policy:
+  ordering: topological
+  on_failure: abort
