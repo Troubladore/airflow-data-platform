@@ -35,7 +35,24 @@ help: ## Show this help message
 # Installation & Setup
 # ==========================================
 
-setup: ## Run streamlined platform setup wizard V2 (asks all questions upfront)
+# Get repository root (one level up from platform-bootstrap)
+REPO_ROOT := $(shell cd .. && pwd)
+
+# Helper to ensure Python environment is ready
+_ensure-python-env:
+	@if ! command -v uv &> /dev/null; then \
+		echo "Error: uv not installed. Install from https://github.com/astral-sh/uv"; \
+		exit 1; \
+	fi
+	@if [ ! -d "$(REPO_ROOT)/.venv" ]; then \
+		echo "Setting up Python environment..."; \
+		cd $(REPO_ROOT) && uv sync; \
+	fi
+
+setup: _ensure-python-env ## Run platform configuration wizard (data-driven)
+	@cd $(REPO_ROOT) && ./platform setup
+
+setup-v2: ## Run streamlined platform setup wizard V2 (asks all questions upfront)
 	@./setup-scripts/platform-setup-wizard-v2.sh
 
 setup-original: ## Run original platform setup wizard (legacy version)
@@ -256,7 +273,10 @@ clean: platform-stop ## Clean up all platform services (interactive - asks about
 	@echo "Cleaning up platform services..."
 	@echo "1" | ./setup-scripts/clean-slate.sh || true
 
-clean-slate: ## Interactive cleanup (guided prompts for all components)
+clean-slate: _ensure-python-env ## Interactive cleanup (data-driven wizard)
+	@cd $(REPO_ROOT) && ./platform clean-slate
+
+clean-slate-original: ## Interactive cleanup (original shell script version)
 	@./setup-scripts/clean-slate.sh
 
 clean-all: clean-openmetadata clean-pagila clean-kerberos ## Remove all platform components and volumes

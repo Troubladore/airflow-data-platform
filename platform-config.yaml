@@ -1,0 +1,7 @@
+services:
+  postgres:
+    auth_method: md5
+    enabled: true
+    image: postgres:17.5-alpine
+    password: changeme
+    prebuilt: false

@@ -1,0 +1,611 @@
+#!/usr/bin/env python3
+"""
+Tests for platform CLI wrapper - RED phase of TDD.
+
+This test suite validates the CLI wrapper script that provides the user interface
+to the wizard engine. The platform script should be the single entry point for
+users to run setup and clean-slate operations.
+
+Test philosophy:
+- Test the CLI script's integration with wizard engine
+- Verify script existence, permissions, and basic invocation
+- Test subprocess execution to validate real CLI behavior
+- Validate formatting library integration
+- Ensure proper error handling and exit codes
+
+These tests should FAIL initially (RED phase) because the platform script
+doesn't exist yet or doesn't integrate with the wizard engine.
+"""
+
+import unittest
+import subprocess
+import os
+import sys
+from pathlib import Path
+from unittest.mock import patch, MagicMock, call
+import tempfile
+import shutil
+
+# Add parent directory to path to import wizard module
+REPO_ROOT = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+PLATFORM_SCRIPT_PATH = REPO_ROOT / "platform"
+FORMATTING_LIB_PATH = REPO_ROOT / "platform-bootstrap" / "lib" / "formatting.sh"
+
+
+class TestPlatformScriptExists(unittest.TestCase):
+    """Tests for platform script file existence and permissions."""
+
+    def test_platform_script_exists(self):
+        """The ./platform script should exist at repository root."""
+        self.assertTrue(
+            PLATFORM_SCRIPT_PATH.exists(),
+            f"Platform script should exist at {PLATFORM_SCRIPT_PATH}"
+        )
+
+    def test_platform_script_is_file(self):
+        """The ./platform should be a regular file, not a directory."""
+        if PLATFORM_SCRIPT_PATH.exists():
+            self.assertTrue(
+                PLATFORM_SCRIPT_PATH.is_file(),
+                f"{PLATFORM_SCRIPT_PATH} should be a file, not a directory"
+            )
+
+    def test_platform_script_is_executable(self):
+        """The ./platform script should have execute permissions."""
+        if PLATFORM_SCRIPT_PATH.exists():
+            # Check if file has executable bit set for user
+            is_executable = os.access(PLATFORM_SCRIPT_PATH, os.X_OK)
+            self.assertTrue(
+                is_executable,
+                f"{PLATFORM_SCRIPT_PATH} should have execute permissions"
+            )
+
+    def test_platform_script_has_shebang(self):
+        """The ./platform script should start with #!/bin/bash shebang."""
+        if PLATFORM_SCRIPT_PATH.exists():
+            with open(PLATFORM_SCRIPT_PATH, 'r') as f:
+                first_line = f.readline().strip()
+                self.assertTrue(
+                    first_line.startswith('#!/'),
+                    f"Platform script should start with shebang, got: {first_line}"
+                )
+
+
+class TestPlatformScriptSubcommands(unittest.TestCase):
+    """Tests for platform script subcommand recognition."""
+
+    def test_platform_setup_subcommand_exists(self):
+        """The ./platform setup command should be recognized."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        result = subprocess.run(
+            [str(PLATFORM_SCRIPT_PATH), "setup", "--help"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        # Should not show "unknown command" or similar error
+        self.assertNotIn(
+            "unknown",
+            result.stderr.lower(),
+            "setup subcommand should be recognized"
+        )
+
+    def test_platform_clean_slate_subcommand_exists(self):
+        """The ./platform clean-slate command should be recognized."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        result = subprocess.run(
+            [str(PLATFORM_SCRIPT_PATH), "clean-slate", "--help"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        # Should not show "unknown command" or similar error
+        self.assertNotIn(
+            "unknown",
+            result.stderr.lower(),
+            "clean-slate subcommand should be recognized"
+        )
+
+    def test_platform_no_subcommand_shows_usage(self):
+        """Running ./platform without subcommand should show usage message."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        result = subprocess.run(
+            [str(PLATFORM_SCRIPT_PATH)],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        # Should show usage information
+        output = result.stdout + result.stderr
+        self.assertTrue(
+            "usage" in output.lower() or "setup" in output.lower(),
+            "Should show usage information when no subcommand provided"
+        )
+
+    def test_platform_invalid_subcommand_shows_error(self):
+        """Running ./platform with invalid subcommand should show error."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        result = subprocess.run(
+            [str(PLATFORM_SCRIPT_PATH), "invalid-command"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        # Should exit with non-zero code
+        self.assertNotEqual(
+            result.returncode,
+            0,
+            "Invalid subcommand should return non-zero exit code"
+        )
+
+
+class TestSetupFlowIntegration(unittest.TestCase):
+    """Tests for setup flow integration with wizard engine."""
+
+    @patch('wizard.engine.engine.WizardEngine')
+    @patch('wizard.engine.runner.RealActionRunner')
+    @patch('wizard.engine.loader.SpecLoader')
+    def test_setup_loads_wizard_engine(self, mock_loader, mock_runner, mock_engine):
+        """The setup command should create a WizardEngine instance."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        # This test will need to be implemented once we understand
+        # how to inject mocks into the shell script execution
+        # For now, we document the expected behavior
+        self.fail(
+            "RED: Platform script should instantiate WizardEngine "
+            "when running setup command"
+        )
+
+    def test_setup_uses_setup_flow_yaml(self):
+        """The setup command should load flows/setup.yaml."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        # Verify that setup.yaml exists and would be used
+        setup_flow = REPO_ROOT / "wizard" / "flows" / "setup.yaml"
+        self.assertTrue(
+            setup_flow.exists(),
+            "setup.yaml should exist for platform setup command"
+        )
+
+        # The CLI should reference or use this file
+        self.fail(
+            "RED: Platform setup command should load flows/setup.yaml"
+        )
+
+    def test_setup_uses_real_action_runner(self):
+        """The setup command should use RealActionRunner, not Mock."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should instantiate RealActionRunner "
+            "for actual system operations"
+        )
+
+    def test_setup_executes_flow(self):
+        """The setup command should call engine.execute_flow()."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should call engine.execute_flow('setup')"
+        )
+
+    def test_setup_handles_user_input(self):
+        """The setup command should accept interactive user input."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        # Test with simulated stdin
+        self.fail(
+            "RED: Platform setup should accept and process user input "
+            "for wizard questions"
+        )
+
+    def test_setup_saves_platform_config(self):
+        """The setup command should create platform-config.yaml."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Run setup in temp directory
+            self.fail(
+                "RED: Platform setup should save configuration to "
+                "platform-config.yaml"
+            )
+
+    def test_setup_accepts_headless_mode(self):
+        """The setup command should support headless mode for automation."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should accept --headless flag or "
+            "environment variable for non-interactive execution"
+        )
+
+
+class TestCleanSlateFlowIntegration(unittest.TestCase):
+    """Tests for clean-slate flow integration with wizard engine."""
+
+    def test_clean_slate_loads_wizard_engine(self):
+        """The clean-slate command should create a WizardEngine instance."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform clean-slate should instantiate WizardEngine"
+        )
+
+    def test_clean_slate_uses_clean_slate_flow_yaml(self):
+        """The clean-slate command should load flows/clean-slate.yaml."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        # Verify that clean-slate.yaml exists
+        clean_slate_flow = REPO_ROOT / "wizard" / "flows" / "clean-slate.yaml"
+        self.assertTrue(
+            clean_slate_flow.exists(),
+            "clean-slate.yaml should exist for platform clean-slate command"
+        )
+
+        self.fail(
+            "RED: Platform clean-slate command should load flows/clean-slate.yaml"
+        )
+
+    def test_clean_slate_uses_real_action_runner(self):
+        """The clean-slate command should use RealActionRunner."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform clean-slate should use RealActionRunner"
+        )
+
+    def test_clean_slate_executes_flow(self):
+        """The clean-slate command should call engine.execute_flow()."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform clean-slate should call engine.execute_flow('clean-slate')"
+        )
+
+    def test_clean_slate_handles_user_input(self):
+        """The clean-slate command should accept interactive user input."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform clean-slate should accept user input for "
+            "service selection"
+        )
+
+
+class TestFormattingLibraryIntegration(unittest.TestCase):
+    """Tests for formatting.sh library integration."""
+
+    def test_formatting_library_exists(self):
+        """The formatting.sh library should exist."""
+        self.assertTrue(
+            FORMATTING_LIB_PATH.exists(),
+            f"Formatting library should exist at {FORMATTING_LIB_PATH}"
+        )
+
+    def test_setup_sources_formatting_library(self):
+        """The platform setup command should source formatting.sh."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        with open(PLATFORM_SCRIPT_PATH, 'r') as f:
+            script_content = f.read()
+            self.assertIn(
+                "formatting.sh",
+                script_content,
+                "Platform script should source formatting.sh"
+            )
+
+    def test_setup_uses_print_header(self):
+        """The platform setup should use print_header for sections."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should call print_header to display "
+            "section headers"
+        )
+
+    def test_setup_uses_print_check(self):
+        """The platform setup should use print_check for status messages."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should call print_check to display "
+            "validation results"
+        )
+
+    def test_clean_slate_sources_formatting_library(self):
+        """The platform clean-slate command should source formatting.sh."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        with open(PLATFORM_SCRIPT_PATH, 'r') as f:
+            script_content = f.read()
+            # Should be sourced once at the top, used by all subcommands
+            self.assertIn(
+                "formatting.sh",
+                script_content,
+                "Platform script should source formatting.sh"
+            )
+
+    def test_clean_slate_uses_print_header(self):
+        """The platform clean-slate should use print_header."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform clean-slate should call print_header"
+        )
+
+
+class TestErrorHandling(unittest.TestCase):
+    """Tests for error handling and exit codes."""
+
+    def test_setup_exits_zero_on_success(self):
+        """The setup command should exit with code 0 on success."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should exit with code 0 when "
+            "wizard completes successfully"
+        )
+
+    def test_setup_exits_nonzero_on_error(self):
+        """The setup command should exit with non-zero code on error."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should exit with non-zero code when "
+            "wizard encounters errors"
+        )
+
+    def test_setup_shows_error_message_on_failure(self):
+        """The setup command should display error messages on failure."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should call print_error when failures occur"
+        )
+
+    def test_clean_slate_exits_zero_on_success(self):
+        """The clean-slate command should exit with code 0 on success."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform clean-slate should exit with code 0 on success"
+        )
+
+    def test_clean_slate_exits_nonzero_on_error(self):
+        """The clean-slate command should exit with non-zero code on error."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform clean-slate should exit with non-zero code on error"
+        )
+
+    def test_setup_handles_python_import_errors(self):
+        """The setup command should handle missing Python dependencies."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should check for Python dependencies "
+            "and show helpful error if missing"
+        )
+
+    def test_setup_handles_missing_flow_files(self):
+        """The setup command should handle missing flow YAML files."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should detect missing flow files "
+            "and show clear error message"
+        )
+
+
+class TestPythonIntegration(unittest.TestCase):
+    """Tests for Python module integration."""
+
+    def test_platform_script_imports_wizard_module(self):
+        """The platform script should import the wizard Python module."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform script should import wizard module using "
+            "python3 -c or similar mechanism"
+        )
+
+    def test_platform_script_imports_wizard_engine(self):
+        """The platform script should import WizardEngine."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform script should import WizardEngine from "
+            "wizard.engine.engine"
+        )
+
+    def test_platform_script_imports_real_action_runner(self):
+        """The platform script should import RealActionRunner."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform script should import RealActionRunner from "
+            "wizard.engine.runner"
+        )
+
+    def test_platform_script_imports_spec_loader(self):
+        """The platform script should import SpecLoader."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform script should import SpecLoader from "
+            "wizard.engine.loader"
+        )
+
+    def test_setup_registers_service_modules(self):
+        """The setup command should register all service modules."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should register validators and actions "
+            "from postgres, openmetadata, kerberos, and pagila modules"
+        )
+
+    def test_clean_slate_registers_teardown_modules(self):
+        """The clean-slate command should register teardown modules."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform clean-slate should register teardown actions "
+            "from service modules"
+        )
+
+
+class TestServiceRegistration(unittest.TestCase):
+    """Tests for service module registration in CLI."""
+
+    def test_setup_registers_postgres_validators(self):
+        """Setup should register postgres validators with engine."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should register "
+            "postgres.validate_image_url, postgres.validate_port"
+        )
+
+    def test_setup_registers_postgres_actions(self):
+        """Setup should register postgres actions with engine."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should register "
+            "postgres.save_config, postgres.init_database, postgres.start_service"
+        )
+
+    def test_setup_registers_openmetadata_validators(self):
+        """Setup should register openmetadata validators."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should register openmetadata validators"
+        )
+
+    def test_setup_registers_kerberos_validators(self):
+        """Setup should register kerberos validators."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should register kerberos validators"
+        )
+
+    def test_setup_registers_pagila_validators(self):
+        """Setup should register pagila validators."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should register pagila validators"
+        )
+
+
+class TestOutputFormatting(unittest.TestCase):
+    """Tests for output formatting and display."""
+
+    def test_setup_displays_welcome_header(self):
+        """Setup should display a welcome header."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should display welcome header using print_header"
+        )
+
+    def test_setup_displays_service_selection_prompt(self):
+        """Setup should display service selection section."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should display service selection prompt"
+        )
+
+    def test_setup_displays_progress_messages(self):
+        """Setup should display progress messages during execution."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should display progress as services are configured"
+        )
+
+    def test_setup_displays_completion_message(self):
+        """Setup should display completion message on success."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform setup should display success message with print_success"
+        )
+
+    def test_clean_slate_displays_warning_header(self):
+        """Clean-slate should display a warning header."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform clean-slate should display warning about data loss"
+        )
+
+    def test_clean_slate_displays_teardown_progress(self):
+        """Clean-slate should display progress during teardown."""
+        if not PLATFORM_SCRIPT_PATH.exists():
+            self.skipTest("Platform script does not exist yet")
+
+        self.fail(
+            "RED: Platform clean-slate should display progress as services "
+            "are torn down"
+        )
+
+
+if __name__ == '__main__':
+    unittest.main()

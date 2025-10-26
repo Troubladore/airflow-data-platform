@@ -1,0 +1,118 @@
+#!/bin/bash
+# Platform CLI Wrapper
+# ====================
+# User-facing command-line interface to the wizard engine
+
+set -e
+
+# Paths
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLATFORM_BOOTSTRAP="$SCRIPT_DIR/platform-bootstrap"
+
+# Load formatting library
+if [ -f "$PLATFORM_BOOTSTRAP/lib/formatting.sh" ]; then
+    source "$PLATFORM_BOOTSTRAP/lib/formatting.sh"
+else
+    echo "Error: formatting.sh not found at $PLATFORM_BOOTSTRAP/lib/formatting.sh"
+    exit 1
+fi
+
+# Check for help flag
+if [[ "${1:-}" == "--help" ]] || [[ "${1:-}" == "-h" ]]; then
+    echo "Platform CLI - Data Platform Configuration Wizard"
+    echo ""
+    echo "Usage: ./platform {setup|clean-slate|config}"
+    echo ""
+    echo "Commands:"
+    echo "  setup        Run platform configuration wizard"
+    echo "  clean-slate  Remove all platform services"
+    echo "  config       Show current configuration"
+    echo ""
+    exit 0
+fi
+
+# Setup wizard function
+setup_wizard() {
+    print_header "Platform Setup Wizard"
+
+    cd "$SCRIPT_DIR"
+
+    # Run Python wizard via uv
+    if uv run python3 -c "
+import sys
+sys.path.insert(0, '$SCRIPT_DIR')
+
+from wizard.engine.engine import WizardEngine
+from wizard.engine.runner import RealActionRunner
+
+# Create engine with real runner
+runner = RealActionRunner()
+engine = WizardEngine(runner=runner, base_path='$SCRIPT_DIR/wizard')
+
+# Execute setup flow
+engine.execute_flow('setup')
+" 2>&1; then
+        print_success "$(get_checkmark) Setup complete!"
+        exit 0
+    else
+        print_error "Setup failed"
+        exit 1
+    fi
+}
+
+# Clean-slate wizard function
+clean_slate_wizard() {
+    print_header "Clean-Slate Wizard"
+
+    cd "$SCRIPT_DIR"
+
+    # Run Python wizard via uv
+    if uv run python3 -c "
+import sys
+sys.path.insert(0, '$SCRIPT_DIR')
+
+from wizard.engine.engine import WizardEngine
+from wizard.engine.runner import RealActionRunner
+
+# Create engine with real runner
+runner = RealActionRunner()
+engine = WizardEngine(runner=runner, base_path='$SCRIPT_DIR/wizard')
+
+# Execute clean-slate flow
+engine.execute_flow('clean-slate')
+" 2>&1; then
+        print_success "$(get_checkmark) Clean-slate complete!"
+        exit 0
+    else
+        print_error "Clean-slate failed"
+        exit 1
+    fi
+}
+
+# Config command (not yet implemented)
+config_command() {
+    echo "Config commands not implemented yet"
+    exit 1
+}
+
+# Main command router
+case "${1:-}" in
+    setup)
+        setup_wizard
+        ;;
+    clean-slate)
+        clean_slate_wizard
+        ;;
+    config)
+        config_command
+        ;;
+    *)
+        echo "Usage: ./platform {setup|clean-slate|config}"
+        echo ""
+        echo "Commands:"
+        echo "  setup        Run platform configuration wizard"
+        echo "  clean-slate  Remove all platform services"
+        echo "  config       Show current configuration"
+        exit 1
+        ;;
+esac
