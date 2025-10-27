@@ -83,6 +83,16 @@ class WizardEngine:
                         user_input = ''
             else:
                 # Ask user interactively
+
+                # Show enum options if this is an enum step
+                if step.type == 'enum' and hasattr(step, 'options') and step.options:
+                    self.runner.display("")  # Blank line before options
+                    for i, option in enumerate(step.options, 1):
+                        value = option.get('value', '')
+                        label = option.get('label', '')
+                        self.runner.display(f"  {i}. {label}")
+                    self.runner.display("")  # Blank line after options
+
                 default = step.default_value
                 # Check for dynamic default from state
                 if hasattr(step, 'default_from') and step.default_from:

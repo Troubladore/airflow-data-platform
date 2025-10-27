@@ -8,7 +8,7 @@ provides:
 steps:
   - id: postgres_image
     type: string
-    prompt: "PostgreSQL image"
+    prompt: "PostgreSQL Docker image (used by all services)"
     state_key: services.postgres.image
     default_from: services.postgres.image
     default_value: postgres:17.5-alpine
@@ -25,22 +25,14 @@ steps:
     next: postgres_auth
 
   - id: postgres_auth
-    type: enum
-    prompt: "PostgreSQL authentication method:"
-    state_key: services.postgres.auth_method
-    default_value: md5
-    options:
-      - value: md5
-        label: "MD5 password authentication"
-      - value: trust
-        label: "Trust (no password)"
-      - value: scram-sha-256
-        label: "SCRAM-SHA-256 (most secure)"
+    type: boolean
+    prompt: "Require password for PostgreSQL database?"
+    state_key: services.postgres.require_password
+    default_value: true
     next:
       when_value:
-        md5: postgres_password
-        scram-sha-256: postgres_password
-        trust: postgres_port
+        true: postgres_password
+        false: postgres_port
 
   - id: postgres_password
     type: string

@@ -21,7 +21,7 @@ def test_postgres_only():
         child.sendline('n')
 
         # Postgres: all defaults
-        for prompt in ['PostgreSQL', 'prebuilt', 'authentication', 'password', 'port']:
+        for prompt in ['PostgreSQL', 'prebuilt', 'Require password', 'password', 'port']:
             child.expect(prompt, timeout=10)
             child.sendline('')
 
@@ -53,7 +53,7 @@ def test_postgres_kerberos():
         child.sendline('n')
 
         # Postgres config
-        for prompt in ['PostgreSQL', 'prebuilt', 'authentication', 'password', 'port']:
+        for prompt in ['PostgreSQL', 'prebuilt', 'Require password', 'password', 'port']:
             child.expect(prompt, timeout=10)
             child.sendline('')
 
@@ -93,7 +93,7 @@ def test_postgres_pagila():
         child.sendline('y')  # YES to Pagila
 
         # Postgres config
-        for prompt in ['PostgreSQL', 'prebuilt', 'authentication', 'password', 'port']:
+        for prompt in ['PostgreSQL', 'prebuilt', 'Require password', 'password', 'port']:
             child.expect(prompt, timeout=10)
             child.sendline('')
 
@@ -129,7 +129,7 @@ def test_all_services_no_openmetadata():
         child.sendline('y')
 
         # Postgres
-        for prompt in ['PostgreSQL', 'prebuilt', 'authentication', 'password', 'port']:
+        for prompt in ['PostgreSQL', 'prebuilt', 'Require password', 'password', 'port']:
             child.expect(prompt, timeout=10)
             child.sendline('')
 
