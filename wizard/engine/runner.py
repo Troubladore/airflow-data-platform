@@ -81,11 +81,22 @@ class RealActionRunner(ActionRunner):
 
     def get_input(self, prompt: str, default: str = None) -> str:
         """Read from stdin with optional default."""
-        if default:
-            # Show default in brackets
-            full_prompt = f"{prompt} [{default}]: "
+        # Format default for display
+        if default is not None:
+            # Special formatting for boolean defaults
+            if isinstance(default, bool):
+                default_display = 'y/N' if not default else 'Y/n'
+            else:
+                default_display = str(default)
+
+            full_prompt = f"{prompt} [{default_display}]: "
             response = input(full_prompt).strip()
-            return response if response else default
+
+            # Return response or default
+            if response:
+                return response
+            else:
+                return str(default) if not isinstance(default, bool) else default
         else:
             # No default
             full_prompt = f"{prompt}: "
