@@ -1,49 +1,58 @@
-"""Tests for service selection in interactive mode."""
+"""Tests for service selection using boolean questions."""
 
 import pytest
 from wizard.engine.engine import WizardEngine
 from wizard.engine.runner import MockActionRunner
 
 
-class TestInteractiveServiceSelection:
-    """Test service selection works in interactive mode."""
+class TestBooleanServiceSelection:
+    """Test service selection with individual Y/N questions."""
 
-    def test_service_selection_prompts_user_interactive(self):
-        """Should prompt for service selection in interactive mode."""
+    def test_service_selection_asks_three_boolean_questions(self):
+        """Should ask Y/N for openmetadata, kerberos, pagila."""
         runner = MockActionRunner()
         runner.input_queue = [
-            'openmetadata kerberos',  # Select 2 services
-            '', '', '', '', ''         # Postgres prompts (defaults)
-        ]
-
-        engine = WizardEngine(runner=runner, base_path='wizard')
-        engine.execute_flow('setup')
-
-        # Should have prompted for service selection (check for YAML prompt text)
-        selection_prompts = [c for c in runner.calls if c[0] == 'get_input' and 'Select services' in c[1]]
-        assert len(selection_prompts) == 1
-
-    def test_selected_services_are_enabled(self):
-        """Services selected interactively should be enabled."""
-        runner = MockActionRunner()
-        runner.input_queue = [
-            'openmetadata',  # Select only openmetadata
+            'y',  # Install OpenMetadata? y
+            'n',  # Install Kerberos? n
+            'y',  # Install Pagila? y
             '', '', '', '', ''  # Postgres defaults
         ]
 
         engine = WizardEngine(runner=runner, base_path='wizard')
         engine.execute_flow('setup')
 
-        # OpenMetadata should be enabled
-        assert engine.state.get('services.openmetadata.enabled') == True
-        assert engine.state.get('services.kerberos.enabled') == False
-        assert engine.state.get('services.pagila.enabled') == False
+        # Should have asked 3 boolean questions
+        service_questions = [
+            c for c in runner.calls
+            if c[0] == 'get_input' and 'Install' in c[1]
+        ]
+        assert len(service_questions) == 3
 
-    def test_empty_selection_enables_only_postgres(self):
-        """Empty service selection should enable only postgres."""
+    def test_yes_answers_enable_services(self):
+        """Answering 'y' should enable the service."""
         runner = MockActionRunner()
         runner.input_queue = [
-            '',  # No services selected
+            'y',  # OpenMetadata: YES
+            'y',  # Kerberos: YES
+            'n',  # Pagila: NO
+            '', '', '', '', ''  # Postgres defaults
+        ]
+
+        engine = WizardEngine(runner=runner, base_path='wizard')
+        engine.execute_flow('setup')
+
+        # Verify state
+        assert engine.state.get('services.openmetadata.enabled') == True
+        assert engine.state.get('services.kerberos.enabled') == True
+        assert engine.state.get('services.pagila.enabled') == False
+
+    def test_no_answers_disable_services(self):
+        """Answering 'n' (or Enter for default) should disable services."""
+        runner = MockActionRunner()
+        runner.input_queue = [
+            '',  # OpenMetadata: default (no)
+            '',  # Kerberos: default (no)
+            '',  # Pagila: default (no)
             '', '', '', '', ''  # Postgres defaults
         ]
 
@@ -56,19 +65,21 @@ class TestInteractiveServiceSelection:
         assert engine.state.get('services.kerberos.enabled') == False
         assert engine.state.get('services.pagila.enabled') == False
 
-    def test_multiple_services_space_separated(self):
-        """Should parse space-separated service list."""
+    def test_prompts_are_clear_and_simple(self):
+        """Prompts should be simple Y/N questions."""
         runner = MockActionRunner()
-        runner.input_queue = [
-            'openmetadata kerberos pagila',  # All services
-            '', '', '', '', ''  # Postgres defaults
-        ]
+        runner.input_queue = ['n', 'n', 'n', '', '', '', '', '']
 
         engine = WizardEngine(runner=runner, base_path='wizard')
         engine.execute_flow('setup')
 
-        # All services should be enabled
-        assert engine.state.get('services.postgres.enabled') == True
-        assert engine.state.get('services.openmetadata.enabled') == True
-        assert engine.state.get('services.kerberos.enabled') == True
-        assert engine.state.get('services.pagila.enabled') == True
+        # Check prompt format
+        questions = [
+            c for c in runner.calls
+            if c[0] == 'get_input' and 'Install' in c[1]
+        ]
+
+        # Should have clear format: "Install ServiceName?"
+        assert any('Install OpenMetadata?' in c[1] for c in questions)
+        assert any('Install Kerberos?' in c[1] for c in questions)
+        assert any('Install Pagila?' in c[1] for c in questions)
