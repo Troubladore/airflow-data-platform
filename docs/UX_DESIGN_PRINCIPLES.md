@@ -254,12 +254,38 @@ Remove Pagila? [y/N]: y
 
 ## Testing Validation
 
-Every UX change must be validated with:
+**MANDATORY:** Every UX change must be validated BEFORE committing
+
+### Validation Workflow
+
+1. **Make the change** (edit spec/code)
+2. **Run real command** to capture actual output:
+   ```bash
+   echo -e "inputs\n" | ./platform setup 2>&1 | grep relevant_section
+   ```
+3. **Verify change worked** - Check output matches intent
+4. **If wrong, iterate** - Don't commit broken UX
+5. **Commit only after verification**
+
+### Required Tests
+
 1. **pexpect tests** - Real terminal interaction simulation
-2. **LLM UX evaluation** - Grade A/B required
-3. **User feedback** - Manual testing by real users
+2. **Manual command verification** - Capture actual output
+3. **LLM UX evaluation** - Grade A/B required (for major changes)
+4. **User feedback** - Manual testing by real users
 
 **UX Testing is Mandatory** - See docs/CLAUDE.md
+
+### Example Validation
+
+**Change:** Remove duplicate "Remove Pagila?" question
+**Validation Command:**
+```bash
+echo -e "y\ny\ny\ny\nn\nn\nn" | ./platform clean-slate 2>&1 | grep -E "Pagila|Remove"
+```
+**Expected:** Only one "Tear down Pagila?" question
+**Actual:** ✓ Confirmed - no duplicates
+**Result:** PASS - commit the change
 
 ---
 
