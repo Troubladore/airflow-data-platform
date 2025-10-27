@@ -11,7 +11,7 @@ steps:
     type: string
     prompt: "Pagila repository URL:"
     state_key: services.pagila.repo_url
-    default_value: https://github.com/devrimgunduz/pagila.git
+    default_value: https://github.com/Troubladore/pagila.git
     validator: pagila.validate_git_url
     next: pagila_save
 
