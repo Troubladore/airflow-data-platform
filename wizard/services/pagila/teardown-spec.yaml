@@ -3,6 +3,16 @@ version: 1.0
 description: "Teardown Pagila sample database and cleanup"
 
 steps:
+  - id: pagila_teardown_confirm
+    type: boolean
+    prompt: "Confirm Pagila teardown?"
+    state_key: services.pagila.teardown.confirm
+    default_value: false
+    next:
+      when_value:
+        true: show_details_header
+        false: finish
+
   - id: show_details_header
     type: display
     prompt: |
@@ -11,9 +21,9 @@ steps:
         Pagila Removal Options
       ────────────────────────────────────────────────────────
 
-    next: remove_container_action
+    next: stop_service
 
-  - id: remove_container_action
+  - id: stop_service
     type: action
     action: pagila.stop_service
     next: remove_images_question
@@ -70,10 +80,10 @@ steps:
     default_value: false
     next:
       when_value:
-        true: remove_config_action
+        true: clean_config
         false: finish
 
-  - id: remove_config_action
+  - id: clean_config
     type: action
     action: pagila.clean_config
     next: finish
