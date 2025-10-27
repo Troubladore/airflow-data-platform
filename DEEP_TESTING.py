@@ -52,8 +52,8 @@ test_scenarios = [
     },
     {
         'name': 'Postgres + Kerberos',
-        'inputs': 'n\ny\nn\n\nn\nn\n5432\nEXAMPLE.COM\n\n',
-        'expect_containers': ['platform-postgres', 'kerberos'],
+        'inputs': 'n\ny\nn\n\nn\nn\n5432\nEXAMPLE.COM\nubuntu:22.04\n',
+        'expect_containers': ['platform-postgres', 'kerberos-sidecar-mock'],
         'expect_images': ['postgres:17.5-alpine', 'ubuntu:22.04'],
     },
     {
@@ -64,8 +64,8 @@ test_scenarios = [
     },
     {
         'name': 'All services (no OpenMetadata)',
-        'inputs': 'n\ny\ny\n\nn\nn\n5432\nEXAMPLE.COM\n\n\n',
-        'expect_containers': ['platform-postgres', 'kerberos'],
+        'inputs': 'n\ny\ny\n\nn\nn\n5432\nEXAMPLE.COM\nubuntu:22.04\n\n',
+        'expect_containers': ['platform-postgres', 'kerberos-sidecar-mock'],
         'expect_db': 'pagila',
     },
     {

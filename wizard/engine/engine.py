@@ -548,6 +548,7 @@ class WizardEngine:
             self.validators['postgres.validate_image_url'] = postgres.validate_image_url
             self.validators['postgres.validate_port'] = postgres.validate_port
             self.actions['postgres.save_config'] = postgres.save_config
+            self.actions['postgres.pull_image'] = postgres.pull_image
             self.actions['postgres.init_database'] = postgres.init_database
             self.actions['postgres.start_service'] = postgres.start_service
 

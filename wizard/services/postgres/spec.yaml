@@ -52,6 +52,11 @@ steps:
   - id: postgres_save
     type: action
     action: postgres.save_config
+    next: postgres_pull_image
+
+  - id: postgres_pull_image
+    type: action
+    action: postgres.pull_image
     next: postgres_init
 
   - id: postgres_init

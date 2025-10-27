@@ -33,6 +33,28 @@ def save_config(ctx: Dict[str, Any], runner) -> None:
     runner.save_config(config, 'platform-config.yaml')
 
 
+def pull_image(ctx: Dict[str, Any], runner) -> None:
+    """Pull PostgreSQL Docker image.
+
+    Args:
+        ctx: Context dictionary with image URL
+        runner: ActionRunner instance for side effects
+    """
+    image = ctx.get('services.postgres.image', 'postgres:17.5-alpine')
+    prebuilt = ctx.get('services.postgres.prebuilt', False)
+
+    if not prebuilt:
+        runner.display(f"\nPulling Docker image: {image}")
+        result = runner.run_shell(['docker', 'pull', image])
+
+        if result.get('returncode') == 0:
+            runner.display(f"✓ Image pulled: {image}")
+        else:
+            runner.display(f"✗ Failed to pull image: {image}")
+    else:
+        runner.display(f"\n✓ Using prebuilt image: {image}")
+
+
 def init_database(ctx: Dict[str, Any], runner) -> None:
     """Initialize PostgreSQL database.
 

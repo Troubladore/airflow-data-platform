@@ -40,8 +40,10 @@ REPO_ROOT := $(shell cd .. && pwd)
 
 # Helper to ensure Python environment is ready
 _ensure-python-env:
-	@if ! command -v uv >/dev/null 2>&1; then \
+	@PATH="$$HOME/.local/bin:$$PATH"; \
+	if ! command -v uv >/dev/null 2>&1; then \
 		echo "Error: uv not installed. Install from https://github.com/astral-sh/uv"; \
+		echo "PATH=$$PATH"; \
 		exit 1; \
 	fi
 	@if [ ! -d "$(REPO_ROOT)/.venv" ]; then \
