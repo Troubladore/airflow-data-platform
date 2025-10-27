@@ -27,6 +27,15 @@ class ActionRunner(ABC):
         """Check if file exists at given path."""
         pass
 
+    @abstractmethod
+    def display(self, message: str) -> None:
+        """Display a message to the user.
+
+        Args:
+            message: Text to display (may contain newlines)
+        """
+        pass
+
 
 class RealActionRunner(ActionRunner):
     """Real implementation - actually does things."""
@@ -52,6 +61,10 @@ class RealActionRunner(ActionRunner):
     def file_exists(self, path: str) -> bool:
         import os
         return os.path.exists(path)
+
+    def display(self, message: str) -> None:
+        """Print message to stdout."""
+        print(message)
 
 
 class MockActionRunner(ActionRunner):
@@ -91,3 +104,7 @@ class MockActionRunner(ActionRunner):
     def file_exists(self, path: str) -> bool:
         self.calls.append(('file_exists', path))
         return self.responses.get('file_exists', {}).get(path, False)
+
+    def display(self, message: str) -> None:
+        """Capture display call for test verification."""
+        self.calls.append(('display', message))

@@ -1,5 +1,6 @@
 """Core wizard engine - executes specs with DI."""
 
+import re
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from .loader import SpecLoader
@@ -32,6 +33,27 @@ class WizardEngine:
         self.validators: Dict[str, callable] = {}
         self.actions: Dict[str, callable] = {}
 
+    def _interpolate_prompt(self, prompt: str, state: dict) -> str:
+        """Replace {key} placeholders with state values.
+
+        Args:
+            prompt: Template string with {placeholders}
+            state: Current wizard state
+
+        Returns:
+            Interpolated string with values filled in
+
+        Examples:
+            >>> engine._interpolate_prompt("Found {count} items", {'count': 5})
+            'Found 5 items'
+        """
+        def replacer(match):
+            key = match.group(1)
+            value = state.get(key, f'{{{key}}}')  # Keep {key} if not found
+            return str(value)
+
+        return re.sub(r'\{([^}]+)\}', replacer, prompt)
+
     def _execute_step(self, step: Step, headless_inputs: Optional[Dict] = None) -> Any:
         """
         Execute a single step.
@@ -43,6 +65,13 @@ class WizardEngine:
         Returns:
             The value captured from this step
         """
+        # Handle display steps
+        if step.type == 'display':
+            if step.prompt:
+                message = self._interpolate_prompt(step.prompt, self.state)
+                self.runner.display(message)
+            return  # Display steps don't collect input
+
         # Handle discovery action
         if step.action == 'discovery.scan_all_services':
             from wizard.engine.discovery import DiscoveryEngine

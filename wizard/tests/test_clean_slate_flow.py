@@ -720,6 +720,6 @@ class TestFlowPolicyCompliance:
 
         # Verify no teardown actions executed
         runner = engine.runner
-        # Should have minimal or no calls
-        teardown_calls = [c for c in runner.calls if any(term in str(c) for term in ['stop', 'remove', 'clean'])]
+        # Should have minimal or no calls (excluding display calls)
+        teardown_calls = [c for c in runner.calls if c[0] != 'display' and any(term in str(c) for term in ['stop', 'remove', 'clean'])]
         assert len(teardown_calls) == 0, "Should not execute any teardown actions"
