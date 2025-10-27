@@ -54,12 +54,8 @@ class TestServicePromptDisplay:
             'select_kerberos': 'n',
             'select_pagila': 'n',
             'postgres_image': 'postgres:17.5',
-<<<<<<< HEAD
-            'postgres_auth': True  # Boolean, not enum
-=======
             'postgres_auth': True,  # Boolean: require password
             'postgres_password': 'test'
->>>>>>> 7e99e4c (fix: Setup flow and integration tests)
         })
 
         # Should have displayed auth prompt (boolean asking about password requirement)
