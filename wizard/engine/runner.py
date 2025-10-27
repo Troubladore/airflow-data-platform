@@ -57,9 +57,23 @@ class MockActionRunner(ActionRunner):
 
     def run_shell(self, command: List[str], cwd: str = None):
         self.calls.append(('run_shell', command, cwd))
-        return self.responses.get('run_shell', {
-            'stdout': '', 'stderr': '', 'returncode': 0
-        })
+
+        # Support tuple-based command matching for discovery tests
+        if 'run_shell' in self.responses:
+            response_dict = self.responses['run_shell']
+
+            # Check if responses is a dict with tuple keys (command matching)
+            if isinstance(response_dict, dict):
+                # Try exact tuple match first
+                command_tuple = tuple(command)
+                if command_tuple in response_dict:
+                    return {'stdout': response_dict[command_tuple], 'stderr': '', 'returncode': 0}
+
+            # Otherwise use as default response
+            return response_dict
+
+        # Default empty response
+        return {'stdout': '', 'stderr': '', 'returncode': 0}
 
     def check_docker(self) -> bool:
         self.calls.append(('check_docker',))
