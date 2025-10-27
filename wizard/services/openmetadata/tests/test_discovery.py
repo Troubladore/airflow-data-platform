@@ -111,3 +111,25 @@ class TestDiscoverFiles:
         runner = MockActionRunner()
         result = discovery.discover_files(runner)
         assert isinstance(result, list)
+
+    def test_discover_files_detects_env_file_not_directory(self):
+        """Should detect openmetadata/.env file, not the openmetadata directory.
+
+        The openmetadata directory is part of the codebase and should not be
+        considered a runtime artifact. Only the .env file (created by setup)
+        should be detected as an artifact to clean up.
+        """
+        runner = MockActionRunner()
+        runner.responses['file_exists'] = {
+            'openmetadata/.env': True,  # Runtime artifact - should detect
+            'openmetadata': True  # Codebase directory - should ignore
+        }
+
+        result = discovery.discover_files(runner)
+
+        # Should detect .env file
+        assert 'openmetadata/.env' in result, "Should detect openmetadata/.env as runtime artifact"
+
+        # Should NOT detect directory
+        assert 'openmetadata/' not in result, "Should NOT detect codebase directory as artifact"
+        assert 'openmetadata' not in result, "Should NOT detect codebase directory as artifact"

@@ -62,9 +62,9 @@ setup-original: ## Run original platform setup wizard (legacy version)
 
 setup-pagila: ## Setup pagila test database (idempotent)
 	@if [ "$(PAGILA_AUTO_YES)" = "1" ]; then \
-		./setup-scripts/setup-pagila.sh --yes; \
+		IMAGE_POSTGRES="$(IMAGE_POSTGRES)" PAGILA_REPO_URL="$(PAGILA_REPO_URL)" ./setup-scripts/setup-pagila.sh --yes; \
 	else \
-		./setup-scripts/setup-pagila.sh; \
+		IMAGE_POSTGRES="$(IMAGE_POSTGRES)" PAGILA_REPO_URL="$(PAGILA_REPO_URL)" ./setup-scripts/setup-pagila.sh; \
 	fi
 
 setup-pagila-reset: ## Remove and reinstall pagila test database
