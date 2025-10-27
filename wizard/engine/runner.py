@@ -22,6 +22,11 @@ class ActionRunner(ABC):
         """Check if Docker is available."""
         pass
 
+    @abstractmethod
+    def file_exists(self, path: str) -> bool:
+        """Check if file exists at given path."""
+        pass
+
 
 class RealActionRunner(ActionRunner):
     """Real implementation - actually does things."""
@@ -43,6 +48,10 @@ class RealActionRunner(ActionRunner):
     def check_docker(self) -> bool:
         result = self.run_shell(['docker', '--version'])
         return result['returncode'] == 0
+
+    def file_exists(self, path: str) -> bool:
+        import os
+        return os.path.exists(path)
 
 
 class MockActionRunner(ActionRunner):
@@ -78,3 +87,7 @@ class MockActionRunner(ActionRunner):
     def check_docker(self) -> bool:
         self.calls.append(('check_docker',))
         return self.responses.get('check_docker', True)
+
+    def file_exists(self, path: str) -> bool:
+        self.calls.append(('file_exists', path))
+        return self.responses.get('file_exists', {}).get(path, False)

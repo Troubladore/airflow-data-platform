@@ -18,9 +18,10 @@ class TestDiscoverContainers:
         """Should find openmetadata-server container when it exists."""
         runner = MockActionRunner()
         runner.responses['run_shell'] = {
-            'stdout': 'openmetadata-server|Up 5 days\nopenmetadata-ingestion|Up 5 days\nopensearch|Up 5 days\n',
-            'stderr': '',
-            'returncode': 0
+            ('docker', 'ps', '-a', '--filter', 'name=openmetadata', '--format', '{{.Names}}|{{.Status}}'):
+                'openmetadata-server|Up 5 days\nopenmetadata-ingestion|Up 5 days\n',
+            ('docker', 'ps', '-a', '--filter', 'name=opensearch', '--format', '{{.Names}}|{{.Status}}'):
+                'opensearch|Up 5 days\n'
         }
 
         result = discovery.discover_containers(runner)
@@ -45,9 +46,10 @@ class TestDiscoverImages:
         """Should find openmetadata/* images with size."""
         runner = MockActionRunner()
         runner.responses['run_shell'] = {
-            'stdout': 'openmetadata/server:1.2.3|850MB\nopenmetadata/ingestion:1.2.3|1.2GB\n',
-            'stderr': '',
-            'returncode': 0
+            ('docker', 'images', '--filter', 'reference=openmetadata/*', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'):
+                'openmetadata/server:1.2.3|850MB\nopenmetadata/ingestion:1.2.3|1.2GB\n',
+            ('docker', 'images', '--filter', 'reference=opensearchproject/*', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'):
+                ''
         }
 
         result = discovery.discover_images(runner)
@@ -62,9 +64,10 @@ class TestDiscoverImages:
         """Should find opensearchproject/* images."""
         runner = MockActionRunner()
         runner.responses['run_shell'] = {
-            'stdout': 'opensearchproject/opensearch:2.11.0|600MB\n',
-            'stderr': '',
-            'returncode': 0
+            ('docker', 'images', '--filter', 'reference=openmetadata/*', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'):
+                '',
+            ('docker', 'images', '--filter', 'reference=opensearchproject/*', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'):
+                'opensearchproject/opensearch:2.11.0|600MB\n'
         }
 
         result = discovery.discover_images(runner)
@@ -87,9 +90,10 @@ class TestDiscoverVolumes:
         """Should find openmetadata_data and opensearch_data volumes."""
         runner = MockActionRunner()
         runner.responses['run_shell'] = {
-            'stdout': 'openmetadata_data\nopensearch_data\n',
-            'stderr': '',
-            'returncode': 0
+            ('docker', 'volume', 'ls', '--filter', 'name=openmetadata', '--format', '{{.Name}}'):
+                'openmetadata_data\n',
+            ('docker', 'volume', 'ls', '--filter', 'name=opensearch', '--format', '{{.Name}}'):
+                'opensearch_data\n'
         }
 
         result = discovery.discover_volumes(runner)
