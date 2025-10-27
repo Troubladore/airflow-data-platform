@@ -126,10 +126,38 @@ Agent 2 prompt must:
 Acceptance tests MUST:
 - ✅ Run actual ./platform commands (not MockActionRunner)
 - ✅ Capture real stdout/stderr
+- ✅ **Check exit code** (must be 0, no crashes)
+- ✅ **Verify no errors** (no Traceback, FileNotFoundError, etc.)
+- ✅ **Validate outcomes** (use docker ps, ls, etc. to verify results)
 - ✅ Evaluate formatting, spacing, alignment
 - ✅ Check visual consistency across services
 - ✅ Validate box borders, colors, symbols
 - ✅ Use LLM agent for semantic UX evaluation
+
+### Acceptance Test Must Verify
+
+**Exit code:**
+```bash
+result = subprocess.run(['./platform', 'setup'], ...)
+assert result.returncode == 0, "Wizard crashed!"
+```
+
+**No errors in output:**
+```bash
+assert 'Traceback' not in result.stderr
+assert 'Error:' not in result.stderr or 'Error:' in expected_errors
+```
+
+**Outcomes match intent:**
+```bash
+# After setup
+containers = subprocess.run(['docker', 'ps', '--format', '{{.Names}}'])
+assert 'platform-postgres' in containers.stdout
+
+# After clean-slate
+containers_after = subprocess.run(['docker', 'ps', '-a'])
+assert len(containers_after.stdout) < len(containers_before.stdout)
+```
 
 ### Why This Matters - Lesson Learned
 
