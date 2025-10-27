@@ -273,13 +273,13 @@ clean-kerberos: ## Remove only Kerberos sidecar (keeps volumes)
 # Full cleanup
 clean: platform-stop ## Clean up all platform services (interactive - asks about volumes)
 	@echo "Cleaning up platform services..."
-	@echo "1" | ./setup-scripts/clean-slate.sh || true
+	@echo "1" | ./setup-scripts/clean-slate-LEGACY.sh || true
 
 clean-slate: _ensure-python-env ## Interactive cleanup (data-driven wizard)
 	@cd $(REPO_ROOT) && ./platform clean-slate
 
-clean-slate-original: ## Interactive cleanup (original shell script version)
-	@./setup-scripts/clean-slate.sh
+clean-slate-legacy: ## Legacy cleanup script (deprecated - use clean-slate)
+	@./setup-scripts/clean-slate-LEGACY.sh
 
 clean-all: clean-openmetadata clean-pagila clean-kerberos ## Remove all platform components and volumes
 	@echo "Removing platform network..."
