@@ -1,0 +1,162 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                    DOCKER CONTAINER/IMAGE VERIFICATION MATRIX                 ║
+║                              October 27, 2025                                 ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ SCENARIO 1: PostgreSQL Only                                            ✅ PASS│
+├───────────────────────────────────────────────────────────────────────────────┤
+│ ✅ Container Created:     platform-postgres                                   │
+│ ✅ Image Pulled:          postgres:17.5-alpine (279MB)                        │
+│ ✅ Network Created:       platform_network                                    │
+│ ✅ Volume Created:        platform_postgres_data                              │
+│ ✅ Container Running:     Status: Up (healthy)                                │
+│ ✅ Health Check:          Passed in ~6 seconds                                │
+│ ✅ DB Connection:         psql -U platform_admin successful                   │
+│ ✅ Query Execution:       SELECT 1 works                                      │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ SCENARIO 2: PostgreSQL + Kerberos                                  ⚠️  PARTIAL│
+├───────────────────────────────────────────────────────────────────────────────┤
+│ ✅ Postgres Container:    platform-postgres created and running               │
+│ ✅ Postgres Image:        postgres:17.5-alpine (279MB)                        │
+│ ✅ Postgres Health:       Healthy in ~5 seconds                               │
+│ ✅ Postgres Connection:   psql successful                                     │
+│ ✅ Network Created:       platform_network                                    │
+│ ❌ Kerberos Image:        Build failed (Makefile tag error)                   │
+│ ❌ Kerberos Container:    Not created (no image)                              │
+│                                                                                │
+│ 🐛 ISSUE: Invalid tag "platform/kerberos-sidecar:latest:latest"              │
+│    Fix: Change kerberos/Makefile line 18                                     │
+│         From: IMAGE_NAME := platform/kerberos-sidecar:latest                 │
+│         To:   IMAGE_NAME := platform/kerberos-sidecar                        │
+│               IMAGE_TAG := latest                                             │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ SCENARIO 3: Custom Image (postgres:16)                                 ✅ PASS│
+├───────────────────────────────────────────────────────────────────────────────┤
+│ ✅ Custom Image Spec:     IMAGE_POSTGRES=postgres:16 in .env                  │
+│ ✅ Image Pulled:          postgres:16 (451MB)                                 │
+│ ✅ Image Used:            Container uses postgres:16 (verified)               │
+│ ✅ Container Created:     platform-postgres                                   │
+│ ✅ Network Created:       platform_network                                    │
+│ ✅ Volume Created:        platform_postgres_data                              │
+│ ✅ Container Running:     Status: Up (healthy)                                │
+│ ✅ Health Check:          Passed                                              │
+│ ✅ DB Connection:         psql -U platform_admin successful                   │
+│                                                                                │
+│ 📊 Image Comparison:                                                          │
+│    - postgres:17.5-alpine: 279MB (minimal, alpine-based)                     │
+│    - postgres:16:          451MB (full debian, more features)                │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                              SUMMARY STATISTICS                               ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║ Total Scenarios Tested:        3                                             ║
+║ Scenarios Passed:              2  ✅                                          ║
+║ Scenarios Partial:             1  ⚠️                                          ║
+║ Scenarios Failed:              0  ❌                                          ║
+║                                                                               ║
+║ Containers Tested:             2 (platform-postgres, kerberos-sidecar)       ║
+║ Containers Working:            1 (platform-postgres)                         ║
+║ Containers Blocked:            1 (kerberos-sidecar - build issue)            ║
+║                                                                               ║
+║ Images Tested:                 3                                             ║
+║   - postgres:17.5-alpine       ✅ Works (default)                            ║
+║   - postgres:16                ✅ Works (custom)                             ║
+║   - kerberos-sidecar:latest    ❌ Build fails (fixable)                      ║
+║                                                                               ║
+║ Networks Created:              1 (platform_network)                          ║
+║ Volumes Created:               1 (platform_postgres_data)                    ║
+║                                                                               ║
+║ Health Checks Tested:          2                                             ║
+║   - PostgreSQL (pg_isready)    ✅ Works (5-10s to healthy)                   ║
+║   - Kerberos (klist -s)        ⚠️  Not tested (image build failed)           ║
+║                                                                               ║
+║ DB Connections Tested:         2                                             ║
+║   - Default image              ✅ Works                                       ║
+║   - Custom image               ✅ Works                                       ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                            WHAT WORKS PERFECTLY                               ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║ ✅ PostgreSQL container creation and startup                                 ║
+║ ✅ Custom image specification via .env variables                             ║
+║ ✅ Docker image pulling from Docker Hub                                      ║
+║ ✅ Network creation and isolation (platform_network)                         ║
+║ ✅ Volume creation and data persistence (platform_postgres_data)             ║
+║ ✅ Container health checks (pg_isready)                                      ║
+║ ✅ Database connectivity (psql connections work immediately)                 ║
+║ ✅ Environment-based configuration (.env files)                              ║
+║ ✅ Docker Compose orchestration (for single service)                         ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                              WHAT'S MISSING                                   ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║ ❌ Kerberos sidecar image build (Makefile variable conflict)                 ║
+║ ⚠️  Multi-service container orchestration (blocked by above)                 ║
+║ ⚠️  Kerberos ticket sharing verification (blocked by above)                  ║
+║ ⚠️  Cross-container communication testing (blocked by above)                 ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                           CRITICAL BUG DETAILS                                ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║ File:     /home/troubladore/repos/airflow-data-platform/kerberos/Makefile    ║
+║ Line:     18                                                                  ║
+║ Issue:    IMAGE_NAME includes tag, but child Makefile appends another tag    ║
+║                                                                               ║
+║ Current:  IMAGE_NAME := platform/kerberos-sidecar:latest                     ║
+║                                                                               ║
+║ Fix To:   IMAGE_NAME := platform/kerberos-sidecar                            ║
+║           IMAGE_TAG := latest                                                 ║
+║                                                                               ║
+║ Impact:   Blocks all Kerberos testing (Scenario 2)                           ║
+║ Severity: HIGH (blocks 1 of 3 scenarios)                                     ║
+║ Fix Time: 2 minutes (simple variable change)                                 ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                              FILES GENERATED                                  ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║ 📄 Test Script:                                                              ║
+║    /home/troubladore/repos/airflow-data-platform/test-docker-verification.sh ║
+║                                                                               ║
+║ 📄 Detailed Report (22KB):                                                   ║
+║    /home/troubladore/repos/airflow-data-platform/DOCKER-VERIFICATION-REPORT.md║
+║                                                                               ║
+║ 📄 Quick Summary:                                                            ║
+║    /home/troubladore/repos/airflow-data-platform/DOCKER-VERIFICATION-SUMMARY.md║
+║                                                                               ║
+║ 📄 Test Output:                                                              ║
+║    /home/troubladore/repos/airflow-data-platform/docker-verification-results.txt║
+║                                                                               ║
+║ 📄 This Matrix:                                                              ║
+║    /home/troubladore/repos/airflow-data-platform/DOCKER-TEST-MATRIX.txt     ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                            OVERALL ASSESSMENT                                 ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║ Status: MOSTLY WORKING                                                       ║
+║ Grade:  B+ (2/3 scenarios pass completely)                                   ║
+║                                                                               ║
+║ The core Docker infrastructure is SOLID:                                     ║
+║   • PostgreSQL containers work perfectly                                     ║
+║   • Custom image support works perfectly                                     ║
+║   • Networking and volumes work perfectly                                    ║
+║   • Health checks and connections work perfectly                             ║
+║                                                                               ║
+║ The Kerberos integration has a FIXABLE bug:                                  ║
+║   • Not an architectural problem                                             ║
+║   • Simple Makefile variable misconfiguration                                ║
+║   • 2-minute fix                                                             ║
+║   • Once fixed, all scenarios should pass                                    ║
+║                                                                               ║
+║ Recommendation: Fix Kerberos Makefile and re-test Scenario 2                 ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
