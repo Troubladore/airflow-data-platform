@@ -89,6 +89,11 @@ class WizardEngine:
             )
             return None
 
+        # Display prompts for interactive steps
+        if step.prompt and step.type in ['string', 'boolean', 'enum', 'integer']:
+            prompt_text = self._interpolate_prompt(step.prompt, self.state)
+            self.runner.display(prompt_text)  # Show prompt before getting input
+
         # Get input value
         if headless_inputs is not None and step.id in headless_inputs:
             value = headless_inputs[step.id]
