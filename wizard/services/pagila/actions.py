@@ -3,11 +3,17 @@
 
 def save_config(ctx: dict, runner) -> None:
     """Save Pagila configuration."""
+    # Get postgres_image - default to platform postgres image if not explicitly set
+    postgres_image = ctx.get('services.pagila.postgres_image')
+    if not postgres_image:
+        postgres_image = ctx.get('services.postgres.image', 'postgres:17.5-alpine')
+
     config = {
         'services': {
             'pagila': {
                 'enabled': ctx.get('services.pagila.enabled', True),
-                'repo_url': ctx.get('services.pagila.repo_url')
+                'repo_url': ctx.get('services.pagila.repo_url'),
+                'postgres_image': postgres_image
             }
         }
     }
@@ -21,7 +27,14 @@ def install_pagila(ctx: dict, runner) -> None:
     runner.display("  - Setting up database schema")
 
     repo_url = ctx.get('services.pagila.repo_url')
-    command = ['make', '-C', 'platform-bootstrap', 'setup-pagila', f'PAGILA_REPO_URL={repo_url}']
+    postgres_image = ctx.get('services.pagila.postgres_image', 'postgres:17.5-alpine')
+
+    command = [
+        'make', '-C', 'platform-bootstrap', 'setup-pagila',
+        f'PAGILA_REPO_URL={repo_url}',
+        f'IMAGE_POSTGRES={postgres_image}',
+        'PAGILA_AUTO_YES=1'
+    ]
     result = runner.run_shell(command)
 
     if result.get('returncode') == 0:

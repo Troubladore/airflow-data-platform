@@ -197,3 +197,155 @@ def test_actions_use_runner_not_direct_io():
     # Verify runner was used
     assert len(mock_runner.calls) > 0
     assert mock_runner.calls[0][0] == 'save_config'
+
+
+# ============================================================================
+# PAGILA POSTGRESQL IMAGE TESTS - RED PHASE
+# ============================================================================
+
+def test_save_config_includes_postgres_image():
+    """save_config should store the Pagila PostgreSQL image in config"""
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.pagila.repo_url': 'https://github.com/Troubladore/pagila.git',
+        'services.pagila.enabled': True,
+        'services.pagila.postgres_image': 'postgres:17.5-alpine'
+    }
+
+    save_config(ctx, mock_runner)
+
+    # Assert config includes postgres_image
+    config = mock_runner.calls[0][1]
+    assert 'services' in config
+    assert 'pagila' in config['services']
+    assert config['services']['pagila']['postgres_image'] == 'postgres:17.5-alpine'
+
+
+def test_save_config_postgres_image_defaults_to_platform():
+    """save_config should default Pagila's image to match platform postgres"""
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.pagila.repo_url': 'https://github.com/Troubladore/pagila.git',
+        'services.pagila.enabled': True,
+        'services.postgres.image': 'artifactory.company.com/postgres:17.5',
+        # Note: services.pagila.postgres_image not set - should default to platform
+    }
+
+    save_config(ctx, mock_runner)
+
+    # Assert Pagila inherits platform image when not explicitly set
+    config = mock_runner.calls[0][1]
+    assert config['services']['pagila']['postgres_image'] == 'artifactory.company.com/postgres:17.5'
+
+
+def test_install_pagila_passes_postgres_image():
+    """install_pagila should pass IMAGE_POSTGRES to setup script"""
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.pagila.repo_url': 'https://github.com/Troubladore/pagila.git',
+        'services.pagila.postgres_image': 'artifactory.company.com/postgres:17.5'
+    }
+
+    install_pagila(ctx, mock_runner)
+
+    # Assert IMAGE_POSTGRES is passed to the command
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    assert len(run_shell_calls) == 1
+    command = run_shell_calls[0][1]
+    command_str = ' '.join(command)
+
+    # The setup script expects IMAGE_POSTGRES environment variable
+    assert 'IMAGE_POSTGRES=' in command_str, \
+        f"Command must pass IMAGE_POSTGRES variable to setup script, got: {command_str}"
+
+
+def test_install_pagila_uses_correct_image_from_context():
+    """install_pagila must use the correct image from context"""
+    mock_runner = MockActionRunner()
+    custom_image = 'mycorp.jfrog.io/team/postgres:17.5-alpine'
+    ctx = {
+        'services.pagila.repo_url': 'https://github.com/Troubladore/pagila.git',
+        'services.pagila.postgres_image': custom_image
+    }
+
+    install_pagila(ctx, mock_runner)
+
+    # Assert the custom image is in the command
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    command = run_shell_calls[0][1]
+    command_str = ' '.join(command)
+
+    assert custom_image in command_str, \
+        f"Command must include the custom image {custom_image}, got: {command_str}"
+
+
+# ============================================================================
+# NON-INTERACTIVE SETUP TESTS - RED PHASE
+# ============================================================================
+
+def test_install_pagila_calls_setup_script_non_interactively():
+    """install_pagila should call setup-pagila.sh with --yes flag for non-interactive mode"""
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.pagila.repo_url': 'https://github.com/Troubladore/pagila.git'
+    }
+
+    install_pagila(ctx, mock_runner)
+
+    # The setup script supports --yes flag (line 89 in setup-pagila.sh)
+    # When called from wizard, it must use --yes to avoid interactive prompts
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    assert len(run_shell_calls) == 1
+    command = run_shell_calls[0][1]
+    command_str = ' '.join(command)
+
+    # The command should include PAGILA_AUTO_YES=1 as a make variable
+    # This will be passed to the setup script to enable non-interactive mode
+    assert 'PAGILA_AUTO_YES=' in command_str, \
+        f"Command must include PAGILA_AUTO_YES variable for non-interactive setup, got: {command_str}"
+
+
+def test_install_pagila_passes_auto_yes_flag():
+    """install_pagila should pass PAGILA_AUTO_YES=1 to avoid interactive prompts"""
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.pagila.repo_url': 'https://github.com/Troubladore/pagila.git',
+        'services.pagila.postgres_image': 'postgres:17.5-alpine'
+    }
+
+    install_pagila(ctx, mock_runner)
+
+    # Assert PAGILA_AUTO_YES=1 is in the command
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    command = run_shell_calls[0][1]
+    command_str = ' '.join(command)
+
+    assert 'PAGILA_AUTO_YES=1' in command_str, \
+        f"Command must pass PAGILA_AUTO_YES=1 to prevent stalling on prompts, got: {command_str}"
+
+
+def test_install_pagila_non_interactive_prevents_stall():
+    """install_pagila must avoid interactive prompts that would stall wizard execution"""
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.pagila.repo_url': 'https://github.com/Troubladore/pagila.git'
+    }
+
+    install_pagila(ctx, mock_runner)
+
+    # The setup-pagila.sh script has 3 interactive prompts:
+    # - Line 192: Clean up old resources (ask_yes_no)
+    # - Line 241: Update pagila repository (ask_yes_no)
+    # - Line 330: Restart pagila container (ask_yes_no)
+    #
+    # These prompts will stall indefinitely if called without --yes or PAGILA_AUTO_YES=1
+    # The wizard must pass the flag to ensure non-blocking execution
+
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    command = run_shell_calls[0][1]
+    command_str = ' '.join(command)
+
+    # Verify non-interactive mode is enabled
+    has_auto_yes = 'PAGILA_AUTO_YES=' in command_str
+    assert has_auto_yes, \
+        f"Command must enable non-interactive mode to prevent wizard stall. Got: {command_str}"
