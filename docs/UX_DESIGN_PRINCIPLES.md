@@ -299,6 +299,38 @@ echo -e "y\ny\ny\ny\nn\nn\nn" | ./platform clean-slate 2>&1 | grep -E "Pagila|Re
 
 ---
 
+### 9. Section Isolation (Feedback: 2025-10-27 02:08)
+
+**Rule:** Only show questions related to that service in each service's section
+
+**Bad:**
+```
+  Pagila Removal Options
+
+Remove Pagila Docker images? [y/N]:
+Are you sure you want to tear down OpenMetadata? [y/N]:  ← WRONG SECTION!
+```
+
+**Good:**
+```
+  Pagila Removal Options
+
+Remove Pagila Docker images? [y/N]:
+Remove cloned repository folder? [y/N]:
+[All Pagila-related questions only]
+
+  OpenMetadata Removal Options
+
+Remove OpenMetadata Docker images? [y/N]:
+[All OpenMetadata-related questions only]
+```
+
+**Reason:** Questions appearing in wrong sections confuse users about what they're configuring.
+
+**Validation:** Check that teardown specs don't have duplicate confirmation questions that cause cross-service pollution.
+
+---
+
 ## Future Considerations
 
 **Potential additions based on patterns:**

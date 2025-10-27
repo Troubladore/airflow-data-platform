@@ -42,14 +42,24 @@ steps:
     next:
       when_value:
         true: remove_volumes_action
-        false: clean_config
+        false: remove_config_question
 
   - id: remove_volumes_action
     type: action
     action: postgres.teardown.remove_volumes
-    next: clean_config
+    next: remove_config_question
 
-  - id: clean_config
+  - id: remove_config_question
+    type: boolean
+    prompt: "Remove from platform configuration (custom settings will be forgotten)?"
+    state_key: services.postgres.teardown.remove_config
+    default_value: false
+    next:
+      when_value:
+        true: remove_config_action
+        false: finish
+
+  - id: remove_config_action
     type: action
     action: postgres.teardown.clean_config
     next: finish

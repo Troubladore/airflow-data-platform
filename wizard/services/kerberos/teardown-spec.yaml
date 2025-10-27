@@ -9,52 +9,62 @@ requires:
   - kerberos
 
 steps:
-  - id: kerberos_teardown_confirm
-    type: boolean
-    prompt: "Are you sure you want to tear down Kerberos? (y/n):"
-    state_key: services.kerberos.teardown.confirm
-    default_value: false
-    next:
-      when_value:
-        true: stop_service
-        false: finish
+  - id: show_details_header
+    type: display
+    prompt: |
 
-  - id: stop_service
+      ────────────────────────────────────────────────────────
+        Kerberos Removal Options
+      ────────────────────────────────────────────────────────
+
+    next: remove_container_action
+
+  - id: remove_container_action
     type: action
     action: kerberos.stop_service
-    next: kerberos_remove_volumes
+    next: remove_images_question
 
-  - id: kerberos_remove_volumes
+  - id: remove_images_question
     type: boolean
-    prompt: "Remove keytab files? (y/n):"
-    state_key: services.kerberos.teardown.remove_volumes
-    default_value: false
-    next:
-      when_value:
-        true: remove_keytabs_action
-        false: kerberos_remove_images
-
-  - id: remove_keytabs_action
-    type: action
-    action: kerberos.remove_keytabs
-    next: kerberos_remove_images
-
-  - id: kerberos_remove_images
-    type: boolean
-    prompt: "Remove Docker images? (y/n):"
+    prompt: "Remove Kerberos Docker images?"
     state_key: services.kerberos.teardown.remove_images
     default_value: false
     next:
       when_value:
         true: remove_images_action
-        false: clean_config
+        false: remove_keytabs_question
 
   - id: remove_images_action
     type: action
     action: kerberos.remove_images
-    next: clean_config
+    next: remove_keytabs_question
 
-  - id: clean_config
+  - id: remove_keytabs_question
+    type: boolean
+    prompt: "Remove keytab files?"
+    state_key: services.kerberos.teardown.remove_keytabs
+    default_value: false
+    next:
+      when_value:
+        true: remove_keytabs_action
+        false: remove_config_question
+
+  - id: remove_keytabs_action
+    type: action
+    action: kerberos.remove_keytabs
+    next: remove_config_question
+
+  - id: remove_config_question
+    type: boolean
+    prompt: "Remove from platform configuration (custom settings will be forgotten)?"
+    state_key: services.kerberos.teardown.remove_config
+    default_value: false
+    next:
+      when_value:
+        true: remove_config_action
+        false: finish
+
+  - id: remove_config_action
     type: action
     action: kerberos.clean_configuration
     next: finish
