@@ -80,3 +80,30 @@ class TestDiscoverySummary:
         assert summary['total_containers'] == 0
         assert summary['total_images'] == 0
         assert summary['total_volumes'] == 0
+
+
+class TestServiceDiscoveryIntegration:
+    """Test integration with service discovery modules."""
+
+    def test_discover_all_calls_postgres_discovery(self):
+        """Should import and call postgres discovery functions."""
+        runner = MockActionRunner()
+        runner.responses['run_shell'] = {
+            ('docker', 'ps', '-a', '--filter', 'name=postgres'): 'postgres|Up\n'
+        }
+
+        engine = DiscoveryEngine(runner=runner)
+        results = engine.discover_all()
+
+        # Should have postgres results
+        assert 'postgres' in results
+        assert 'containers' in results['postgres']
+
+    def test_discover_all_handles_missing_service_module(self):
+        """Should handle gracefully if service discovery module missing."""
+        runner = MockActionRunner()
+        engine = DiscoveryEngine(runner=runner)
+
+        # Should not crash even if service modules don't exist yet
+        results = engine.discover_all()
+        assert isinstance(results, dict)
