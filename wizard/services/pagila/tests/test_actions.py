@@ -54,11 +54,12 @@ def test_install_pagila_calls_setup_script():
     install_pagila(ctx, mock_runner)
 
     # Assert runner.run_shell was called with setup script
-    assert len(mock_runner.calls) == 1
-    assert mock_runner.calls[0][0] == 'run_shell'
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    assert len(run_shell_calls) == 1
+    assert run_shell_calls[0][0] == 'run_shell'
 
     # Assert command includes pagila setup
-    command = mock_runner.calls[0][1]
+    command = run_shell_calls[0][1]
     assert 'pagila' in ' '.join(command).lower()
 
 
@@ -73,9 +74,35 @@ def test_install_pagila_passes_repo_url():
     install_pagila(ctx, mock_runner)
 
     # Assert repo URL is in the command or environment
-    command = mock_runner.calls[0][1]
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    command = run_shell_calls[0][1]
     command_str = ' '.join(command)
-    assert repo_url in command_str or 'PAGILA_REPO' in command_str
+    # Updated to check for PAGILA_REPO_URL (the correct variable name)
+    assert repo_url in command_str or 'PAGILA_REPO_URL' in command_str
+
+
+def test_install_pagila_uses_correct_variable_name():
+    """install_pagila must use PAGILA_REPO_URL (not PAGILA_REPO) to match setup script"""
+    mock_runner = MockActionRunner()
+    repo_url = 'https://github.com/devrimgunduz/pagila.git'
+    ctx = {
+        'services.pagila.repo_url': repo_url
+    }
+
+    install_pagila(ctx, mock_runner)
+
+    # The setup-pagila.sh script expects PAGILA_REPO_URL environment variable
+    # This test ensures we pass the correct variable name
+    # Filter for run_shell calls only (ignore display calls)
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    assert len(run_shell_calls) > 0, "No shell command was executed"
+
+    command = run_shell_calls[0][1]
+    command_str = ' '.join(command)
+
+    # Must contain PAGILA_REPO_URL= (not just PAGILA_REPO=)
+    assert 'PAGILA_REPO_URL=' in command_str, \
+        f"Command must use PAGILA_REPO_URL variable, got: {command_str}"
 
 
 def test_install_pagila_uses_make_target():
@@ -88,7 +115,8 @@ def test_install_pagila_uses_make_target():
     install_pagila(ctx, mock_runner)
 
     # Assert make command is used
-    command = mock_runner.calls[0][1]
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    command = run_shell_calls[0][1]
     assert 'make' in command or 'Makefile' in ' '.join(command)
 
 

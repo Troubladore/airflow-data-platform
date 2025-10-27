@@ -21,7 +21,7 @@ def install_pagila(ctx: dict, runner) -> None:
     runner.display("  - Setting up database schema")
 
     repo_url = ctx.get('services.pagila.repo_url')
-    command = ['make', '-C', 'platform-bootstrap', 'setup-pagila', f'PAGILA_REPO={repo_url}']
+    command = ['make', '-C', 'platform-bootstrap', 'setup-pagila', f'PAGILA_REPO_URL={repo_url}']
     result = runner.run_shell(command)
 
     if result.get('returncode') == 0:
