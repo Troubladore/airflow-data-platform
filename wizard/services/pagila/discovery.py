@@ -1,7 +1,6 @@
 """Discovery functions for Pagila service artifacts."""
 
 from typing import List, Dict, Any
-import os
 
 
 def discover_containers(runner) -> List[Dict[str, str]]:
@@ -70,8 +69,9 @@ def discover_files(runner) -> List[str]:
     """
     files = []
 
-    # Check for platform-config.yaml
-    if os.path.exists('platform-config.yaml'):
+    # Check for platform-config.yaml using runner for mockability
+    result = runner.run_shell(['test', '-f', 'platform-config.yaml'])
+    if result.get('returncode') == 0:
         files.append('platform-config.yaml')
 
     return files
