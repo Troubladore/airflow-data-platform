@@ -91,6 +91,7 @@ class RealActionRunner(ActionRunner):
 
             full_prompt = f"{prompt} [{default_display}]: "
             response = input(full_prompt).strip()
+            print()  # Add newline after user input
 
             # Return response or default
             if response:
@@ -101,6 +102,7 @@ class RealActionRunner(ActionRunner):
             # No default
             full_prompt = f"{prompt}: "
             response = input(full_prompt).strip()
+            print()  # Add newline after user input
             return response
 
 
