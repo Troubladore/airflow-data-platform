@@ -4,22 +4,12 @@ description: "PostgreSQL database teardown"
 requires: []
 
 steps:
-  - id: postgres_teardown_confirm
-    type: boolean
-    prompt: "Remove PostgreSQL database service?"
-    state_key: services.postgres.teardown.confirm
-    default_value: false
-    next:
-      when_value:
-        true: show_postgres_details_header
-        false: finish
-
   - id: show_postgres_details_header
     type: display
     prompt: |
 
       ────────────────────────────────────────────────────────
-        PostgreSQL Removal Details
+        PostgreSQL Removal Options
       ────────────────────────────────────────────────────────
 
     next: remove_container_action
