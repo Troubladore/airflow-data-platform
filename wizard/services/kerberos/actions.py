@@ -73,13 +73,16 @@ def start_service(ctx: Dict[str, Any], runner) -> None:
 
     # If not found, try PowerShell fallback (WSL2 on domain-joined Windows)
     if not in_domain:
-        powershell_check = runner.run_shell([
-            'powershell.exe', '-Command', 'echo $env:USERDNSDOMAIN'
-        ])
-        # PowerShell successful if returncode is 0 and has output
-        if powershell_check.get('returncode') == 0:
-            domain_from_ps = powershell_check.get('stdout', '').strip()
-            in_domain = bool(domain_from_ps)
+        # Check if PowerShell is available first (WSL2-specific, not on native Linux/macOS)
+        ps_available = runner.run_shell(['bash', '-c', 'command -v powershell.exe'])
+        if ps_available.get('returncode') == 0:
+            powershell_check = runner.run_shell([
+                'powershell.exe', '-Command', 'echo $env:USERDNSDOMAIN'
+            ])
+            # PowerShell successful if returncode is 0 and has output
+            if powershell_check.get('returncode') == 0:
+                domain_from_ps = powershell_check.get('stdout', '').strip()
+                in_domain = bool(domain_from_ps)
 
     if in_domain:
         runner.display("  - Detected domain environment")
