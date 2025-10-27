@@ -4,18 +4,22 @@ from typing import Dict, Any
 
 
 def stop_service(ctx: Dict[str, Any], runner) -> None:
-    """Stop Kerberos sidecar service.
+    """Stop and remove Kerberos container.
 
     Args:
         ctx: Context dictionary (unused)
         runner: ActionRunner instance for side effects
     """
-    result = runner.run_shell(
-        ['docker-compose', 'stop', 'kerberos-sidecar'],
-        cwd='platform-bootstrap/kerberos-sidecar'
-    )
-    # Note: Errors are logged but don't fail teardown
-    # Service may already be stopped
+    runner.display("\nRemoving Kerberos container...")
+
+    # Try both real and mock container names
+    for container in ['kerberos-sidecar', 'kerberos-sidecar-mock']:
+        result = runner.run_shell(['docker', 'rm', '-f', container])
+        if result.get('returncode') == 0:
+            runner.display(f"✓ Removed {container}")
+            break
+    else:
+        runner.display("⚠ Kerberos container not found (may already be removed)")
 
 
 def remove_keytabs(ctx: Dict[str, Any], runner) -> None:
