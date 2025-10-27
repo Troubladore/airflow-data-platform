@@ -16,9 +16,18 @@ def save_config(ctx: dict, runner) -> None:
 
 def install_pagila(ctx: dict, runner) -> None:
     """Install Pagila database."""
+    runner.display("Installing Pagila database...")
+    runner.display("  - Cloning repository")
+    runner.display("  - Setting up database schema")
+
     repo_url = ctx.get('services.pagila.repo_url')
     command = ['make', '-C', 'platform-bootstrap', 'setup-pagila', f'PAGILA_REPO={repo_url}']
-    runner.run_shell(command)
+    result = runner.run_shell(command)
+
+    if result.get('returncode') == 0:
+        runner.display("✓ Pagila installed successfully")
+    else:
+        runner.display("✗ Pagila installation failed")
 
 
 def check_postgres_dependency(ctx: dict, runner) -> bool:

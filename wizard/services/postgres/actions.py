@@ -42,6 +42,8 @@ def init_database(ctx: Dict[str, Any], runner) -> None:
         ctx: Context dictionary with optional port configuration
         runner: ActionRunner instance for side effects
     """
+    runner.display("\nInitializing PostgreSQL database...")
+
     # Get port from context or use default
     port = ctx.get('services.postgres.port', 5432)
 
@@ -49,7 +51,12 @@ def init_database(ctx: Dict[str, Any], runner) -> None:
     command = ['make', '-C', 'platform-infrastructure', 'init-db', f'PORT={port}']
 
     # Execute command
-    runner.run_shell(command)
+    result = runner.run_shell(command)
+
+    if result.get('returncode') == 0:
+        runner.display("✓ Database initialized")
+    else:
+        runner.display("✗ Database initialization failed")
 
 
 def start_service(ctx: Dict[str, Any], runner) -> None:
@@ -61,8 +68,15 @@ def start_service(ctx: Dict[str, Any], runner) -> None:
         ctx: Context dictionary (unused)
         runner: ActionRunner instance for side effects
     """
+    runner.display("Starting PostgreSQL service...")
+
     # Build command
     command = ['make', '-C', 'platform-infrastructure', 'start']
 
     # Execute command
-    runner.run_shell(command)
+    result = runner.run_shell(command)
+
+    if result.get('returncode') == 0:
+        runner.display("✓ PostgreSQL started successfully")
+    else:
+        runner.display("✗ PostgreSQL failed to start")

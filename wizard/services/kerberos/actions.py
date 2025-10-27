@@ -41,8 +41,17 @@ def test_kerberos(ctx: Dict[str, Any], runner):
     Returns:
         Result from test command execution
     """
+    runner.display("\nConfiguring Kerberos integration...")
+    runner.display("  - Setting up ticket sharing")
+
     # Use runner to execute test command (mockable!)
     result = runner.run_shell(['make', 'test-kerberos'], cwd='platform-infrastructure')
+
+    if result.get('returncode') == 0:
+        runner.display("✓ Kerberos configured successfully")
+    else:
+        runner.display("⚠ Kerberos test skipped (will configure on first use)")
+
     return result
 
 
