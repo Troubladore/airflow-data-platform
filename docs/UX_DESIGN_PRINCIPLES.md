@@ -31,18 +31,28 @@
 1. Remove containers (can recreate instantly)
 2. Remove images (can re-pull from registry)
 3. Remove cloned folders/repos (can re-clone)
-4. Remove data/databases (CANNOT RECOVER - most destructive)
-5. Remove configuration (prevents recreation)
+4. Remove data/databases (permanent but may have backups)
+5. **Remove configuration (MOST DESTRUCTIVE - forgets custom settings)**
 
-**Example - Pagila:**
+**CRITICAL:** Config removal must be LAST because:
+- Loses custom image paths, domains, URLs that user may not remember
+- Data can be backed up elsewhere
+- Custom configuration choices are often forgotten
+- Recreating config requires remembering all custom decisions
+
+**Feedback 2025-10-27 02:05:**
+"Removing from the configuration is always the last thing, because it potentially forgets custom image paths, which could be hard to remember/recreate."
+
+**Example - Pagila (Correct):**
 ```
 Remove Pagila? [y/N]: y
 
   Pagila Removal Options
 
+Remove Docker images? [y/N]:
 Remove cloned repository folder? [y/N]:
-Remove database and data (cannot be recovered)? [y/N]:
-Remove from platform configuration (prevents recreation on next setup)? [y/N]:
+Remove database data (data will be lost)? [y/N]:
+Remove from platform configuration (custom settings will be forgotten)? [y/N]: ← LAST
 ```
 
 **Reason:** Let users make reversible choices first, save irreversible (data loss) for last.

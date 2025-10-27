@@ -46,34 +46,34 @@ steps:
   - id: remove_repo_action
     type: action
     action: pagila.remove_repo
-    next: remove_config_question
-
-  - id: remove_config_question
-    type: boolean
-    prompt: "Remove from platform configuration (prevents recreation on next setup)?"
-    state_key: services.pagila.teardown.remove_config
-    default_value: false
-    next:
-      when_value:
-        true: remove_config_action
-        false: remove_database_data_question
-
-  - id: remove_config_action
-    type: action
-    action: pagila.clean_config
     next: remove_database_data_question
 
   - id: remove_database_data_question
     type: boolean
-    prompt: "Remove Pagila database data (PERMANENT - cannot be recovered)?"
+    prompt: "Remove Pagila database data (data will be lost)?"
     state_key: services.pagila.teardown.remove_database_data
     default_value: false
     next:
       when_value:
         true: remove_database_action
-        false: finish
+        false: remove_config_question
 
   - id: remove_database_action
     type: action
     action: pagila.drop_database
+    next: remove_config_question
+
+  - id: remove_config_question
+    type: boolean
+    prompt: "Remove from platform configuration (custom settings will be forgotten)?"
+    state_key: services.pagila.teardown.remove_config
+    default_value: false
+    next:
+      when_value:
+        true: remove_config_action
+        false: finish
+
+  - id: remove_config_action
+    type: action
+    action: pagila.clean_config
     next: finish
