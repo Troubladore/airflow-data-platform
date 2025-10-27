@@ -89,7 +89,7 @@ echo ""
 
 # First, check all scripts for basic syntax errors
 SCRIPTS_TO_TEST=(
-    "dev-tools/clean-slate-LEGACY.sh"
+    # "dev-tools/clean-slate-LEGACY.sh"  # Legacy - not tested
     "dev-tools/setup-kerberos.sh"
     "diagnostics/diagnose-kerberos.sh"
     "diagnostics/krb5-auth-test.sh"
@@ -147,10 +147,10 @@ echo -e "${CYAN}=== INTERACTIVE SCRIPT SAFETY ===${NC}"
 echo ""
 
 # Test that interactive scripts handle non-interactive mode gracefully
-# Note: clean-slate-LEGACY.sh has multiple prompts, need to answer 'n' to all
-test_script "setup-scripts/clean-slate-LEGACY.sh" "
-    printf 'n\nn\nn\nn\n' | timeout 2 ./setup-scripts/clean-slate-LEGACY.sh 2>&1 | grep -q 'Cancelled'
-" "Handles 'no' input"
+# Note: clean-slate-LEGACY.sh - Legacy script, not tested (use new wizard)
+# test_script "setup-scripts/clean-slate-LEGACY.sh" "
+#     printf 'n\nn\nn\nn\n' | timeout 2 ./setup-scripts/clean-slate-LEGACY.sh 2>&1 | grep -q 'Cancelled'
+# " "Handles 'no' input"
 
 # Test setup-kerberos.sh can at least parse without errors
 test_script "dev-tools/setup-kerberos.sh" "bash -n ./dev-tools/setup-kerberos.sh" "Setup script syntax"
