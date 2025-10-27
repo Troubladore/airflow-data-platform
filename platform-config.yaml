@@ -1,7 +1,4 @@
 services:
-  postgres:
-    auth_method: md5
+  pagila:
     enabled: true
-    image: postgres:17.5-alpine
-    password: changeme
-    prebuilt: false
+    repo_url: https://github.com/devrimgunduz/pagila.git
