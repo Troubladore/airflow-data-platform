@@ -322,7 +322,8 @@ def test_start_service_uses_powershell_fallback_when_userdnsdomain_empty():
     }
 
     # First call checks USERDNSDOMAIN (empty in WSL2)
-    # Second call should check PowerShell
+    # Second call checks if PowerShell exists
+    # Third call runs PowerShell
     call_count = [0]
     def mock_run_shell_handler(command, cwd=None):
         call_count[0] += 1
@@ -330,7 +331,11 @@ def test_start_service_uses_powershell_fallback_when_userdnsdomain_empty():
             # First call: check USERDNSDOMAIN - empty in WSL2
             return {'stdout': '', 'stderr': '', 'returncode': 0}
         elif call_count[0] == 2:
-            # Second call: PowerShell fallback returns domain
+            # Second call: check if powershell.exe exists (command -v)
+            if 'command -v powershell.exe' in ' '.join(command):
+                return {'stdout': '/mnt/c/.../powershell.exe', 'stderr': '', 'returncode': 0}
+        elif call_count[0] == 3:
+            # Third call: PowerShell fallback returns domain
             if 'powershell.exe' in command:
                 return {'stdout': 'COMPANY.COM\n', 'stderr': '', 'returncode': 0}
         # Subsequent calls for make commands
@@ -379,9 +384,9 @@ def test_start_service_handles_powershell_not_available():
             # First call: check USERDNSDOMAIN - empty
             return {'stdout': '', 'stderr': '', 'returncode': 0}
         elif call_count[0] == 2:
-            # Second call: PowerShell not found (native Linux)
-            if 'powershell.exe' in command:
-                return {'stdout': '', 'stderr': 'command not found', 'returncode': 127}
+            # Second call: check if powershell.exe exists (command -v powershell.exe)
+            if 'command -v powershell.exe' in ' '.join(command):
+                return {'stdout': '', 'stderr': '', 'returncode': 1}  # Not found
         # Subsequent calls for docker commands
         return {'stdout': '', 'stderr': '', 'returncode': 0}
 
@@ -425,7 +430,11 @@ def test_start_service_handles_powershell_domain_error():
             # First call: check USERDNSDOMAIN - empty
             return {'stdout': '', 'stderr': '', 'returncode': 0}
         elif call_count[0] == 2:
-            # Second call: PowerShell returns error (not domain-joined)
+            # Second call: check if powershell.exe exists (command -v)
+            if 'command -v powershell.exe' in ' '.join(command):
+                return {'stdout': '/mnt/c/.../powershell.exe', 'stderr': '', 'returncode': 0}
+        elif call_count[0] == 3:
+            # Third call: PowerShell returns error (not domain-joined)
             if 'powershell.exe' in command:
                 return {'stdout': '', 'stderr': 'Exception calling GetComputerDomain', 'returncode': 1}
         # Subsequent calls for docker commands
