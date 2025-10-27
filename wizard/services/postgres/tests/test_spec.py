@@ -97,9 +97,9 @@ class TestSpecStepsValid:
         assert 'postgres_auth' in steps, "should have postgres_auth step"
 
         step = steps['postgres_auth']
-        assert step['type'] == 'enum', "postgres_auth should be type 'enum'"
-        assert 'options' in step, "postgres_auth should have options"
-        assert len(step['options']) >= 2, "postgres_auth should have at least 2 options"
+        assert step['type'] == 'boolean', "postgres_auth should be type 'boolean'"
+        assert 'prompt' in step, "postgres_auth should have a prompt"
+        assert step['state_key'] == 'services.postgres.require_password', "should store to require_password state key"
 
     def test_spec_has_postgres_save_action(self, spec):
         """Should have postgres_save action step."""

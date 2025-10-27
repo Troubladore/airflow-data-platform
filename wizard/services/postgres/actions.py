@@ -16,6 +16,12 @@ def save_config(ctx: Dict[str, Any], runner) -> None:
     # Map require_password boolean to auth_method
     require_password = ctx.get('services.postgres.require_password', True)
     auth_method = 'md5' if require_password else 'trust'
+    password = ctx.get('services.postgres.password', 'changeme') if require_password else None
+
+    # Store derived values back into state for later access
+    ctx['services.postgres.auth_method'] = auth_method
+    if password is not None:
+        ctx['services.postgres.password'] = password
 
     config = {
         'services': {
@@ -24,7 +30,7 @@ def save_config(ctx: Dict[str, Any], runner) -> None:
                 'image': ctx.get('services.postgres.image', 'postgres:17.5-alpine'),
                 'prebuilt': ctx.get('services.postgres.prebuilt', False),
                 'auth_method': auth_method,
-                'password': ctx.get('services.postgres.password', 'changeme') if require_password else None
+                'password': password
             }
         }
     }
