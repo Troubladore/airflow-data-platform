@@ -1,6 +1,7 @@
 """Discovery functions for Pagila service artifacts."""
 
 from typing import List, Dict, Any
+import os
 
 
 def discover_containers(runner) -> List[Dict[str, str]]:
@@ -27,7 +28,21 @@ def discover_images(runner) -> List[Dict[str, str]]:
         List of dicts: [{'name': 'pagila-custom:latest', 'size': '50MB'}, ...]
         Usually empty unless custom image was built.
     """
-    return []
+    # Check for custom pagila images
+    result = runner.run_shell([
+        'docker', 'images',
+        '--filter', 'reference=pagila*',
+        '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'
+    ])
+
+    images = []
+    if result.get('stdout') and result.get('returncode') == 0:
+        for line in result['stdout'].strip().split('\n'):
+            if line and '|' in line:
+                name, size = line.split('|', 1)
+                images.append({'name': name, 'size': size})
+
+    return images
 
 
 def discover_volumes(runner) -> List[Dict[str, str]]:
@@ -53,7 +68,13 @@ def discover_files(runner) -> List[str]:
     Returns:
         List of file paths: ['platform-config.yaml', ...]
     """
-    return []
+    files = []
+
+    # Check for platform-config.yaml
+    if os.path.exists('platform-config.yaml'):
+        files.append('platform-config.yaml')
+
+    return files
 
 
 def discover_custom(runner) -> Dict[str, Any]:
@@ -73,7 +94,24 @@ def discover_custom(runner) -> Dict[str, Any]:
             'database': {'exists': True, 'name': 'pagila'}
         }
     """
-    return {
+    result = {
         'repository': {'exists': False, 'path': '/tmp/pagila'},
         'database': {'exists': False, 'name': 'pagila'}
     }
+
+    # Check for repository at /tmp/pagila
+    repo_check = runner.run_shell(['test', '-d', '/tmp/pagila'])
+    if repo_check.get('returncode') == 0:
+        result['repository']['exists'] = True
+
+    # Check for pagila database in postgres
+    db_check = runner.run_shell([
+        'docker', 'exec', 'postgres',
+        'psql', '-U', 'postgres', '-tAc',
+        "SELECT 1 FROM pg_database WHERE datname='pagila'"
+    ])
+
+    if db_check.get('returncode') == 0 and db_check.get('stdout', '').strip() == '1':
+        result['database']['exists'] = True
+
+    return result
