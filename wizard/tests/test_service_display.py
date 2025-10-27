@@ -25,7 +25,7 @@ class TestServicePromptDisplay:
         prompts_displayed = [call for call in runner.calls if call[0] == 'display']
         assert len(prompts_displayed) > 0
         # Check for postgres image prompt
-        assert any('PostgreSQL image' in str(call) for call in prompts_displayed)
+        assert any('PostgreSQL Docker image' in str(call) for call in prompts_displayed)
 
     def test_service_boolean_step_shows_prompt(self):
         """Boolean-type steps should display their prompt."""
@@ -54,12 +54,12 @@ class TestServicePromptDisplay:
             'select_kerberos': 'n',
             'select_pagila': 'n',
             'postgres_image': 'postgres:17.5',
-            'postgres_auth': 'md5'
+            'postgres_auth': True  # Boolean, not enum
         })
 
-        # Should have displayed auth method prompt
+        # Should have displayed auth prompt (boolean asking about password requirement)
         prompts = [call for call in runner.calls if call[0] == 'display']
-        assert any('authentication method' in str(call).lower() for call in prompts)
+        assert any('password' in str(call).lower() for call in prompts)
 
     def test_service_integer_step_shows_prompt(self):
         """Integer-type steps should display their prompt."""
@@ -71,7 +71,7 @@ class TestServicePromptDisplay:
             'select_kerberos': 'n',
             'select_pagila': 'n',
             'postgres_image': 'postgres:17.5',
-            'postgres_auth': 'trust',
+            'postgres_auth': False,  # Boolean: don't require password
             'postgres_port': 5432  # Integer, not string
         })
 
