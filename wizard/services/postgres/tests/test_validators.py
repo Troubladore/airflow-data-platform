@@ -22,6 +22,11 @@ class TestValidateImageUrl:
         result = validate_image_url("registry.local:5000/postgres:17.5", {})
         assert result == "registry.local:5000/postgres:17.5"
 
+    def test_validate_image_url_valid_with_multi_path(self):
+        """Should accept image URL with multiple path segments (e.g., JFrog Artifactory)."""
+        result = validate_image_url("mycorp.jfrog.io/some-name/some-artifact/20.2:2022", {})
+        assert result == "mycorp.jfrog.io/some-name/some-artifact/20.2:2022"
+
     def test_validate_image_url_strips_whitespace(self):
         """Should strip leading/trailing whitespace."""
         result = validate_image_url("  postgres:17.5-alpine  ", {})
