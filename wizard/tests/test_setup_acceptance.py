@@ -13,7 +13,9 @@ class TestSetupHappyPath:
         runner = MockActionRunner()
         # Simulate pressing Enter (empty strings) for all inputs
         runner.input_queue = [
-            '',   # Service selection (empty = none, just postgres)
+            '',   # Install OpenMetadata? (default: n)
+            '',   # Install Kerberos? (default: n)
+            '',   # Install Pagila? (default: n)
             '',   # Postgres image (use default)
             '',   # Prebuilt (use default False)
             '',   # Auth method (use default md5)
@@ -35,12 +37,13 @@ class TestSetupHappyPath:
         """Custom user inputs should override defaults."""
         runner = MockActionRunner()
         runner.input_queue = [
-            '',                    # Service selection (empty = none)
+            '',                    # Install OpenMetadata? (n)
+            '',                    # Install Kerberos? (n)
+            '',                    # Install Pagila? (n)
             'postgres:16',         # Custom image
             'y',                   # Yes to prebuilt
             'trust',               # Trust auth
-            '',                    # Password (skipped for trust)
-            '5433'                 # Custom port
+            '5433'                 # Custom port (password skipped for trust)
         ]
 
         engine = WizardEngine(runner=runner, base_path='wizard')
@@ -55,7 +58,7 @@ class TestSetupHappyPath:
     def test_each_prompt_only_asked_once(self):
         """Each question should only be asked once (no duplicate prompts)."""
         runner = MockActionRunner()
-        runner.input_queue = ['', '', '', '', '', '']  # Service selection + 5 postgres prompts
+        runner.input_queue = ['', '', '', '', '', '', '', '', '']  # 3 service selection + 5 postgres prompts
 
         engine = WizardEngine(runner=runner, base_path='wizard')
         engine.execute_flow('setup')
@@ -76,7 +79,9 @@ class TestSetupHappyPath:
         """Invalid input should show error and ask again."""
         runner = MockActionRunner()
         runner.input_queue = [
-            '',            # Service selection
+            '',            # Install OpenMetadata? (n)
+            '',            # Install Kerberos? (n)
+            '',            # Install Pagila? (n)
             '',            # Image default
             '',            # Prebuilt default
             '',            # Auth default

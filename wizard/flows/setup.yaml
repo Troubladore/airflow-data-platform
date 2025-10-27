@@ -4,17 +4,26 @@ description: "Platform setup wizard - orchestrates service installation"
 
 # Service selection - which services to enable
 service_selection:
-  - id: select_services
-    type: multi_select
-    prompt: "Select services to install (space-separated):"
-    state_key: selected_services
-    options:
-      - value: openmetadata
-        label: "OpenMetadata - Data catalog"
-      - value: kerberos
-        label: "Kerberos - Authentication"
-      - value: pagila
-        label: "Pagila - Sample database"
+  - id: select_openmetadata
+    type: boolean
+    prompt: "Install OpenMetadata?"
+    state_key: services.openmetadata.enabled
+    default_value: false
+    next: select_kerberos
+
+  - id: select_kerberos
+    type: boolean
+    prompt: "Install Kerberos?"
+    state_key: services.kerberos.enabled
+    default_value: false
+    next: select_pagila
+
+  - id: select_pagila
+    type: boolean
+    prompt: "Install Pagila?"
+    state_key: services.pagila.enabled
+    default_value: false
+    next: null
 
 # Services to orchestrate (postgres always enabled)
 targets:

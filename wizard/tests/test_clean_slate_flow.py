@@ -128,7 +128,10 @@ class TestServiceTeardownSelection:
     def test_service_selection_updates_teardown_state(self, engine):
         """Should update state with selected services for teardown."""
         headless_inputs = {
-            'select_teardown_services': ['openmetadata', 'kerberos']  # Don't select pagila or postgres
+                        'select_postgres_teardown': False,
+            'select_openmetadata_teardown': True,
+            'select_kerberos_teardown': True,
+            'select_pagila_teardown': False,  # Don't select pagila or postgres
         }
 
         engine.execute_flow('clean-slate', headless_inputs=headless_inputs)
@@ -149,7 +152,10 @@ class TestServiceTeardownSelection:
     def test_can_select_all_services_for_teardown(self, engine):
         """Should allow selecting all services for teardown."""
         headless_inputs = {
-            'select_teardown_services': ['postgres', 'openmetadata', 'kerberos', 'pagila']
+                        'select_postgres_teardown': True,
+            'select_openmetadata_teardown': True,
+            'select_kerberos_teardown': True,
+            'select_pagila_teardown': True,
         }
 
         engine.execute_flow('clean-slate', headless_inputs=headless_inputs)
@@ -180,7 +186,10 @@ class TestReverseDependencyOrdering:
     def test_openmetadata_tears_down_before_postgres(self, engine):
         """OpenMetadata must tear down BEFORE PostgreSQL (reverse dependency)."""
         headless_inputs = {
-            'select_teardown_services': ['postgres', 'openmetadata'],
+                        'select_postgres_teardown': True,
+            'select_openmetadata_teardown': True,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': False,
             # Teardown prompts (all yes for full teardown)
             'postgres_teardown_confirm': True,
             'postgres_remove_volumes': True,
@@ -215,7 +224,10 @@ class TestReverseDependencyOrdering:
     def test_pagila_tears_down_before_postgres(self, engine):
         """Pagila must tear down BEFORE PostgreSQL (reverse dependency)."""
         headless_inputs = {
-            'select_teardown_services': ['postgres', 'pagila'],
+                        'select_postgres_teardown': True,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': True,
             # Teardown prompts
             'postgres_teardown_confirm': True,
             'postgres_remove_volumes': True,
@@ -256,7 +268,10 @@ class TestReverseDependencyOrdering:
     def test_kerberos_can_tear_down_independently(self, engine):
         """Kerberos has no dependencies and can tear down in any order."""
         headless_inputs = {
-            'select_teardown_services': ['kerberos'],
+                        'select_postgres_teardown': False,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': True,
+            'select_pagila_teardown': False,
             # Teardown prompts
             'kerberos_teardown_confirm': True,
             'kerberos_remove_volumes': True,
@@ -273,7 +288,10 @@ class TestReverseDependencyOrdering:
     def test_all_services_reverse_topological_order(self, engine):
         """When tearing down all services, dependents must tear down before dependencies."""
         headless_inputs = {
-            'select_teardown_services': ['postgres', 'openmetadata', 'kerberos', 'pagila'],
+                        'select_postgres_teardown': True,
+            'select_openmetadata_teardown': True,
+            'select_kerberos_teardown': True,
+            'select_pagila_teardown': True,
             # All teardown confirmations
             'postgres_teardown_confirm': True,
             'postgres_remove_volumes': True,
@@ -325,7 +343,10 @@ class TestSelectiveTeardown:
     def test_tear_down_openmetadata_only(self, engine):
         """Should tear down only OpenMetadata, leaving postgres running."""
         headless_inputs = {
-            'select_teardown_services': ['openmetadata'],  # Only openmetadata
+                        'select_postgres_teardown': False,
+            'select_openmetadata_teardown': True,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': False,  # Only openmetadata
             'openmetadata_teardown_confirm': True,
             'openmetadata_remove_volumes': True,
             'openmetadata_remove_images': True
@@ -348,7 +369,10 @@ class TestSelectiveTeardown:
     def test_tear_down_kerberos_only(self, engine):
         """Should tear down only Kerberos (independent service)."""
         headless_inputs = {
-            'select_teardown_services': ['kerberos'],
+                        'select_postgres_teardown': False,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': True,
+            'select_pagila_teardown': False,
             'kerberos_teardown_confirm': True,
             'kerberos_remove_volumes': True,
             'kerberos_remove_images': True
@@ -368,7 +392,10 @@ class TestSelectiveTeardown:
     def test_tear_down_pagila_and_postgres(self, engine):
         """Should tear down Pagila first, then Postgres (respecting reverse dependencies)."""
         headless_inputs = {
-            'select_teardown_services': ['postgres', 'pagila'],
+                        'select_postgres_teardown': True,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': True,
             'postgres_teardown_confirm': True,
             'postgres_remove_volumes': True,
             'postgres_remove_images': True,
@@ -404,7 +431,10 @@ class TestSelectiveTeardown:
     def test_tear_down_multiple_independents(self, engine):
         """Should tear down multiple independent services without constraints."""
         headless_inputs = {
-            'select_teardown_services': ['kerberos', 'pagila'],  # Both can be torn down independently
+                        'select_postgres_teardown': False,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': True,
+            'select_pagila_teardown': True,  # Both can be torn down independently
             'kerberos_teardown_confirm': True,
             'kerberos_remove_volumes': True,
             'kerberos_remove_images': True,
@@ -441,7 +471,10 @@ class TestTeardownActionRecording:
     def test_records_stop_service_actions(self, engine):
         """Should record stop_service actions for all selected services."""
         headless_inputs = {
-            'select_teardown_services': ['postgres', 'openmetadata'],
+                        'select_postgres_teardown': True,
+            'select_openmetadata_teardown': True,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': False,
             'postgres_teardown_confirm': True,
             'postgres_remove_volumes': False,
             'postgres_remove_images': False,
@@ -461,7 +494,10 @@ class TestTeardownActionRecording:
     def test_records_clean_config_actions(self, engine):
         """Should record clean_config actions to disable services."""
         headless_inputs = {
-            'select_teardown_services': ['kerberos'],
+                        'select_postgres_teardown': False,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': True,
+            'select_pagila_teardown': False,
             'kerberos_teardown_confirm': True,
             'kerberos_remove_volumes': True,
             'kerberos_remove_images': True
@@ -478,7 +514,10 @@ class TestTeardownActionRecording:
     def test_records_actions_in_correct_sequence(self, engine):
         """Should record teardown actions in expected sequence: stop -> remove_volumes -> remove_images -> clean_config."""
         headless_inputs = {
-            'select_teardown_services': ['postgres'],
+                        'select_postgres_teardown': True,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': False,
             'postgres_teardown_confirm': True,
             'postgres_remove_volumes': True,
             'postgres_remove_images': True
@@ -522,7 +561,10 @@ class TestTeardownStateManagement:
     def test_state_tracks_teardown_selections(self, engine):
         """State should track which services are selected for teardown."""
         headless_inputs = {
-            'select_teardown_services': ['openmetadata', 'pagila']
+                        'select_postgres_teardown': False,
+            'select_openmetadata_teardown': True,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': True,
         }
 
         engine.execute_flow('clean-slate', headless_inputs=headless_inputs)
@@ -536,7 +578,10 @@ class TestTeardownStateManagement:
     def test_state_tracks_teardown_confirmations(self, engine):
         """State should track teardown confirmation responses."""
         headless_inputs = {
-            'select_teardown_services': ['postgres'],
+                        'select_postgres_teardown': True,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': False,
             'postgres_teardown_confirm': True,
             'postgres_remove_volumes': False,
             'postgres_remove_images': True
@@ -552,7 +597,10 @@ class TestTeardownStateManagement:
     def test_state_persists_across_service_teardowns(self, engine):
         """State should persist across multiple service teardowns."""
         headless_inputs = {
-            'select_teardown_services': ['openmetadata', 'postgres'],
+                        'select_postgres_teardown': True,
+            'select_openmetadata_teardown': True,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': False,
             'postgres_teardown_confirm': True,
             'postgres_remove_volumes': True,
             'postgres_remove_images': True,
@@ -586,7 +634,10 @@ class TestConditionalTeardownInclusion:
     def test_unselected_services_not_torn_down(self, engine):
         """Services not selected for teardown should not execute teardown steps."""
         headless_inputs = {
-            'select_teardown_services': ['kerberos'],  # Only kerberos
+                        'select_postgres_teardown': False,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': True,
+            'select_pagila_teardown': False,  # Only kerberos
             'kerberos_teardown_confirm': True,
             'kerberos_remove_volumes': True,
             'kerberos_remove_images': True
@@ -622,7 +673,10 @@ class TestConditionalTeardownInclusion:
     def test_selected_services_execute_teardown(self, engine):
         """Services selected for teardown should execute all teardown steps."""
         headless_inputs = {
-            'select_teardown_services': ['pagila'],
+                        'select_postgres_teardown': False,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': True,
             'pagila_teardown_confirm': True,
             'pagila_remove_volumes': True,
             'pagila_remove_images': True
@@ -652,7 +706,10 @@ class TestFlowPolicyCompliance:
     def test_flow_respects_reverse_topological_policy(self, engine):
         """Flow should execute in reverse topological order (policy: ordering: reverse-topological)."""
         headless_inputs = {
-            'select_teardown_services': ['postgres', 'openmetadata', 'pagila'],
+                        'select_postgres_teardown': True,
+            'select_openmetadata_teardown': True,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': True,
             'postgres_teardown_confirm': True,
             'postgres_remove_volumes': True,
             'postgres_remove_images': True,
@@ -707,7 +764,10 @@ class TestFlowPolicyCompliance:
     def test_empty_selection_does_not_tear_down_anything(self, engine):
         """Empty selection should not tear down any services."""
         headless_inputs = {
-            'select_teardown_services': []  # No services selected
+                        'select_postgres_teardown': False,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': False,  # No services selected
         }
 
         engine.execute_flow('clean-slate', headless_inputs=headless_inputs)

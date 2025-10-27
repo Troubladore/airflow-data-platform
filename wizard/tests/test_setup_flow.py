@@ -116,7 +116,9 @@ class TestServiceSelectionStep:
     def test_service_selection_updates_state(self, engine):
         """Should update state with selected services."""
         headless_inputs = {
-            'select_services': ['openmetadata', 'kerberos']  # Don't select pagila
+                        'select_openmetadata': True,
+            'select_kerberos': True,
+            'select_pagila': False,  # Don't select pagila
         }
 
         engine.execute_flow('setup', headless_inputs=headless_inputs)
@@ -134,7 +136,9 @@ class TestServiceSelectionStep:
     def test_postgres_always_enabled(self, engine):
         """PostgreSQL should always be enabled regardless of selection."""
         headless_inputs = {
-            'select_services': []  # Select no optional services
+                        'select_openmetadata': False,
+            'select_kerberos': False,
+            'select_pagila': False,  # Select no optional services
         }
 
         engine.execute_flow('setup', headless_inputs=headless_inputs)
@@ -158,7 +162,9 @@ class TestServiceExecutionOrdering:
     def test_postgres_executes_before_openmetadata(self, engine):
         """PostgreSQL must execute before OpenMetadata (dependency)."""
         headless_inputs = {
-            'select_services': ['openmetadata'],
+                        'select_openmetadata': True,
+            'select_kerberos': False,
+            'select_pagila': False,
             # Postgres inputs
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': False,
@@ -191,7 +197,9 @@ class TestServiceExecutionOrdering:
     def test_postgres_executes_before_pagila(self, engine):
         """PostgreSQL must execute before Pagila (dependency)."""
         headless_inputs = {
-            'select_services': ['pagila'],
+                        'select_openmetadata': False,
+            'select_kerberos': False,
+            'select_pagila': True,
             # Postgres inputs
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': False,
@@ -221,7 +229,9 @@ class TestServiceExecutionOrdering:
     def test_kerberos_can_execute_independently(self, engine):
         """Kerberos has no dependencies and can execute in any order."""
         headless_inputs = {
-            'select_services': ['kerberos'],
+                        'select_openmetadata': False,
+            'select_kerberos': True,
+            'select_pagila': False,
             # Postgres inputs (always executed)
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': False,
@@ -254,7 +264,9 @@ class TestIntegrationScenarioAllDefaults:
     def test_all_defaults_scenario(self, engine):
         """Should handle all default values (empty inputs)."""
         headless_inputs = {
-            'select_services': [],  # No optional services
+                        'select_openmetadata': False,
+            'select_kerberos': False,
+            'select_pagila': False,  # No optional services
             # All postgres steps use defaults (empty strings trigger defaults)
             'postgres_image': '',
             'postgres_auth': '',
@@ -272,7 +284,9 @@ class TestIntegrationScenarioAllDefaults:
     def test_all_defaults_calls_postgres_actions(self, engine):
         """Should call postgres save, init, and start actions."""
         headless_inputs = {
-            'select_services': [],
+                        'select_openmetadata': False,
+            'select_kerberos': False,
+            'select_pagila': False,
             'postgres_image': '',
             'postgres_auth': '',
             'postgres_password': '',
@@ -303,7 +317,9 @@ class TestIntegrationScenarioHybrid:
     def test_hybrid_default_and_custom_images(self, engine):
         """Should handle mix of default and custom Docker images."""
         headless_inputs = {
-            'select_services': ['openmetadata'],
+                        'select_openmetadata': True,
+            'select_kerberos': False,
+            'select_pagila': False,
             # Postgres: use default image
             'postgres_image': '',  # Default
             'postgres_prebuilt': True,
@@ -342,7 +358,9 @@ class TestIntegrationScenarioAllCustom:
     def test_all_custom_images(self, engine):
         """Should handle all custom Docker images from corporate registry."""
         headless_inputs = {
-            'select_services': ['openmetadata', 'kerberos'],
+                        'select_openmetadata': True,
+            'select_kerberos': True,
+            'select_pagila': False,
             # All custom images from corporate registry
             'postgres_image': 'artifactory.company.com/postgres:17.5-alpine',
             'postgres_prebuilt': False,
@@ -383,7 +401,9 @@ class TestIntegrationScenarioAllBuilt:
     def test_all_built_layering_approach(self, engine):
         """Should handle all services using build-from-source approach."""
         headless_inputs = {
-            'select_services': ['openmetadata', 'kerberos', 'pagila'],
+                        'select_openmetadata': True,
+            'select_kerberos': True,
+            'select_pagila': True,
             # All services: base images + build
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': False,  # Build approach
@@ -425,7 +445,9 @@ class TestIntegrationScenarioMixBuiltPrebuilt:
     def test_mix_of_built_and_prebuilt(self, engine):
         """Should handle some services prebuilt, others built."""
         headless_inputs = {
-            'select_services': ['openmetadata', 'pagila'],
+                        'select_openmetadata': True,
+            'select_kerberos': False,
+            'select_pagila': True,
             # Postgres: prebuilt
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': True,
@@ -466,7 +488,9 @@ class TestIntegrationScenarioAllPrebuilt:
     def test_all_prebuilt_out_of_box(self, engine):
         """Should handle all services using prebuilt images (fastest setup)."""
         headless_inputs = {
-            'select_services': ['openmetadata'],
+                        'select_openmetadata': True,
+            'select_kerberos': False,
+            'select_pagila': False,
             # All services: prebuilt ready-to-use images
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': True,
@@ -490,7 +514,9 @@ class TestIntegrationScenarioAllPrebuilt:
     def test_all_prebuilt_minimal_prompts(self, engine):
         """Prebuilt scenario should skip build-related questions."""
         headless_inputs = {
-            'select_services': [],  # Just postgres
+                        'select_openmetadata': False,
+            'select_kerberos': False,
+            'select_pagila': False,  # Just postgres
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': True,  # Should skip build questions
             'postgres_auth': 'trust',
@@ -521,7 +547,9 @@ class TestConditionalServiceInclusion:
     def test_disabled_services_not_executed(self, engine):
         """Services not selected should not execute their steps."""
         headless_inputs = {
-            'select_services': [],  # Only postgres (always enabled)
+                        'select_openmetadata': False,
+            'select_kerberos': False,
+            'select_pagila': False,  # Only postgres (always enabled)
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': True,
             'postgres_auth': 'trust',
@@ -545,7 +573,9 @@ class TestConditionalServiceInclusion:
     def test_enabled_services_executed(self, engine):
         """Services selected should execute all their steps."""
         headless_inputs = {
-            'select_services': ['kerberos'],
+                        'select_openmetadata': False,
+            'select_kerberos': True,
+            'select_pagila': False,
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': True,
             'postgres_auth': 'trust',
@@ -581,7 +611,9 @@ class TestFlowStateManagement:
     def test_state_persists_across_services(self, engine):
         """State should persist across service executions."""
         headless_inputs = {
-            'select_services': ['openmetadata'],
+                        'select_openmetadata': True,
+            'select_kerberos': False,
+            'select_pagila': False,
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': False,
             'postgres_auth': 'md5',
@@ -605,7 +637,9 @@ class TestFlowStateManagement:
     def test_state_namespaced_by_service(self, engine):
         """Each service's state should be namespaced correctly."""
         headless_inputs = {
-            'select_services': ['kerberos'],
+                        'select_openmetadata': False,
+            'select_kerberos': True,
+            'select_pagila': False,
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': True,
             'postgres_auth': 'trust',
@@ -639,7 +673,9 @@ class TestActionRunnerIntegration:
     def test_runner_records_all_save_config_calls(self, engine):
         """Should record all save_config calls to runner."""
         headless_inputs = {
-            'select_services': ['openmetadata'],
+                        'select_openmetadata': True,
+            'select_kerberos': False,
+            'select_pagila': False,
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': True,
             'postgres_auth': 'trust',
@@ -661,7 +697,9 @@ class TestActionRunnerIntegration:
     def test_runner_records_shell_commands_in_order(self, engine):
         """Should record shell commands in correct execution order."""
         headless_inputs = {
-            'select_services': [],
+                        'select_openmetadata': False,
+            'select_kerberos': False,
+            'select_pagila': False,
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': False,
             'postgres_auth': 'md5',

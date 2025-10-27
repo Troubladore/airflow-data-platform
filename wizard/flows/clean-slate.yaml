@@ -38,19 +38,33 @@ steps:
 
 # Service selection - which services to tear down
 service_selection:
-  - id: select_teardown_services
-    type: multi_select
-    prompt: "Select services to tear down:"
-    state_key: teardown_selections
-    options:
-      - value: postgres
-        label: "PostgreSQL - Database"
-      - value: openmetadata
-        label: "OpenMetadata - Data catalog"
-      - value: kerberos
-        label: "Kerberos - Authentication"
-      - value: pagila
-        label: "Pagila - Sample database"
+  - id: select_postgres_teardown
+    type: boolean
+    prompt: "Tear down PostgreSQL?"
+    state_key: services.postgres.teardown.enabled
+    default_value: false
+    next: select_openmetadata_teardown
+
+  - id: select_openmetadata_teardown
+    type: boolean
+    prompt: "Tear down OpenMetadata?"
+    state_key: services.openmetadata.teardown.enabled
+    default_value: false
+    next: select_kerberos_teardown
+
+  - id: select_kerberos_teardown
+    type: boolean
+    prompt: "Tear down Kerberos?"
+    state_key: services.kerberos.teardown.enabled
+    default_value: false
+    next: select_pagila_teardown
+
+  - id: select_pagila_teardown
+    type: boolean
+    prompt: "Tear down Pagila?"
+    state_key: services.pagila.teardown.enabled
+    default_value: false
+    next: null
 
 # Services to tear down (CRITICAL: reverse topological ordering)
 # Dependents MUST tear down BEFORE their dependencies

@@ -48,7 +48,10 @@ class TestDiscoveryPhase:
         """Clean-slate should run discovery phase before asking questions."""
         # Execute with headless inputs to avoid blocking on prompts
         engine.execute_flow('clean-slate', headless_inputs={
-            'select_teardown_services': []  # Don't actually tear down anything
+                        'select_postgres_teardown': False,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': False,  # Don't actually tear down anything
         })
 
         # Should have called docker discovery commands
@@ -58,7 +61,10 @@ class TestDiscoveryPhase:
     def test_discovery_runs_before_service_selection(self, engine, runner):
         """Discovery should run BEFORE the service selection prompt."""
         engine.execute_flow('clean-slate', headless_inputs={
-            'select_teardown_services': ['postgres']
+                        'select_postgres_teardown': True,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': False,
         })
 
         # Find first docker call and first selection in state
@@ -175,7 +181,10 @@ class TestDiscoveryResultsDisplay:
     def test_shows_container_counts(self, engine, runner_with_artifacts):
         """Should display number of containers found per service."""
         engine.execute_flow('clean-slate', headless_inputs={
-            'select_teardown_services': []  # Don't actually remove
+                        'select_postgres_teardown': False,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': False,  # Don't actually remove
         })
 
         # Should have discovery results in state
@@ -191,7 +200,10 @@ class TestDiscoveryResultsDisplay:
     def test_shows_image_counts(self, engine, runner_with_artifacts):
         """Should display number of images found per service."""
         engine.execute_flow('clean-slate', headless_inputs={
-            'select_teardown_services': []
+                        'select_postgres_teardown': False,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': False,
         })
 
         results = engine.state.get('discovery_results', {})
@@ -203,7 +215,10 @@ class TestDiscoveryResultsDisplay:
     def test_shows_volume_counts(self, engine, runner_with_artifacts):
         """Should display number of volumes found per service."""
         engine.execute_flow('clean-slate', headless_inputs={
-            'select_teardown_services': []
+                        'select_postgres_teardown': False,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': False,
         })
 
         results = engine.state.get('discovery_results', {})
@@ -215,7 +230,10 @@ class TestDiscoveryResultsDisplay:
     def test_discovery_summary_aggregates_totals(self, engine, runner_with_artifacts):
         """Should aggregate total counts across all services."""
         engine.execute_flow('clean-slate', headless_inputs={
-            'select_teardown_services': []
+                        'select_postgres_teardown': False,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': False,
         })
 
         # Should have total artifacts count
@@ -268,7 +286,10 @@ class TestServiceSelectionAfterDiscovery:
     def test_service_selection_happens_after_discovery(self, engine, runner):
         """Service selection should happen AFTER discovery completes."""
         engine.execute_flow('clean-slate', headless_inputs={
-            'select_teardown_services': ['postgres']
+                        'select_postgres_teardown': True,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': False,
         })
 
         # Discovery should be in state before selection
@@ -323,7 +344,10 @@ class TestGranularCleanupQuestions:
     def test_shows_actual_container_count_in_prompts(self, engine, runner):
         """Cleanup prompts should show actual number of containers found."""
         engine.execute_flow('clean-slate', headless_inputs={
-            'select_teardown_services': ['postgres'],
+                        'select_postgres_teardown': True,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': False,
             'postgres_teardown_confirm': True,
             'postgres_remove_volumes': True,
             'postgres_remove_images': True
@@ -337,7 +361,10 @@ class TestGranularCleanupQuestions:
     def test_shows_actual_image_count_in_prompts(self, engine, runner):
         """Cleanup prompts should show actual number of images found."""
         engine.execute_flow('clean-slate', headless_inputs={
-            'select_teardown_services': ['postgres'],
+                        'select_postgres_teardown': True,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': False,
             'postgres_teardown_confirm': True,
             'postgres_remove_volumes': True,
             'postgres_remove_images': True
@@ -351,7 +378,10 @@ class TestGranularCleanupQuestions:
     def test_shows_actual_volume_count_in_prompts(self, engine, runner):
         """Cleanup prompts should show actual number of volumes found."""
         engine.execute_flow('clean-slate', headless_inputs={
-            'select_teardown_services': ['postgres'],
+                        'select_postgres_teardown': True,
+            'select_openmetadata_teardown': False,
+            'select_kerberos_teardown': False,
+            'select_pagila_teardown': False,
             'postgres_teardown_confirm': True,
             'postgres_remove_volumes': True,
             'postgres_remove_images': True
