@@ -36,6 +36,19 @@ class ActionRunner(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_input(self, prompt: str, default: str = None) -> str:
+        """Get input from user.
+
+        Args:
+            prompt: Question to ask user
+            default: Default value if user presses Enter (shown in [brackets])
+
+        Returns:
+            User's input string (or default if empty)
+        """
+        pass
+
 
 class RealActionRunner(ActionRunner):
     """Real implementation - actually does things."""
@@ -66,6 +79,19 @@ class RealActionRunner(ActionRunner):
         """Print message to stdout."""
         print(message)
 
+    def get_input(self, prompt: str, default: str = None) -> str:
+        """Read from stdin with optional default."""
+        if default:
+            # Show default in brackets
+            full_prompt = f"{prompt} [{default}]: "
+            response = input(full_prompt).strip()
+            return response if response else default
+        else:
+            # No default
+            full_prompt = f"{prompt}: "
+            response = input(full_prompt).strip()
+            return response
+
 
 class MockActionRunner(ActionRunner):
     """Mock for testing - records calls."""
@@ -73,6 +99,7 @@ class MockActionRunner(ActionRunner):
     def __init__(self):
         self.calls = []
         self.responses = {}
+        self.input_queue = []  # Pre-scripted user inputs for testing
 
     def save_config(self, config: dict, path: str):
         self.calls.append(('save_config', config, path))
@@ -108,3 +135,14 @@ class MockActionRunner(ActionRunner):
     def display(self, message: str) -> None:
         """Capture display call for test verification."""
         self.calls.append(('display', message))
+
+    def get_input(self, prompt: str, default: str = None) -> str:
+        """Return next value from input_queue."""
+        self.calls.append(('get_input', prompt, default))
+
+        # Pop next scripted response
+        if self.input_queue:
+            return self.input_queue.pop(0)
+
+        # Fall back to default or empty string
+        return default if default else ''

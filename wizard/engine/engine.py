@@ -54,6 +54,83 @@ class WizardEngine:
 
         return re.sub(r'\{([^}]+)\}', replacer, prompt)
 
+    def _get_validated_input(self, step) -> Any:
+        """Get and validate user input with retry loop.
+
+        Args:
+            step: Step to collect input for
+
+        Returns:
+            Validated input value
+        """
+        while True:
+            # Get input based on mode
+            if self.headless_mode:
+                # Use pre-provided answer from dict, or default
+                if step.id in self.headless_inputs:
+                    user_input = self.headless_inputs[step.id]
+                else:
+                    user_input = None
+
+                # If no input or empty string provided, use default
+                # Note: False/0 are valid inputs, so check for None or empty string explicitly
+                if user_input is None or user_input == '':
+                    if step.default_value is not None:
+                        user_input = step.default_value
+                    elif hasattr(step, 'default_from') and step.default_from and step.default_from in self.state:
+                        user_input = self.state[step.default_from]
+                    else:
+                        user_input = ''
+            else:
+                # Ask user interactively
+                default = step.default_value
+                # Check for dynamic default from state
+                if hasattr(step, 'default_from') and step.default_from:
+                    default = self.state.get(step.default_from, default)
+
+                user_input = self.runner.get_input(step.prompt, default)
+
+            # Convert type for integer and boolean steps
+            if step.type == 'integer' and user_input:
+                try:
+                    user_input = int(user_input)
+                except ValueError:
+                    if self.headless_mode:
+                        raise ValueError(f"Invalid integer value: {user_input}")
+                    else:
+                        self.runner.display(f"Error: Invalid integer value: {user_input}")
+                        continue
+            elif step.type == 'boolean' and isinstance(user_input, str):
+                # Convert string to boolean (y/yes/true -> True, n/no/false -> False)
+                user_input = user_input.lower().strip() in ('y', 'yes', 'true', '1')
+
+            # Validate if validator specified
+            if step.validator:
+                try:
+                    if step.validator in self.validators:
+                        validator_fn = self.validators[step.validator]
+                        # Only validate if we have a non-empty value
+                        if user_input:
+                            validated = validator_fn(user_input, self.state)
+                            return validated  # Success!
+                        else:
+                            # Empty value - skip validation, return as-is
+                            return user_input
+                    else:
+                        # No validator function registered, use value as-is
+                        return user_input
+                except ValueError as e:
+                    if self.headless_mode:
+                        # Fail fast in tests
+                        raise
+                    else:
+                        # Show error and re-prompt
+                        self.runner.display(f"Error: {e}")
+                        continue  # Loop back to get_input
+            else:
+                # No validation needed
+                return user_input
+
     def _execute_step(self, step: Step, headless_inputs: Optional[Dict] = None) -> Any:
         """
         Execute a single step.
@@ -89,48 +166,28 @@ class WizardEngine:
             )
             return None
 
-        # Display prompts for interactive steps
-        if step.prompt and step.type in ['string', 'boolean', 'enum', 'integer']:
-            prompt_text = self._interpolate_prompt(step.prompt, self.state)
-            self.runner.display(prompt_text)  # Show prompt before getting input
+        # Interactive steps (string, boolean, integer, enum)
+        if step.type in ['string', 'boolean', 'integer', 'enum']:
+            # Display prompt
+            if step.prompt:
+                prompt_text = self._interpolate_prompt(step.prompt, self.state)
+                self.runner.display(prompt_text)
 
-        # Get input value
-        if headless_inputs is not None and step.id in headless_inputs:
-            value = headless_inputs[step.id]
-            has_input = True
-        else:
-            # In real mode, would prompt user here
-            # In headless mode without input, use empty string (will trigger default)
-            value = '' if headless_inputs is not None else None
-            has_input = False
+            # Collect input with validation
+            user_input = self._get_validated_input(step)
 
-        # Handle default values (only if no explicit input provided or input is empty string)
-        if not has_input or value == '':
-            if step.default_from and step.default_from in self.state:
-                value = self.state[step.default_from]
-            elif step.default_value is not None:
-                value = step.default_value
-            else:
-                # No default available and no input provided
-                value = ''
+            # Store in state
+            if step.state_key:
+                self.state[step.state_key] = user_input
 
-        # Validate if validator specified
-        if step.validator and step.validator in self.validators:
-            validator_fn = self.validators[step.validator]
-            # Only validate if we have a non-empty value
-            if value:
-                value = validator_fn(value, self.state)
-
-        # Store in state if state_key specified
-        if step.state_key:
-            self.state[step.state_key] = value
+            return user_input
 
         # Execute action if specified
         if step.action and step.action in self.actions:
             action_fn = self.actions[step.action]
             action_fn(self.state, self.runner)
 
-        return value
+        return None
 
     def _resolve_next(self, step: Step, new_value: Any, old_value: Any = None) -> Optional[str]:
         """
@@ -322,8 +379,14 @@ class WizardEngine:
 
         Args:
             flow_name: Name of flow to execute (e.g., 'setup')
-            headless_inputs: Dict of {step_id: value} for testing
+            headless_inputs: Optional dict of pre-provided answers for testing
+                            If None: INTERACTIVE mode (prompt user via stdin)
+                            If provided: HEADLESS mode (use dict values)
         """
+        # Determine mode
+        self.headless_mode = (headless_inputs is not None)
+        self.headless_inputs = headless_inputs or {}
+
         # Load flow spec
         flow = self.loader.load_flow(flow_name)
 

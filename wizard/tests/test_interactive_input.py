@@ -28,8 +28,8 @@ class TestInteractiveMode:
 
         engine = WizardEngine(runner=runner, base_path='wizard')
 
-        # Execute WITH headless_inputs
-        engine.execute_flow('setup', headless_inputs={'postgres_image': 'custom'})
+        # Execute WITH headless_inputs (must use valid image format)
+        engine.execute_flow('setup', headless_inputs={'postgres_image': 'postgres:17.5'})
 
         # Should NOT have called get_input
         input_calls = [c for c in runner.calls if c[0] == 'get_input']
