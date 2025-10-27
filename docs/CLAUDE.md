@@ -59,6 +59,59 @@ git checkout fix/accidental-work
 - **Examples Repository** (`airflow-data-platform-examples`): Business implementations using platform as UV dependency
 - **Business Workflow**: Fork examples → customize → pull platform updates automatically
 
+## 🏗️ Platform Design Principles
+
+### Custom vs Prebuilt Image Semantics
+
+**Critical distinction for PostgreSQL and other service images:**
+
+**Custom Image Source:**
+- "Custom" refers to the IMAGE SOURCE/PATH, not whether it's modified
+- Local image: Just a name (e.g., `my-postgres:latest`)
+- Remote image: Full path (e.g., `registry.company.com/postgres:custom`)
+- Standard image: Docker Hub name (e.g., `postgres:17.5-alpine`)
+
+**Prebuilt Flag:**
+- `prebuilt=false` (default): **Platform layers additional customizations** on top of the image
+  - May add SSL certificates
+  - May add Kerberos configuration
+  - May add corporate CA certificates
+  - Platform builds/modifies the image before use
+- `prebuilt=true`: **Use image as-is** with NO platform modifications
+  - Image already has everything needed
+  - Platform uses it directly without layering
+  - Skips any build/customization steps
+
+**Example Scenarios:**
+
+```yaml
+# Scenario 1: Standard image, platform adds customizations
+image: postgres:17.5-alpine
+prebuilt: false
+# → Platform pulls image, layers on certs/config, then uses it
+
+# Scenario 2: Standard image, use as-is
+image: postgres:17.5-alpine
+prebuilt: true
+# → Platform pulls image and uses it directly
+
+# Scenario 3: Custom corporate image with everything baked in
+image: registry.corp.com/postgres:enterprise-2024
+prebuilt: true
+# → Platform uses corporate image as-is (already has certs/config)
+
+# Scenario 4: Local custom image that needs platform additions
+image: my-custom-postgres:latest
+prebuilt: false
+# → Platform layers on additional platform-specific config
+```
+
+**Implementation Rule:**
+- `prebuilt=false`: Run build/customization logic
+- `prebuilt=true`: Skip to direct usage
+
+This distinction allows corporate environments to provide fully-configured images while still supporting standard Docker Hub images with platform enhancements.
+
 ## 🛠️ Tooling Standards
 
 ### Python Dependency Management
