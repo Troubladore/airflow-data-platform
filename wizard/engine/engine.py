@@ -412,30 +412,63 @@ class WizardEngine:
         # Execute service selection steps
         if flow.service_selection:
             for step in flow.service_selection:
-                if step.id in (headless_inputs or {}):
-                    selected = headless_inputs[step.id]
-                    # Store selected services
-                    if step.state_key:
-                        self.state[step.state_key] = selected
+                # Get service selection (headless or interactive)
+                if self.headless_mode:
+                    # Use pre-provided selection from dict
+                    if step.id in self.headless_inputs:
+                        selected = self.headless_inputs[step.id]
+                    else:
+                        selected = []
+                else:
+                    # Ask user interactively for multi_select
+                    if step.type == 'multi_select':
+                        # Display prompt with options
+                        if step.prompt:
+                            prompt_text = self._interpolate_prompt(step.prompt, self.state)
+                            self.runner.display(prompt_text)
 
-                    # Update service enabled flags based on selection
-                    for target in flow.targets:
-                        service_name = target['service']
+                            # Display available options
+                            if step.options:
+                                for option in step.options:
+                                    value = option.get('value', '')
+                                    label = option.get('label', '')
+                                    self.runner.display(f"  - {value}: {label}")
+                                self.runner.display("")  # Blank line for spacing
 
-                        if is_teardown_flow:
-                            # For teardown, services are enabled if explicitly selected
-                            if service_name in selected:
-                                self.state[f'services.{service_name}.teardown.enabled'] = True
-                            else:
-                                self.state[f'services.{service_name}.teardown.enabled'] = False
+                        # Get input
+                        response = self.runner.get_input("Enter services to install", '')
+
+                        # Parse space-separated list
+                        if response:
+                            selected = [s.strip() for s in response.split() if s.strip()]
                         else:
-                            # For setup, postgres always enabled, others based on selection
-                            if service_name == 'postgres':
-                                self.state[f'services.{service_name}.enabled'] = True
-                            elif service_name in selected:
-                                self.state[f'services.{service_name}.enabled'] = True
-                            else:
-                                self.state[f'services.{service_name}.enabled'] = False
+                            selected = []
+                    else:
+                        # Other selection types not implemented yet
+                        selected = []
+
+                # Store selected services
+                if step.state_key:
+                    self.state[step.state_key] = selected
+
+                # Update service enabled flags based on selection
+                for target in flow.targets:
+                    service_name = target['service']
+
+                    if is_teardown_flow:
+                        # For teardown, services are enabled if explicitly selected
+                        if service_name in selected:
+                            self.state[f'services.{service_name}.teardown.enabled'] = True
+                        else:
+                            self.state[f'services.{service_name}.teardown.enabled'] = False
+                    else:
+                        # For setup, postgres always enabled, others based on selection
+                        if service_name == 'postgres':
+                            self.state[f'services.{service_name}.enabled'] = True
+                        elif service_name in selected:
+                            self.state[f'services.{service_name}.enabled'] = True
+                        else:
+                            self.state[f'services.{service_name}.enabled'] = False
 
         # Auto-register service validators and actions
         self._auto_register_services(is_teardown_flow)
