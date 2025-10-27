@@ -118,12 +118,13 @@ def test_start_service_calls_make_start():
 
     start_service(ctx, mock_runner)
 
-    # Verify make start was called
-    assert len(mock_runner.calls) == 1
-    call_type, command, cwd = mock_runner.calls[0]
-    assert call_type == 'run_shell'
-    assert 'make' in command
-    assert 'start' in command
+    # Verify make start was called (check run_shell calls only)
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    # Should have: check domain, maybe powershell, then make start
+    assert any('make' in ' '.join(str(x) for x in call[1]) for call in run_shell_calls), \
+        f"Expected make command in run_shell calls: {run_shell_calls}"
+    assert any('start' in ' '.join(str(x) for x in call[1]) for call in run_shell_calls), \
+        f"Expected start command in run_shell calls: {run_shell_calls}"
 
 
 def test_start_service_with_working_directory():
@@ -139,9 +140,16 @@ def test_start_service_with_working_directory():
 
     start_service(ctx, mock_runner)
 
-    # Verify working directory is set
-    call_type, command, cwd = mock_runner.calls[0]
-    assert cwd is not None or 'platform-infrastructure' in ' '.join(command)
+    # Verify working directory is set for make command
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    # Find the make command
+    make_calls = [call for call in run_shell_calls if 'make' in ' '.join(str(x) for x in call[1])]
+    assert len(make_calls) > 0, f"Expected at least one make command: {run_shell_calls}"
+
+    # Check that make command has cwd or includes platform path
+    call_type, command, cwd = make_calls[0]
+    assert cwd is not None or 'platform-bootstrap' in ' '.join(str(x) for x in command), \
+        f"Expected cwd or platform path in make command: cwd={cwd}, command={command}"
 
 
 # ============================================================================
@@ -173,3 +181,272 @@ def test_save_config_uses_runner_interface():
 
     assert len(mock_runner.calls) == 1
     assert mock_runner.calls[0][0] == 'save_config'
+
+
+# ============================================================================
+# RED PHASE: Bug fix for blank container name and realm display
+# ============================================================================
+
+
+def test_start_service_displays_mock_container_info_in_non_domain_environment():
+    """start_service must display container name and realm when creating mock container.
+
+    Bug reproduction: User reported seeing blank values:
+        Container: kerberos-sidecar-mock
+        Mock realm:
+
+    This test verifies that both container name and realm are properly displayed.
+    """
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.kerberos.domain': 'TEST.LOCAL',
+        'services.kerberos.image': 'ubuntu:22.04'
+    }
+
+    # Mock non-domain environment (no $USERDNSDOMAIN)
+    mock_runner.responses['run_shell'] = {
+        'stdout': '',  # Empty stdout means not in domain
+        'stderr': '',
+        'returncode': 0
+    }
+
+    start_service(ctx, mock_runner)
+
+    # Find all display calls
+    display_calls = [call for call in mock_runner.calls if call[0] == 'display']
+    display_messages = [call[1] for call in display_calls]
+
+    # Verify container name is displayed and NOT blank
+    container_messages = [msg for msg in display_messages if 'Container:' in msg]
+    assert len(container_messages) == 1, f"Expected 1 container message, got {len(container_messages)}"
+    container_msg = container_messages[0]
+
+    # The message should contain the actual container name, not be blank after "Container:"
+    assert 'kerberos-sidecar-mock' in container_msg, \
+        f"Container name missing in message: {container_msg}"
+
+    # Verify realm is displayed and NOT blank
+    realm_messages = [msg for msg in display_messages if 'Mock realm:' in msg]
+    assert len(realm_messages) == 1, f"Expected 1 realm message, got {len(realm_messages)}"
+    realm_msg = realm_messages[0]
+
+    # The message should contain the actual realm, not be blank after "Mock realm:"
+    assert 'TEST.LOCAL' in realm_msg, \
+        f"Realm missing in message: {realm_msg}"
+
+    # Verify the full message format
+    assert 'Mock realm: TEST.LOCAL' in realm_msg, \
+        f"Expected 'Mock realm: TEST.LOCAL' but got: {realm_msg}"
+
+
+def test_start_service_displays_default_realm_when_domain_is_empty_string():
+    """start_service must display default realm when domain is empty string in context.
+
+    Bug reproduction: User reported seeing blank realm value:
+        Mock realm:
+
+    This happens when ctx contains services.kerberos.domain = '' (empty string).
+    The .get() method returns the empty string instead of using the default.
+    """
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.kerberos.domain': '',  # Empty string causes blank display
+        'services.kerberos.image': 'ubuntu:22.04'
+    }
+
+    # Mock non-domain environment (no $USERDNSDOMAIN)
+    mock_runner.responses['run_shell'] = {
+        'stdout': '',  # Empty stdout means not in domain
+        'stderr': '',
+        'returncode': 0
+    }
+
+    start_service(ctx, mock_runner)
+
+    # Find all display calls
+    display_calls = [call for call in mock_runner.calls if call[0] == 'display']
+    display_messages = [call[1] for call in display_calls]
+
+    # Verify realm is displayed with default value (not blank)
+    realm_messages = [msg for msg in display_messages if 'Mock realm:' in msg]
+    assert len(realm_messages) == 1, f"Expected 1 realm message, got {len(realm_messages)}"
+    realm_msg = realm_messages[0]
+
+    # Should display the default MOCK.LOCAL, not blank
+    assert 'MOCK.LOCAL' in realm_msg, \
+        f"Expected default realm 'MOCK.LOCAL' but got blank: '{realm_msg}'"
+
+
+# ============================================================================
+# RED PHASE: WSL2 Domain Detection Tests (MUST FAIL FIRST)
+# ============================================================================
+
+
+def test_start_service_uses_userdnsdomain_when_available():
+    """start_service should use USERDNSDOMAIN environment variable when set.
+
+    This is the existing behavior that should continue to work.
+    """
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.kerberos.image': 'ubuntu:22.04'
+    }
+
+    # Mock USERDNSDOMAIN being set (first check returns domain)
+    mock_runner.responses['run_shell'] = {
+        'stdout': 'COMPANY.COM',  # USERDNSDOMAIN is set
+        'stderr': '',
+        'returncode': 0
+    }
+
+    start_service(ctx, mock_runner)
+
+    # Should detect domain and start real Kerberos sidecar
+    display_calls = [call for call in mock_runner.calls if call[0] == 'display']
+    display_messages = [call[1] for call in display_calls]
+
+    # Should show domain detected message
+    assert any('Detected domain environment' in msg for msg in display_messages), \
+        f"Should detect domain when USERDNSDOMAIN is set. Messages: {display_messages}"
+
+
+def test_start_service_uses_powershell_fallback_when_userdnsdomain_empty():
+    """start_service should try PowerShell when USERDNSDOMAIN is empty (WSL2 case).
+
+    Bug fix: WSL2 on domain-joined machines don't have USERDNSDOMAIN set,
+    but can get domain via PowerShell.
+    """
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.kerberos.image': 'ubuntu:22.04'
+    }
+
+    # First call checks USERDNSDOMAIN (empty in WSL2)
+    # Second call should check PowerShell
+    call_count = [0]
+    def mock_run_shell_handler(command, cwd=None):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            # First call: check USERDNSDOMAIN - empty in WSL2
+            return {'stdout': '', 'stderr': '', 'returncode': 0}
+        elif call_count[0] == 2:
+            # Second call: PowerShell fallback returns domain
+            if 'powershell.exe' in command:
+                return {'stdout': 'COMPANY.COM\n', 'stderr': '', 'returncode': 0}
+        # Subsequent calls for make commands
+        return {'stdout': '', 'stderr': '', 'returncode': 0}
+
+    # Use custom handler
+    original_run_shell = mock_runner.run_shell
+    def custom_run_shell(command, cwd=None):
+        result = mock_run_shell_handler(command, cwd)
+        original_run_shell(command, cwd)  # Still record the call
+        return result
+
+    mock_runner.run_shell = custom_run_shell
+
+    start_service(ctx, mock_runner)
+
+    # Should detect domain via PowerShell and start real Kerberos sidecar
+    display_calls = [call for call in mock_runner.calls if call[0] == 'display']
+    display_messages = [call[1] for call in display_calls]
+
+    # Should show domain detected message
+    assert any('Detected domain environment' in msg for msg in display_messages), \
+        f"Should detect domain via PowerShell fallback. Messages: {display_messages}"
+
+    # Should NOT show mock container messages
+    assert not any('Mock Kerberos container' in msg for msg in display_messages), \
+        f"Should not create mock container when domain detected via PowerShell"
+
+
+def test_start_service_handles_powershell_not_available():
+    """start_service should handle cases where PowerShell is not available (native Linux).
+
+    Native Linux systems won't have powershell.exe, so the fallback should
+    gracefully handle this and fall back to mock mode.
+    """
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.kerberos.domain': 'MOCK.LOCAL',
+        'services.kerberos.image': 'ubuntu:22.04'
+    }
+
+    call_count = [0]
+    def mock_run_shell_handler(command, cwd=None):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            # First call: check USERDNSDOMAIN - empty
+            return {'stdout': '', 'stderr': '', 'returncode': 0}
+        elif call_count[0] == 2:
+            # Second call: PowerShell not found (native Linux)
+            if 'powershell.exe' in command:
+                return {'stdout': '', 'stderr': 'command not found', 'returncode': 127}
+        # Subsequent calls for docker commands
+        return {'stdout': '', 'stderr': '', 'returncode': 0}
+
+    original_run_shell = mock_runner.run_shell
+    def custom_run_shell(command, cwd=None):
+        result = mock_run_shell_handler(command, cwd)
+        original_run_shell(command, cwd)
+        return result
+
+    mock_runner.run_shell = custom_run_shell
+
+    start_service(ctx, mock_runner)
+
+    # Should fall back to mock mode
+    display_calls = [call for call in mock_runner.calls if call[0] == 'display']
+    display_messages = [call[1] for call in display_calls]
+
+    # Should show non-domain message and create mock container
+    assert any('Detected non-domain environment' in msg for msg in display_messages), \
+        f"Should detect non-domain when PowerShell not available. Messages: {display_messages}"
+    assert any('Mock Kerberos container' in msg for msg in display_messages), \
+        f"Should create mock container when not in domain. Messages: {display_messages}"
+
+
+def test_start_service_handles_powershell_domain_error():
+    """start_service should handle PowerShell errors gracefully (not domain-joined).
+
+    WSL2 on non-domain Windows machines will have powershell.exe but will
+    return an error when querying domain. Should fall back to mock mode.
+    """
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.kerberos.domain': 'MOCK.LOCAL',
+        'services.kerberos.image': 'ubuntu:22.04'
+    }
+
+    call_count = [0]
+    def mock_run_shell_handler(command, cwd=None):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            # First call: check USERDNSDOMAIN - empty
+            return {'stdout': '', 'stderr': '', 'returncode': 0}
+        elif call_count[0] == 2:
+            # Second call: PowerShell returns error (not domain-joined)
+            if 'powershell.exe' in command:
+                return {'stdout': '', 'stderr': 'Exception calling GetComputerDomain', 'returncode': 1}
+        # Subsequent calls for docker commands
+        return {'stdout': '', 'stderr': '', 'returncode': 0}
+
+    original_run_shell = mock_runner.run_shell
+    def custom_run_shell(command, cwd=None):
+        result = mock_run_shell_handler(command, cwd)
+        original_run_shell(command, cwd)
+        return result
+
+    mock_runner.run_shell = custom_run_shell
+
+    start_service(ctx, mock_runner)
+
+    # Should fall back to mock mode
+    display_calls = [call for call in mock_runner.calls if call[0] == 'display']
+    display_messages = [call[1] for call in display_calls]
+
+    # Should show non-domain message and create mock container
+    assert any('Detected non-domain environment' in msg for msg in display_messages), \
+        f"Should detect non-domain when PowerShell returns error. Messages: {display_messages}"
+    assert any('Mock Kerberos container' in msg for msg in display_messages), \
+        f"Should create mock container when not in domain. Messages: {display_messages}"

@@ -65,8 +65,21 @@ def start_service(ctx: Dict[str, Any], runner) -> None:
     runner.display("\nSetting up Kerberos environment...")
 
     # Check if in domain environment
+    # First try USERDNSDOMAIN (native Linux/WSL with env var set)
     check_domain = runner.run_shell(['bash', '-c', 'echo $USERDNSDOMAIN'])
-    in_domain = bool(check_domain.get('stdout', '').strip())
+    domain_from_env = check_domain.get('stdout', '').strip()
+
+    in_domain = bool(domain_from_env)
+
+    # If not found, try PowerShell fallback (WSL2 on domain-joined Windows)
+    if not in_domain:
+        powershell_check = runner.run_shell([
+            'powershell.exe', '-Command', 'echo $env:USERDNSDOMAIN'
+        ])
+        # PowerShell successful if returncode is 0 and has output
+        if powershell_check.get('returncode') == 0:
+            domain_from_ps = powershell_check.get('stdout', '').strip()
+            in_domain = bool(domain_from_ps)
 
     if in_domain:
         runner.display("  - Detected domain environment")
@@ -83,7 +96,8 @@ def start_service(ctx: Dict[str, Any], runner) -> None:
 
         # Get image from context
         image = ctx.get('services.kerberos.image', 'ubuntu:22.04')
-        domain = ctx.get('services.kerberos.domain', 'MOCK.LOCAL')
+        # Use default if domain is missing or empty string
+        domain = ctx.get('services.kerberos.domain') or 'MOCK.LOCAL'
 
         # Create mock ticket cache directory on host
         runner.run_shell(['mkdir', '-p', '/tmp/krb5cc_mock'])
