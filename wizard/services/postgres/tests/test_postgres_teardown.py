@@ -146,6 +146,21 @@ class TestRemoveVolumes:
         command_str = ' '.join(command)
         assert 'postgres' in command_str.lower()
 
+    def test_remove_volumes_uses_correct_volume_name(self):
+        """Should use platform_postgres_data as volume name (not postgres_data)."""
+        from wizard.services.postgres.teardown_actions import remove_volumes
+
+        runner = MockActionRunner()
+        ctx = {}
+
+        remove_volumes(ctx, runner)
+
+        call = runner.calls[0]
+        command = call[1]
+        # Command should include platform_postgres_data volume name
+        assert 'platform_postgres_data' in command, \
+            f"Expected 'platform_postgres_data' in command, got: {command}"
+
 
 class TestRemoveImages:
     """Tests for remove_images action."""
