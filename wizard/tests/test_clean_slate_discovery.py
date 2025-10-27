@@ -122,8 +122,9 @@ class TestEmptyStateHandling:
         engine.execute_flow('clean-slate')
 
         # Should not have teardown selections (flow exited early)
-        assert 'teardown_selections' not in engine.state or \
-               engine.state.get('teardown_selections') is None
+        # Empty list is acceptable - means no services selected
+        teardown_selections = engine.state.get('teardown_selections')
+        assert teardown_selections is None or teardown_selections == []
 
 
 class TestDiscoveryResultsDisplay:

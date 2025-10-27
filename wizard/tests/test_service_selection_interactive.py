@@ -19,8 +19,8 @@ class TestInteractiveServiceSelection:
         engine = WizardEngine(runner=runner, base_path='wizard')
         engine.execute_flow('setup')
 
-        # Should have prompted for service selection (check for "Enter services" prompt)
-        selection_prompts = [c for c in runner.calls if c[0] == 'get_input' and 'Enter services' in c[1]]
+        # Should have prompted for service selection (check for YAML prompt text)
+        selection_prompts = [c for c in runner.calls if c[0] == 'get_input' and 'Select services' in c[1]]
         assert len(selection_prompts) == 1
 
     def test_selected_services_are_enabled(self):

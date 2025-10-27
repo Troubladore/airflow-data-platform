@@ -422,21 +422,18 @@ class WizardEngine:
                 else:
                     # Ask user interactively for multi_select
                     if step.type == 'multi_select':
-                        # Display prompt with options
-                        if step.prompt:
-                            prompt_text = self._interpolate_prompt(step.prompt, self.state)
-                            self.runner.display(prompt_text)
+                        # Display available options
+                        if step.options:
+                            self.runner.display("")  # Blank line before options
+                            for option in step.options:
+                                value = option.get('value', '')
+                                label = option.get('label', '')
+                                self.runner.display(f"  - {value}: {label}")
+                            self.runner.display("")  # Blank line after options
 
-                            # Display available options
-                            if step.options:
-                                for option in step.options:
-                                    value = option.get('value', '')
-                                    label = option.get('label', '')
-                                    self.runner.display(f"  - {value}: {label}")
-                                self.runner.display("")  # Blank line for spacing
-
-                        # Get input
-                        response = self.runner.get_input("Enter services to install", '')
+                        # Get input with prompt from YAML spec
+                        prompt_text = self._interpolate_prompt(step.prompt, self.state) if step.prompt else "Enter services"
+                        response = self.runner.get_input(prompt_text, '')
 
                         # Parse space-separated list
                         if response:
