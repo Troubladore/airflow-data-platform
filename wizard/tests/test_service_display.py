@@ -44,6 +44,41 @@ class TestServicePromptDisplay:
         prompts = [call for call in runner.calls if call[0] == 'display']
         assert any('prebuilt' in str(call).lower() for call in prompts)
 
+    def test_service_enum_step_shows_prompt(self):
+        """Enum-type steps should display their prompt."""
+        runner = MockActionRunner()
+        engine = WizardEngine(runner=runner, base_path='wizard')
+
+        engine.execute_flow('setup', headless_inputs={
+            'select_openmetadata': 'n',
+            'select_kerberos': 'n',
+            'select_pagila': 'n',
+            'postgres_image': 'postgres:17.5',
+            'postgres_auth': 'md5'
+        })
+
+        # Should have displayed auth method prompt
+        prompts = [call for call in runner.calls if call[0] == 'display']
+        assert any('authentication method' in str(call).lower() for call in prompts)
+
+    def test_service_integer_step_shows_prompt(self):
+        """Integer-type steps should display their prompt."""
+        runner = MockActionRunner()
+        engine = WizardEngine(runner=runner, base_path='wizard')
+
+        engine.execute_flow('setup', headless_inputs={
+            'select_openmetadata': 'n',
+            'select_kerberos': 'n',
+            'select_pagila': 'n',
+            'postgres_image': 'postgres:17.5',
+            'postgres_auth': 'trust',
+            'postgres_port': 5432  # Integer, not string
+        })
+
+        # Should have displayed port prompt
+        prompts = [call for call in runner.calls if call[0] == 'display']
+        assert any('port' in str(call).lower() for call in prompts)
+
     def test_service_display_step_shows_message(self):
         """Display-type steps in services should show their message."""
         runner = MockActionRunner()
