@@ -253,16 +253,19 @@ class WizardEngine:
                 return step
         return None
 
-    def _execute_flow_steps(self, steps: List[Step], headless_inputs: Optional[Dict] = None):
+    def _execute_flow_steps(self, steps: List[Step], headless_inputs: Optional[Dict] = None) -> bool:
         """
         Execute flow-level steps (discovery, conditionals, etc.).
 
         Args:
             steps: List of flow steps
             headless_inputs: Dict of {step_id: value} for testing
+
+        Returns:
+            True if flow should continue to service_selection, False if terminated early
         """
         if not steps:
-            return
+            return True
 
         # Start with first step
         current_step_id = steps[0].id
@@ -276,7 +279,8 @@ class WizardEngine:
                     break
 
             if not step:
-                break
+                # Step not found - flow should continue to service_selection
+                return True
 
             # Handle conditional steps
             if step.type == 'conditional':
@@ -293,6 +297,11 @@ class WizardEngine:
                             current_step_id = next_dict.get('when_true')
                         else:
                             current_step_id = next_dict.get('when_false')
+
+                        # If next is None, exit loop but return appropriate continuation flag
+                        if current_step_id is None:
+                            # None means continue to service_selection
+                            return True
                     else:
                         current_step_id = next_dict
                 else:
@@ -304,13 +313,16 @@ class WizardEngine:
 
             # Resolve next step
             if step.next is None:
-                # Explicit termination
-                break
+                # Explicit termination - flow should NOT continue to service_selection
+                return False
             elif isinstance(step.next, str):
                 current_step_id = step.next
             else:
                 # Complex next logic would go here
                 break
+
+        # If we exit the loop naturally, continue to service_selection
+        return True
 
     def _evaluate_condition(self, condition: str) -> bool:
         """
@@ -417,11 +429,13 @@ class WizardEngine:
                 self.state[f'services.{service_name}.enabled'] = enabled
 
         # Execute flow-level steps (e.g., discovery)
+        should_continue = True
         if flow.steps:
-            self._execute_flow_steps(flow.steps, headless_inputs)
+            should_continue = self._execute_flow_steps(flow.steps, headless_inputs)
 
-        # Execute service selection steps (now just regular boolean steps)
-        if flow.service_selection:
+        # Execute service selection steps ONLY if flow didn't terminate early
+        # (e.g., when system is clean with 0 artifacts, flow exits early)
+        if should_continue and flow.service_selection:
             for step in flow.service_selection:
                 self._execute_step(step, self.headless_inputs if self.headless_mode else None)
 

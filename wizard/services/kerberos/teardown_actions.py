@@ -12,8 +12,8 @@ def stop_service(ctx: Dict[str, Any], runner) -> None:
     """
     runner.display("\nRemoving Kerberos container...")
 
-    # Try both real and mock container names
-    for container in ['kerberos-sidecar', 'kerberos-sidecar-mock']:
+    # Try both mock and real container names (mock first since that's what setup creates)
+    for container in ['kerberos-sidecar-mock', 'kerberos-sidecar']:
         result = runner.run_shell(['docker', 'rm', '-f', container])
         if result.get('returncode') == 0:
             runner.display(f"✓ Removed {container}")

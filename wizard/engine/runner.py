@@ -55,8 +55,76 @@ class RealActionRunner(ActionRunner):
 
     def save_config(self, config: dict, path: str):
         import yaml
-        with open(path, 'w') as f:
-            yaml.dump(config, f)
+        import os
+
+        # Read existing config if file exists
+        existing_config = {}
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                existing_config = yaml.safe_load(f) or {}
+
+        # Deep merge: update existing config with new values
+        merged_config = self._deep_merge(existing_config, config)
+
+        # Check if all services are disabled
+        all_services_disabled = self._all_services_disabled(merged_config)
+
+        if all_services_disabled:
+            # Delete the file if all services are disabled
+            if os.path.exists(path):
+                os.remove(path)
+        else:
+            # Save the merged config
+            with open(path, 'w') as f:
+                yaml.dump(merged_config, f)
+
+    def _deep_merge(self, base: dict, update: dict) -> dict:
+        """Deep merge update dict into base dict.
+
+        Args:
+            base: Base dictionary
+            update: Dictionary with updates to merge
+
+        Returns:
+            Merged dictionary
+        """
+        result = base.copy()
+
+        for key, value in update.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                # Recursively merge nested dictionaries
+                result[key] = self._deep_merge(result[key], value)
+            else:
+                # Overwrite with new value
+                result[key] = value
+
+        return result
+
+    def _all_services_disabled(self, config: dict) -> bool:
+        """Check if all services in config are disabled.
+
+        Args:
+            config: Configuration dictionary
+
+        Returns:
+            True if all services are disabled, False otherwise
+        """
+        if 'services' not in config:
+            return True
+
+        services = config['services']
+        if not services:
+            return True
+
+        # Check if all services have enabled=False
+        for service_name, service_config in services.items():
+            if isinstance(service_config, dict):
+                # If enabled is not present or is True, service is enabled
+                if service_config.get('enabled', True):
+                    return False
+
+        # All services are disabled
+        return True
 
     def run_shell(self, command: List[str], cwd: str = None):
         import subprocess

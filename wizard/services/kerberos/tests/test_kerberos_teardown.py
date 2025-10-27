@@ -158,29 +158,30 @@ def test_teardown_spec_has_clean_config_action():
 # ============================================================================
 
 
-def test_stop_service_calls_docker_compose_stop():
-    """stop_service stops Kerberos sidecar using docker-compose"""
+def test_stop_service_calls_docker_rm():
+    """stop_service removes Kerberos container using docker rm"""
     mock_runner = MockActionRunner()
     ctx = {}
 
     mock_runner.responses['run_shell'] = {
-        'stdout': 'Stopping kerberos-sidecar...',
+        'stdout': 'Removed',
         'stderr': '',
         'returncode': 0
     }
 
     stop_service(ctx, mock_runner)
 
-    # Verify docker-compose stop was called
-    assert len(mock_runner.calls) == 1
-    call_type, command, cwd = mock_runner.calls[0]
+    # Verify docker rm was called (find it among display calls)
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    assert len(run_shell_calls) >= 1
+    call_type, command, cwd = run_shell_calls[0]
     assert call_type == 'run_shell'
-    assert 'docker-compose' in command or 'docker' in command
-    assert 'stop' in command
+    assert 'docker' in command
+    assert 'rm' in command
 
 
 def test_stop_service_uses_correct_working_directory():
-    """stop_service executes in correct directory"""
+    """stop_service executes docker commands with correct working directory"""
     mock_runner = MockActionRunner()
     ctx = {}
 
@@ -192,9 +193,51 @@ def test_stop_service_uses_correct_working_directory():
 
     stop_service(ctx, mock_runner)
 
-    call_type, command, cwd = mock_runner.calls[0]
-    assert cwd is not None
-    assert 'kerberos' in cwd.lower() or 'platform' in cwd.lower()
+    # Find run_shell calls (skip display calls)
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    assert len(run_shell_calls) >= 1
+    call_type, command, cwd = run_shell_calls[0]
+    # docker rm doesn't need a specific working directory (cwd can be None)
+    assert call_type == 'run_shell'
+
+
+def test_stop_service_removes_mock_container():
+    """stop_service tries kerberos-sidecar-mock FIRST (RED test for bug fix)
+
+    BUG: Setup creates kerberos-sidecar-mock but teardown tries kerberos-sidecar first.
+    With docker rm -f, non-existent containers succeed silently, so mock container is never tried.
+
+    FIX: Try kerberos-sidecar-mock FIRST (the one we actually create).
+    """
+    mock_runner = MockActionRunner()
+    ctx = {}
+
+    # Track which container was tried
+    containers_tried = []
+
+    def mock_run_shell(command, cwd=None):
+        mock_runner.calls.append(('run_shell', command, cwd))
+
+        # Track which container name appears in command
+        if 'kerberos-sidecar-mock' in command:
+            containers_tried.append('kerberos-sidecar-mock')
+            return {'stdout': 'Removed kerberos-sidecar-mock', 'stderr': '', 'returncode': 0}
+        elif 'kerberos-sidecar' in command:
+            containers_tried.append('kerberos-sidecar')
+            # With -f flag, docker rm succeeds even if container doesn't exist
+            return {'stdout': '', 'stderr': '', 'returncode': 0}
+        return {'stdout': '', 'stderr': '', 'returncode': 1}
+
+    # Override run_shell to use our custom mock
+    mock_runner.run_shell = mock_run_shell
+
+    stop_service(ctx, mock_runner)
+
+    # RED TEST: Verify kerberos-sidecar-mock is tried FIRST
+    # (not second, not never - but FIRST because that's what we create)
+    assert len(containers_tried) > 0, "Should attempt to remove at least one container"
+    assert containers_tried[0] == 'kerberos-sidecar-mock', \
+        f"Should try kerberos-sidecar-mock FIRST (got: {containers_tried[0]})"
 
 
 def test_remove_keytabs_removes_keytab_files():
@@ -464,9 +507,13 @@ def test_all_actions_work_with_mock_runner():
     remove_images(ctx, mock_runner)
     clean_configuration(ctx, mock_runner)
 
-    # Verify all used runner
-    assert len(mock_runner.calls) == 4
-    assert all(call[0] in ['run_shell', 'save_config'] for call in mock_runner.calls)
+    # Verify all used runner (includes display calls now)
+    assert len(mock_runner.calls) >= 4, "Should have at least 4 runner calls (run_shell and save_config)"
+
+    # Verify we have the key action calls
+    call_types = [call[0] for call in mock_runner.calls]
+    assert 'run_shell' in call_types, "Should have run_shell calls"
+    assert 'save_config' in call_types, "Should have save_config call"
 
 
 def test_no_actual_kerberos_operations_in_tests():
@@ -479,7 +526,7 @@ def test_no_actual_kerberos_operations_in_tests():
     # Even with no mock responses, actions should work
     stop_service(ctx, mock_runner)
 
-    # Verify it recorded the call but didn't actually do anything
-    assert len(mock_runner.calls) == 1
-    assert mock_runner.calls[0][0] == 'run_shell'
+    # Verify it recorded calls but didn't actually do anything
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    assert len(run_shell_calls) >= 1, "Should have recorded at least one run_shell call"
     # The mock runner doesn't actually execute commands

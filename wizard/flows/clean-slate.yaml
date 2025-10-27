@@ -22,7 +22,7 @@ steps:
     condition: "state.total_artifacts == 0"
     next:
       when_true: show_clean_message
-      when_false: select_teardown_services
+      when_false: null  # Continue to service_selection section
 
   - id: show_clean_message
     type: display

@@ -33,7 +33,7 @@ def remove_volumes(ctx: Dict[str, Any], runner: ActionRunner) -> None:
         runner: ActionRunner instance for side effects
     """
     # Build command to remove postgres volumes
-    command = ['docker', 'volume', 'rm', 'postgres_data', '--force']
+    command = ['docker', 'volume', 'rm', 'platform_postgres_data', '--force']
 
     # Execute command
     runner.run_shell(command)
