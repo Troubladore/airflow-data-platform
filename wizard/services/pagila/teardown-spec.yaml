@@ -5,7 +5,7 @@ description: "Teardown Pagila sample database and cleanup"
 steps:
   - id: pagila_teardown_confirm
     type: boolean
-    prompt: "Tear down Pagila sample database?"
+    prompt: "Clean up Pagila sample database components?"
     state_key: services.pagila.teardown.confirm
     default_value: false
     next:
