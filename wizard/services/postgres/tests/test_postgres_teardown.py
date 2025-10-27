@@ -86,9 +86,10 @@ class TestStopService:
 
         stop_service(ctx, runner)
 
-        # Verify runner.run_shell was called
-        assert len(runner.calls) == 1
-        call = runner.calls[0]
+        # Verify runner makes 3 calls: display, run_shell, display
+        assert len(runner.calls) == 3
+        # The run_shell call is the second one (index 1)
+        call = runner.calls[1]
         assert call[0] == 'run_shell'
 
         # Verify command uses docker container remove
@@ -105,7 +106,8 @@ class TestStopService:
 
         # Should not raise
         stop_service(ctx, runner)
-        assert len(runner.calls) == 1
+        # Should make 3 calls: display, run_shell, display
+        assert len(runner.calls) == 3
 
 
 class TestRemoveVolumes:
