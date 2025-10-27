@@ -46,9 +46,9 @@ class TestDiscoverImages:
         """Should find openmetadata/* images with size."""
         runner = MockActionRunner()
         runner.responses['run_shell'] = {
-            ('docker', 'images', '--filter', 'reference=openmetadata/*', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'):
+            ('docker', 'images', '--filter', 'reference=openmetadata', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'):
                 'openmetadata/server:1.2.3|850MB\nopenmetadata/ingestion:1.2.3|1.2GB\n',
-            ('docker', 'images', '--filter', 'reference=opensearchproject/*', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'):
+            ('docker', 'images', '--filter', 'reference=opensearchproject', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'):
                 ''
         }
 
@@ -64,9 +64,9 @@ class TestDiscoverImages:
         """Should find opensearchproject/* images."""
         runner = MockActionRunner()
         runner.responses['run_shell'] = {
-            ('docker', 'images', '--filter', 'reference=openmetadata/*', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'):
+            ('docker', 'images', '--filter', 'reference=openmetadata', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'):
                 '',
-            ('docker', 'images', '--filter', 'reference=opensearchproject/*', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'):
+            ('docker', 'images', '--filter', 'reference=opensearchproject', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'):
                 'opensearchproject/opensearch:2.11.0|600MB\n'
         }
 
