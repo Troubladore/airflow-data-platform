@@ -173,3 +173,97 @@ def test_save_config_uses_runner_interface():
 
     assert len(mock_runner.calls) == 1
     assert mock_runner.calls[0][0] == 'save_config'
+
+
+# ============================================================================
+# RED PHASE: Bug fix for blank container name and realm display
+# ============================================================================
+
+
+def test_start_service_displays_mock_container_info_in_non_domain_environment():
+    """start_service must display container name and realm when creating mock container.
+
+    Bug reproduction: User reported seeing blank values:
+        Container: kerberos-sidecar-mock
+        Mock realm:
+
+    This test verifies that both container name and realm are properly displayed.
+    """
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.kerberos.domain': 'TEST.LOCAL',
+        'services.kerberos.image': 'ubuntu:22.04'
+    }
+
+    # Mock non-domain environment (no $USERDNSDOMAIN)
+    mock_runner.responses['run_shell'] = {
+        'stdout': '',  # Empty stdout means not in domain
+        'stderr': '',
+        'returncode': 0
+    }
+
+    start_service(ctx, mock_runner)
+
+    # Find all display calls
+    display_calls = [call for call in mock_runner.calls if call[0] == 'display']
+    display_messages = [call[1] for call in display_calls]
+
+    # Verify container name is displayed and NOT blank
+    container_messages = [msg for msg in display_messages if 'Container:' in msg]
+    assert len(container_messages) == 1, f"Expected 1 container message, got {len(container_messages)}"
+    container_msg = container_messages[0]
+
+    # The message should contain the actual container name, not be blank after "Container:"
+    assert 'kerberos-sidecar-mock' in container_msg, \
+        f"Container name missing in message: {container_msg}"
+
+    # Verify realm is displayed and NOT blank
+    realm_messages = [msg for msg in display_messages if 'Mock realm:' in msg]
+    assert len(realm_messages) == 1, f"Expected 1 realm message, got {len(realm_messages)}"
+    realm_msg = realm_messages[0]
+
+    # The message should contain the actual realm, not be blank after "Mock realm:"
+    assert 'TEST.LOCAL' in realm_msg, \
+        f"Realm missing in message: {realm_msg}"
+
+    # Verify the full message format
+    assert 'Mock realm: TEST.LOCAL' in realm_msg, \
+        f"Expected 'Mock realm: TEST.LOCAL' but got: {realm_msg}"
+
+
+def test_start_service_displays_default_realm_when_domain_is_empty_string():
+    """start_service must display default realm when domain is empty string in context.
+
+    Bug reproduction: User reported seeing blank realm value:
+        Mock realm:
+
+    This happens when ctx contains services.kerberos.domain = '' (empty string).
+    The .get() method returns the empty string instead of using the default.
+    """
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.kerberos.domain': '',  # Empty string causes blank display
+        'services.kerberos.image': 'ubuntu:22.04'
+    }
+
+    # Mock non-domain environment (no $USERDNSDOMAIN)
+    mock_runner.responses['run_shell'] = {
+        'stdout': '',  # Empty stdout means not in domain
+        'stderr': '',
+        'returncode': 0
+    }
+
+    start_service(ctx, mock_runner)
+
+    # Find all display calls
+    display_calls = [call for call in mock_runner.calls if call[0] == 'display']
+    display_messages = [call[1] for call in display_calls]
+
+    # Verify realm is displayed with default value (not blank)
+    realm_messages = [msg for msg in display_messages if 'Mock realm:' in msg]
+    assert len(realm_messages) == 1, f"Expected 1 realm message, got {len(realm_messages)}"
+    realm_msg = realm_messages[0]
+
+    # Should display the default MOCK.LOCAL, not blank
+    assert 'MOCK.LOCAL' in realm_msg, \
+        f"Expected default realm 'MOCK.LOCAL' but got blank: '{realm_msg}'"

@@ -83,7 +83,8 @@ def start_service(ctx: Dict[str, Any], runner) -> None:
 
         # Get image from context
         image = ctx.get('services.kerberos.image', 'ubuntu:22.04')
-        domain = ctx.get('services.kerberos.domain', 'MOCK.LOCAL')
+        # Use default if domain is missing or empty string
+        domain = ctx.get('services.kerberos.domain') or 'MOCK.LOCAL'
 
         # Create mock ticket cache directory on host
         runner.run_shell(['mkdir', '-p', '/tmp/krb5cc_mock'])
