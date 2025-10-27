@@ -57,6 +57,7 @@ class Flow(BaseModel):
     name: str = Field(..., description="Flow identifier (e.g., 'setup')")
     version: str = Field(..., description="Flow spec version")
     description: str = Field(..., description="Human-readable description")
+    steps: List[Step] = Field(default_factory=list, description="Flow-level steps (run before services)")
     service_selection: List[Step] = Field(default_factory=list, description="Steps for selecting services")
     targets: List[Dict[str, Any]] = Field(default_factory=list, description="Services to include in flow")
     glue: Optional[List[Dict[str, Any]]] = Field(None, description="Cross-service coordination steps")

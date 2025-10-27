@@ -229,7 +229,19 @@ class TestReverseDependencyOrdering:
 
         # Check action call order
         runner = engine.runner
-        action_calls = [call for call in runner.calls if call[0] in ['run_shell', 'save_config']]
+        # Filter out discovery queries - only check teardown action order
+        def is_discovery_call(call):
+            if call[0] == 'run_shell' and len(call) >= 2:
+                cmd = call[1]
+                # Discovery uses docker ps, docker images, docker volume ls
+                if len(cmd) >= 2 and cmd[0] == 'docker' and cmd[1] in ['ps', 'images', 'volume']:
+                    return True
+            elif call[0] == 'file_exists':
+                return True
+            return False
+
+        action_calls = [call for call in runner.calls
+                        if (call[0] in ['run_shell', 'save_config']) and not is_discovery_call(call)]
 
         # Find indices of postgres and pagila teardown actions
         pagila_indices = [i for i, call in enumerate(action_calls)
@@ -369,7 +381,18 @@ class TestSelectiveTeardown:
 
         # Check ordering: pagila before postgres
         runner = engine.runner
-        action_calls = runner.calls
+        # Filter out discovery queries - only check teardown action order
+        def is_discovery_call(call):
+            if call[0] == 'run_shell' and len(call) >= 2:
+                cmd = call[1]
+                # Discovery uses docker ps, docker images, docker volume ls
+                if len(cmd) >= 2 and cmd[0] == 'docker' and cmd[1] in ['ps', 'images', 'volume']:
+                    return True
+            elif call[0] == 'file_exists':
+                return True
+            return False
+
+        action_calls = [call for call in runner.calls if not is_discovery_call(call)]
 
         pagila_indices = [i for i, call in enumerate(action_calls) if 'pagila' in str(call)]
         postgres_indices = [i for i, call in enumerate(action_calls) if 'postgres' in str(call)]
@@ -578,10 +601,23 @@ class TestConditionalTeardownInclusion:
 
         # Verify no teardown actions called for unselected services
         runner = engine.runner
-        action_calls_str = str(runner.calls)
-        # These should not appear in teardown calls
-        assert 'postgres' not in action_calls_str.lower() or len([c for c in runner.calls if 'postgres' in str(c)]) == 0
-        assert 'openmetadata' not in action_calls_str.lower() or len([c for c in runner.calls if 'openmetadata' in str(c)]) == 0
+        # Filter out discovery queries (docker ps, docker images, docker volume ls, file_exists)
+        # Only check for actual teardown actions
+        def is_discovery_call(call):
+            if call[0] == 'run_shell' and len(call) >= 2:
+                cmd = call[1]
+                # Discovery uses docker ps, docker images, docker volume ls
+                if len(cmd) >= 2 and cmd[0] == 'docker' and cmd[1] in ['ps', 'images', 'volume']:
+                    return True
+            elif call[0] == 'file_exists':
+                return True
+            return False
+
+        teardown_calls = [c for c in runner.calls if not is_discovery_call(c)]
+        teardown_calls_str = str(teardown_calls)
+        # These should not appear in teardown calls (discovery queries are OK)
+        assert 'postgres' not in teardown_calls_str.lower() or len([c for c in teardown_calls if 'postgres' in str(c)]) == 0
+        assert 'openmetadata' not in teardown_calls_str.lower() or len([c for c in teardown_calls if 'openmetadata' in str(c)]) == 0
 
     def test_selected_services_execute_teardown(self, engine):
         """Services selected for teardown should execute all teardown steps."""
@@ -632,7 +668,18 @@ class TestFlowPolicyCompliance:
 
         # Verify execution order respects reverse dependencies
         runner = engine.runner
-        action_calls = runner.calls
+        # Filter out discovery queries - only check teardown action order
+        def is_discovery_call(call):
+            if call[0] == 'run_shell' and len(call) >= 2:
+                cmd = call[1]
+                # Discovery uses docker ps, docker images, docker volume ls
+                if len(cmd) >= 2 and cmd[0] == 'docker' and cmd[1] in ['ps', 'images', 'volume']:
+                    return True
+            elif call[0] == 'file_exists':
+                return True
+            return False
+
+        action_calls = [c for c in runner.calls if not is_discovery_call(c)]
 
         # Find execution indices
         first_postgres_idx = None

@@ -1,6 +1,6 @@
 """Core wizard engine - executes specs with DI."""
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from pathlib import Path
 from .loader import SpecLoader
 from .runner import ActionRunner
@@ -43,6 +43,23 @@ class WizardEngine:
         Returns:
             The value captured from this step
         """
+        # Handle discovery action
+        if step.action == 'discovery.scan_all_services':
+            from wizard.engine.discovery import DiscoveryEngine
+
+            discovery_engine = DiscoveryEngine(self.runner)
+            results = discovery_engine.discover_all()
+            summary = discovery_engine.get_summary(results)
+
+            # Store in state
+            self.state['discovery_results'] = results
+            self.state['total_artifacts'] = (
+                summary['total_containers'] +
+                summary['total_images'] +
+                summary['total_volumes']
+            )
+            return None
+
         # Get input value
         if headless_inputs is not None and step.id in headless_inputs:
             value = headless_inputs[step.id]
@@ -134,6 +151,98 @@ class WizardEngine:
                 return step
         return None
 
+    def _execute_flow_steps(self, steps: List[Step], headless_inputs: Optional[Dict] = None):
+        """
+        Execute flow-level steps (discovery, conditionals, etc.).
+
+        Args:
+            steps: List of flow steps
+            headless_inputs: Dict of {step_id: value} for testing
+        """
+        if not steps:
+            return
+
+        # Start with first step
+        current_step_id = steps[0].id
+
+        while current_step_id:
+            # Find step by ID
+            step = None
+            for s in steps:
+                if s.id == current_step_id:
+                    step = s
+                    break
+
+            if not step:
+                break
+
+            # Handle conditional steps
+            if step.type == 'conditional':
+                condition = step.condition if hasattr(step, 'condition') else None
+                if condition:
+                    # Evaluate condition (simple equality check for now)
+                    # Format: "state.key == value" or "state.key == 0"
+                    condition_met = self._evaluate_condition(condition)
+
+                    # Get next step based on condition
+                    next_dict = step.next
+                    if isinstance(next_dict, dict):
+                        if condition_met:
+                            current_step_id = next_dict.get('when_true')
+                        else:
+                            current_step_id = next_dict.get('when_false')
+                    else:
+                        current_step_id = next_dict
+                else:
+                    current_step_id = None
+                continue
+
+            # Execute regular step
+            self._execute_step(step, headless_inputs)
+
+            # Resolve next step
+            if step.next is None:
+                # Explicit termination
+                break
+            elif isinstance(step.next, str):
+                current_step_id = step.next
+            else:
+                # Complex next logic would go here
+                break
+
+    def _evaluate_condition(self, condition: str) -> bool:
+        """
+        Evaluate a condition string against current state.
+
+        Args:
+            condition: Condition string (e.g., "state.total_artifacts == 0")
+
+        Returns:
+            True if condition is met
+        """
+        # Simple condition evaluation for now
+        # Format: "state.key == value"
+        if '==' in condition:
+            parts = condition.split('==')
+            if len(parts) == 2:
+                left = parts[0].strip()
+                right = parts[1].strip()
+
+                # Extract state key (remove "state." prefix)
+                if left.startswith('state.'):
+                    key = left[6:]  # Remove "state."
+                    state_value = self.state.get(key)
+
+                    # Parse right side
+                    try:
+                        expected_value = int(right)
+                    except ValueError:
+                        expected_value = right.strip('"\'')
+
+                    return state_value == expected_value
+
+        return False
+
     def _execute_service(self, service_spec: ServiceSpec, headless_inputs: Optional[Dict] = None):
         """
         Execute all steps for a service.
@@ -198,6 +307,10 @@ class WizardEngine:
             else:
                 # For setup flows, use regular enabled state key
                 self.state[f'services.{service_name}.enabled'] = enabled
+
+        # Execute flow-level steps (e.g., discovery)
+        if flow.steps:
+            self._execute_flow_steps(flow.steps, headless_inputs)
 
         # Execute service selection steps
         if flow.service_selection:

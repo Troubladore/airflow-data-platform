@@ -42,11 +42,11 @@ def discover_images(runner) -> List[Dict[str, str]]:
     """
     images = []
 
-    # Query for openmetadata/* and opensearchproject/* images
+    # Query for openmetadata and opensearchproject images
     for pattern in ['openmetadata', 'opensearchproject']:
         result = runner.run_shell([
             'docker', 'images',
-            '--filter', f'reference={pattern}/*',
+            '--filter', f'reference={pattern}',
             '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'
         ])
 

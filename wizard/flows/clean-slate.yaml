@@ -1,6 +1,40 @@
 name: clean-slate
-version: "1.0"
-description: "Clean-slate wizard - orchestrates service teardown"
+version: "1.1"
+description: "Clean-slate wizard with system discovery - orchestrates service teardown"
+
+# Discovery phase - runs BEFORE service selection
+steps:
+  - id: run_discovery
+    type: action
+    action: discovery.scan_all_services
+    next: show_discovery_results
+
+  - id: show_discovery_results
+    type: display
+    prompt: |
+      Discovering platform services...
+
+      Discovery complete. Found {total_artifacts} total artifacts.
+    next: check_empty_state
+
+  - id: check_empty_state
+    type: conditional
+    condition: "state.total_artifacts == 0"
+    next:
+      when_true: show_clean_message
+      when_false: select_teardown_services
+
+  - id: show_clean_message
+    type: display
+    prompt: |
+      System is already clean! No platform artifacts detected.
+
+      Checked:
+        - Docker containers
+        - Docker images
+        - Docker volumes
+        - Configuration files
+    next: null
 
 # Service selection - which services to tear down
 service_selection:
