@@ -87,6 +87,41 @@ class TestGetInputMethod:
 
         assert result == 'default_value'
 
+    def test_mock_runner_applies_default_for_empty_string_in_queue(self):
+        """MockActionRunner should apply default when queue contains empty string.
+
+        This test ensures parity with RealActionRunner behavior:
+        - Empty user input (pressing Enter) should apply the default value
+        - Empty string in queue simulates this user interaction
+
+        Regression test for bug where empty strings were returned instead of defaults.
+        """
+        runner = MockActionRunner()
+        runner.input_queue = ['']  # Empty string simulates pressing Enter
+
+        result = runner.get_input("Enter name:", default="John")
+
+        assert result == "John", \
+            "Empty string in queue should trigger default application (matches RealActionRunner)"
+
+    def test_mock_runner_empty_string_in_queue_without_default(self):
+        """MockActionRunner should return empty string when no default provided."""
+        runner = MockActionRunner()
+        runner.input_queue = ['']
+
+        result = runner.get_input("Enter name:", default=None)
+
+        assert result == ""
+
+    def test_mock_runner_non_empty_string_ignores_default(self):
+        """MockActionRunner should use queue value when non-empty, ignoring default."""
+        runner = MockActionRunner()
+        runner.input_queue = ['Alice']
+
+        result = runner.get_input("Enter name:", default="John")
+
+        assert result == "Alice"
+
 
 class TestSaveConfigMethod:
     """Test save_config() method - deep merge and deletion logic."""
