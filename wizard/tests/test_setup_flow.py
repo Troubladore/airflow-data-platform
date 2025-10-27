@@ -93,7 +93,6 @@ class TestServiceSelectionStep:
         engine.validators['postgres.validate_image_url'] = postgres.validate_image_url
         engine.validators['postgres.validate_port'] = postgres.validate_port
         engine.actions['postgres.save_config'] = postgres.save_config
-        engine.actions['postgres.init_database'] = postgres.init_database
         engine.actions['postgres.start_service'] = postgres.start_service
 
         # Register openmetadata
@@ -712,19 +711,18 @@ class TestActionRunnerIntegration:
         runner = engine.runner
         shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
 
-        # Should have shell calls for init-db and start
-        assert len(shell_calls) >= 2, "Should have init and start commands"
+        # Should have shell call for start (init happens automatically via docker-entrypoint-initdb.d)
+        assert len(shell_calls) >= 1, "Should have start command"
 
-        # Verify order: init-db before start
-        init_call = None
+        # Verify start command is called
         start_call = None
         for call in shell_calls:
-            if 'init-db' in str(call):
-                init_call = call
-            if 'start' in str(call) and 'init-db' not in str(call):
+            if 'start' in str(call):
                 start_call = call
+                break
 
-        if init_call and start_call:
-            init_idx = shell_calls.index(init_call)
-            start_idx = shell_calls.index(start_call)
-            assert init_idx < start_idx, "init-db should run before start"
+        assert start_call is not None, "Should call 'make start' command"
+
+        # Verify init-db is NOT called (it's vestigial - PostgreSQL auto-initializes)
+        init_calls = [c for c in shell_calls if 'init-db' in str(c)]
+        assert len(init_calls) == 0, "Should NOT call init-db (database auto-initializes)"

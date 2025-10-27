@@ -55,32 +55,6 @@ def pull_image(ctx: Dict[str, Any], runner) -> None:
         runner.display(f"\n✓ Using prebuilt image: {image}")
 
 
-def init_database(ctx: Dict[str, Any], runner) -> None:
-    """Initialize PostgreSQL database.
-
-    Calls make init-db command with PORT parameter.
-
-    Args:
-        ctx: Context dictionary with optional port configuration
-        runner: ActionRunner instance for side effects
-    """
-    runner.display("\nInitializing PostgreSQL database...")
-
-    # Get port from context or use default
-    port = ctx.get('services.postgres.port', 5432)
-
-    # Build command
-    command = ['make', '-C', 'platform-infrastructure', 'init-db', f'PORT={port}']
-
-    # Execute command
-    result = runner.run_shell(command)
-
-    if result.get('returncode') == 0:
-        runner.display("✓ Database initialized")
-    else:
-        runner.display("✗ Database initialization failed")
-
-
 def start_service(ctx: Dict[str, Any], runner) -> None:
     """Start PostgreSQL service.
 
