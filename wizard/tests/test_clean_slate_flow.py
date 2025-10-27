@@ -36,8 +36,8 @@ def setup_discovery_mock(runner):
         ('docker', 'ps', '-a', '--filter', 'name=openmetadata', '--format', '{{.Names}}|{{.Status}}'): '',
         ('docker', 'images', '--filter', 'reference=openmetadata', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
         ('docker', 'volume', 'ls', '--filter', 'name=openmetadata', '--format', '{{.Name}}'): '',
-        ('docker', 'ps', '-a', '--filter', 'name=kerberos', '--format', '{{.Names}}|{{.Status}}'): '',
-        ('docker', 'images', '--filter', 'reference=kerberos', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
+        ('docker', 'ps', '-a', '--filter', 'name=kerberos', '--format', '{{.Names}}|{{.Status}}'): 'kerberos|Up\n',
+        ('docker', 'images', '--filter', 'reference=kerberos', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): 'kerberos:latest|150MB\n',
         ('docker', 'volume', 'ls', '--filter', 'name=kerberos', '--format', '{{.Name}}'): '',
         ('docker', 'ps', '-a', '--filter', 'name=pagila', '--format', '{{.Names}}|{{.Status}}'): '',
         ('docker', 'images', '--filter', 'reference=pagila', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
@@ -557,8 +557,9 @@ class TestTeardownActionRecording:
             'select_kerberos_teardown': True,
             'select_pagila_teardown': False,
             'kerberos_teardown_confirm': True,
-            'kerberos_remove_volumes': True,
-            'kerberos_remove_images': True
+            'remove_images_question': True,
+            'remove_keytabs_question': False,
+            'remove_config_question': True
         }
 
         engine.execute_flow('clean-slate', headless_inputs=headless_inputs)
@@ -642,8 +643,9 @@ class TestTeardownStateManagement:
             'select_kerberos_teardown': False,
             'select_pagila_teardown': False,
             'postgres_teardown_confirm': True,
+            'postgres_remove_images': True,
             'postgres_remove_volumes': False,
-            'postgres_remove_images': True
+            'postgres_remove_config': False
         }
 
         engine.execute_flow('clean-slate', headless_inputs=headless_inputs)
@@ -661,11 +663,13 @@ class TestTeardownStateManagement:
             'select_kerberos_teardown': False,
             'select_pagila_teardown': False,
             'postgres_teardown_confirm': True,
-            'postgres_remove_volumes': True,
             'postgres_remove_images': True,
+            'postgres_remove_volumes': True,
+            'postgres_remove_config': False,
             'openmetadata_teardown_confirm': True,
+            'openmetadata_remove_images': True,
             'openmetadata_remove_volumes': True,
-            'openmetadata_remove_images': True
+            'openmetadata_remove_config': False
         }
 
         engine.execute_flow('clean-slate', headless_inputs=headless_inputs)

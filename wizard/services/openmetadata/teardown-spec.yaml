@@ -4,6 +4,16 @@ description: "OpenMetadata teardown"
 requires: []
 
 steps:
+  - id: openmetadata_teardown_confirm
+    type: boolean
+    prompt: "Confirm OpenMetadata teardown?"
+    state_key: services.openmetadata.teardown.confirm
+    default_value: false
+    next:
+      when_value:
+        true: show_details_header
+        false: finish
+
   - id: show_details_header
     type: display
     prompt: |
@@ -12,9 +22,9 @@ steps:
         OpenMetadata Removal Options
       ────────────────────────────────────────────────────────
 
-    next: remove_container_action
+    next: stop_service
 
-  - id: remove_container_action
+  - id: stop_service
     type: action
     action: openmetadata.stop_service
     next: remove_images_question
@@ -56,10 +66,10 @@ steps:
     default_value: false
     next:
       when_value:
-        true: remove_config_action
+        true: clean_config
         false: finish
 
-  - id: remove_config_action
+  - id: clean_config
     type: action
     action: openmetadata.clean_config
     next: finish

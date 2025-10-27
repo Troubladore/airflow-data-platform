@@ -66,6 +66,19 @@ class WizardEngine:
         while True:
             # Get input based on mode
             if self.headless_mode:
+                # Prepare default value for interpolation and display
+                default = step.default_value
+                # Check for dynamic default from state
+                if hasattr(step, 'default_from') and step.default_from:
+                    default = self.state.get(step.default_from, default)
+
+                # Set current_value in state for interpolation
+                self.state['current_value'] = default
+
+                # Interpolate and display the prompt even in headless mode
+                interpolated_prompt = self._interpolate_prompt(step.prompt, self.state)
+                self.runner.display(interpolated_prompt)
+
                 # Use pre-provided answer from dict, or default
                 if step.id in self.headless_inputs:
                     user_input = self.headless_inputs[step.id]

@@ -349,3 +349,124 @@ def test_install_pagila_non_interactive_prevents_stall():
     has_auto_yes = 'PAGILA_AUTO_YES=' in command_str
     assert has_auto_yes, \
         f"Command must enable non-interactive mode to prevent wizard stall. Got: {command_str}"
+
+
+# ============================================================================
+# BRANCH SELECTION TESTS - RED PHASE
+# ============================================================================
+
+def test_save_config_stores_branch():
+    """save_config should store the Pagila branch in config when specified"""
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.pagila.repo_url': 'https://github.com/Troubladore/pagila.git',
+        'services.pagila.branch': 'feature/custom-schema',
+        'services.pagila.enabled': True
+    }
+
+    save_config(ctx, mock_runner)
+
+    # Assert branch is stored in config
+    config = mock_runner.calls[0][1]
+    assert 'services' in config
+    assert 'pagila' in config['services']
+    assert config['services']['pagila']['branch'] == 'feature/custom-schema'
+
+
+def test_save_config_branch_optional():
+    """save_config should work without branch (backward compatibility)"""
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.pagila.repo_url': 'https://github.com/Troubladore/pagila.git',
+        'services.pagila.enabled': True
+        # Note: no branch specified
+    }
+
+    save_config(ctx, mock_runner)
+
+    # Should not fail, config should be saved successfully
+    assert len(mock_runner.calls) == 1
+    assert mock_runner.calls[0][0] == 'save_config'
+
+
+def test_install_pagila_passes_branch_to_setup():
+    """install_pagila should pass PAGILA_BRANCH to setup script when branch specified"""
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.pagila.repo_url': 'https://github.com/Troubladore/pagila.git',
+        'services.pagila.branch': 'develop'
+    }
+
+    install_pagila(ctx, mock_runner)
+
+    # Assert PAGILA_BRANCH is in the command
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    assert len(run_shell_calls) == 1
+    command = run_shell_calls[0][1]
+    command_str = ' '.join(command)
+
+    assert 'PAGILA_BRANCH=' in command_str, \
+        f"Command must pass PAGILA_BRANCH variable when branch specified, got: {command_str}"
+
+
+def test_install_pagila_uses_correct_branch_value():
+    """install_pagila must pass the exact branch value from context"""
+    mock_runner = MockActionRunner()
+    custom_branch = 'feature/test-branch'
+    ctx = {
+        'services.pagila.repo_url': 'https://github.com/Troubladore/pagila.git',
+        'services.pagila.branch': custom_branch
+    }
+
+    install_pagila(ctx, mock_runner)
+
+    # Assert the custom branch is in the command
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    command = run_shell_calls[0][1]
+    command_str = ' '.join(command)
+
+    assert custom_branch in command_str, \
+        f"Command must include the custom branch {custom_branch}, got: {command_str}"
+
+
+def test_install_pagila_no_branch_when_empty():
+    """install_pagila should not pass PAGILA_BRANCH when branch is empty or not specified"""
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.pagila.repo_url': 'https://github.com/Troubladore/pagila.git',
+        'services.pagila.branch': ''  # Empty branch
+    }
+
+    install_pagila(ctx, mock_runner)
+
+    # Assert PAGILA_BRANCH is not in the command (or is empty)
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    command = run_shell_calls[0][1]
+    command_str = ' '.join(command)
+
+    # Should either not have PAGILA_BRANCH or have it empty
+    # This ensures we use default branch when not specified
+    if 'PAGILA_BRANCH=' in command_str:
+        # If it's present, it should be empty or just "PAGILA_BRANCH="
+        import re
+        match = re.search(r'PAGILA_BRANCH=(\S*)', command_str)
+        if match:
+            branch_value = match.group(1)
+            assert branch_value == '', \
+                f"PAGILA_BRANCH should be empty when not specified, got: {branch_value}"
+
+
+def test_install_pagila_backward_compatible_no_branch():
+    """install_pagila should work without branch in context (backward compatibility)"""
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.pagila.repo_url': 'https://github.com/Troubladore/pagila.git'
+        # Note: no branch key at all
+    }
+
+    # Should not fail
+    install_pagila(ctx, mock_runner)
+
+    # Assert command was executed successfully
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    assert len(run_shell_calls) == 1

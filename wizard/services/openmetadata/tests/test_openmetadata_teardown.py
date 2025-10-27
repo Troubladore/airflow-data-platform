@@ -79,13 +79,13 @@ def test_teardown_spec_has_volume_removal_step():
     with open(spec_path) as f:
         spec = yaml.safe_load(f)
 
-    # Find remove volumes step (now namespaced)
+    # Find remove volumes question step
     volume_step = next(
-        (s for s in spec["steps"] if s.get("id") == "openmetadata_remove_volumes"),
+        (s for s in spec["steps"] if s.get("id") == "remove_volumes_question"),
         None
     )
 
-    assert volume_step is not None, "Must have openmetadata_remove_volumes step"
+    assert volume_step is not None, "Must have remove_volumes_question step"
     assert volume_step["type"] == "boolean"
     assert "prompt" in volume_step
 
@@ -115,13 +115,13 @@ def test_teardown_spec_has_image_removal_step():
     with open(spec_path) as f:
         spec = yaml.safe_load(f)
 
-    # Find remove images step (now namespaced)
+    # Find remove images question step
     image_step = next(
-        (s for s in spec["steps"] if s.get("id") == "openmetadata_remove_images"),
+        (s for s in spec["steps"] if s.get("id") == "remove_images_question"),
         None
     )
 
-    assert image_step is not None, "Must have openmetadata_remove_images step"
+    assert image_step is not None, "Must have remove_images_question step"
     assert image_step["type"] == "boolean"
     assert "prompt" in image_step
 
@@ -365,9 +365,9 @@ def test_teardown_spec_conditional_flow():
     with open(spec_path) as f:
         spec = yaml.safe_load(f)
 
-    # Find the remove_volumes boolean step (now namespaced)
+    # Find the remove_volumes question step
     volume_step = next(
-        (s for s in spec["steps"] if s.get("id") == "openmetadata_remove_volumes"),
+        (s for s in spec["steps"] if s.get("id") == "remove_volumes_question"),
         None
     )
 

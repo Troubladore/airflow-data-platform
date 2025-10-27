@@ -18,7 +18,7 @@ class TestSetupHappyPath:
             '',   # Install Pagila? (default: n)
             '',   # Postgres image (use default)
             '',   # Prebuilt (use default False)
-            '',   # Auth method (use default md5)
+            '',   # Require password (use default True)
             '',   # Password (use default)
             ''    # Port (use default)
         ]
@@ -29,7 +29,7 @@ class TestSetupHappyPath:
         # Verify defaults were used
         assert engine.state['services.postgres.image'] == 'postgres:17.5-alpine'
         assert engine.state['services.postgres.prebuilt'] == False
-        assert engine.state['services.postgres.auth_method'] == 'md5'
+        assert engine.state['services.postgres.require_password'] == True
         assert engine.state['services.postgres.password'] == 'changeme'
         assert engine.state['services.postgres.port'] == 5432
 
@@ -42,8 +42,8 @@ class TestSetupHappyPath:
             '',                    # Install Pagila? (n)
             'postgres:16',         # Custom image
             'y',                   # Yes to prebuilt
-            'trust',               # Trust auth
-            '5433'                 # Custom port (password skipped for trust)
+            'n',                   # No password required
+            '5433'                 # Custom port (password skipped when not required)
         ]
 
         engine = WizardEngine(runner=runner, base_path='wizard')
@@ -52,27 +52,27 @@ class TestSetupHappyPath:
         # Verify custom values were stored
         assert engine.state['services.postgres.image'] == 'postgres:16'
         assert engine.state['services.postgres.prebuilt'] == True
-        assert engine.state['services.postgres.auth_method'] == 'trust'
+        assert engine.state['services.postgres.require_password'] == False
         assert engine.state['services.postgres.port'] == 5433
 
     def test_each_prompt_only_asked_once(self):
         """Each question should only be asked once (no duplicate prompts)."""
         runner = MockActionRunner()
-        runner.input_queue = ['', '', '', '', '', '', '', '', '']  # 3 service selection + 5 postgres prompts
+        runner.input_queue = ['', '', '', '', '', '', '', '']  # 3 service selection + 5 postgres prompts
 
         engine = WizardEngine(runner=runner, base_path='wizard')
         engine.execute_flow('setup')
 
         # Count prompts for each field (use more specific matching to avoid overlaps)
-        image_prompts = [c for c in runner.calls if c[0] == 'get_input' and 'PostgreSQL image' in c[1]]
+        image_prompts = [c for c in runner.calls if c[0] == 'get_input' and 'PostgreSQL Docker image' in c[1]]
         prebuilt_prompts = [c for c in runner.calls if c[0] == 'get_input' and 'prebuilt' in c[1].lower()]
-        auth_prompts = [c for c in runner.calls if c[0] == 'get_input' and 'authentication' in c[1].lower()]
+        password_prompts = [c for c in runner.calls if c[0] == 'get_input' and 'password' in c[1].lower()]
         port_prompts = [c for c in runner.calls if c[0] == 'get_input' and 'PostgreSQL port' in c[1]]
 
         # Each should only be asked once
         assert len(image_prompts) == 1, f"Image prompted {len(image_prompts)} times, expected 1"
         assert len(prebuilt_prompts) == 1, f"Prebuilt prompted {len(prebuilt_prompts)} times, expected 1"
-        assert len(auth_prompts) == 1, f"Auth prompted {len(auth_prompts)} times, expected 1"
+        assert len(password_prompts) == 2, f"Password (require + actual) prompted {len(password_prompts)} times, expected 2"
         assert len(port_prompts) == 1, f"Port prompted {len(port_prompts)} times, expected 1"
 
     def test_validation_errors_reprompt(self):

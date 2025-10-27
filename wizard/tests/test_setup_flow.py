@@ -167,7 +167,7 @@ class TestServiceExecutionOrdering:
             # Postgres inputs
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': False,
-            'postgres_auth': 'md5',
+            'postgres_auth': True,  # Boolean: require password
             'postgres_password': 'changeme',
             'postgres_port': 5432,
             # OpenMetadata inputs
@@ -202,7 +202,7 @@ class TestServiceExecutionOrdering:
             # Postgres inputs
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': False,
-            'postgres_auth': 'md5',
+            'postgres_auth': True,  # Boolean: require password
             'postgres_password': 'changeme',
             'postgres_port': 5432,
             # Pagila inputs
@@ -216,10 +216,11 @@ class TestServiceExecutionOrdering:
         action_calls = [call for call in runner.calls if call[0] in ['save_config', 'run_shell']]
 
         # Find indices of postgres and pagila actions
+        # Use more specific matching: postgres service actions vs pagila service actions
         postgres_indices = [i for i, call in enumerate(action_calls)
-                           if 'postgres' in str(call)]
+                           if call[0] == 'save_config' and 'postgres' in str(call[1].get('services', {}).keys())]
         pagila_indices = [i for i, call in enumerate(action_calls)
-                         if 'pagila' in str(call)]
+                         if call[0] == 'save_config' and 'pagila' in str(call[1].get('services', {}).keys())]
 
         if postgres_indices and pagila_indices:
             assert max(postgres_indices) < min(pagila_indices), \
@@ -234,7 +235,7 @@ class TestServiceExecutionOrdering:
             # Postgres inputs (always executed)
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': False,
-            'postgres_auth': 'trust',
+            'postgres_auth': False,  # Boolean: no password (trust auth)
             'postgres_port': 5432,
             # Kerberos inputs
             'domain_input': 'COMPANY.COM',
@@ -268,7 +269,8 @@ class TestIntegrationScenarioAllDefaults:
             'select_pagila': False,  # No optional services
             # All postgres steps use defaults (empty strings trigger defaults)
             'postgres_image': '',
-            'postgres_auth': '',
+            'postgres_auth': '',  # Empty string will use default (True = require password)
+            'postgres_password': '',  # Will use default 'changeme'
             'postgres_port': ''
         }
 
@@ -322,7 +324,7 @@ class TestIntegrationScenarioHybrid:
             # Postgres: use default image
             'postgres_image': '',  # Default
             'postgres_prebuilt': True,
-            'postgres_auth': 'md5',
+            'postgres_auth': True,  # Boolean: require password
             'postgres_password': 'secret123',
             'postgres_port': 5432,
             # OpenMetadata: use custom image
@@ -363,7 +365,7 @@ class TestIntegrationScenarioAllCustom:
             # All custom images from corporate registry
             'postgres_image': 'artifactory.company.com/postgres:17.5-alpine',
             'postgres_prebuilt': False,
-            'postgres_auth': 'scram-sha-256',
+            'postgres_auth': True,  # Boolean: require password (any auth method)
             'postgres_password': 'verysecure',
             'postgres_port': 5433,
             'server_image': 'artifactory.company.com/openmetadata/server:1.5.0',
@@ -406,7 +408,7 @@ class TestIntegrationScenarioAllBuilt:
             # All services: base images + build
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': False,  # Build approach
-            'postgres_auth': 'md5',
+            'postgres_auth': True,  # Boolean: require password
             'postgres_password': 'changeme',
             'postgres_port': 5432,
             'server_image': 'ubuntu:22.04',  # Base image
@@ -450,7 +452,7 @@ class TestIntegrationScenarioMixBuiltPrebuilt:
             # Postgres: prebuilt
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': True,
-            'postgres_auth': 'md5',
+            'postgres_auth': True,  # Boolean: require password
             'postgres_password': 'changeme',
             'postgres_port': 5432,
             # OpenMetadata: build from source
@@ -493,7 +495,7 @@ class TestIntegrationScenarioAllPrebuilt:
             # All services: prebuilt ready-to-use images
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': True,
-            'postgres_auth': 'trust',  # Simplest auth for demo
+            'postgres_auth': False,  # Boolean: no password (trust auth)
             'postgres_port': 5432,
             'server_image': 'docker.getcollate.io/openmetadata/server:1.5.0',
             'opensearch_image': 'opensearchproject/opensearch:2.9.0',
@@ -518,7 +520,7 @@ class TestIntegrationScenarioAllPrebuilt:
             'select_pagila': False,  # Just postgres
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': True,  # Should skip build questions
-            'postgres_auth': 'trust',
+            'postgres_auth': False,  # Boolean: no password (trust auth)
             'postgres_port': 5432
         }
 
@@ -551,7 +553,7 @@ class TestConditionalServiceInclusion:
             'select_pagila': False,  # Only postgres (always enabled)
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': True,
-            'postgres_auth': 'trust',
+            'postgres_auth': False,  # Boolean: no password (trust auth)
             'postgres_port': 5432
         }
 
@@ -577,7 +579,7 @@ class TestConditionalServiceInclusion:
             'select_pagila': False,
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': True,
-            'postgres_auth': 'trust',
+            'postgres_auth': False,  # Boolean: no password (trust auth)
             'postgres_port': 5432,
             'domain_input': 'EXAMPLE.COM',
             'image_input': 'ubuntu:22.04'
@@ -615,7 +617,7 @@ class TestFlowStateManagement:
             'select_pagila': False,
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': False,
-            'postgres_auth': 'md5',
+            'postgres_auth': True,  # Boolean: require password
             'postgres_password': 'secret',
             'postgres_port': 5432,
             'server_image': 'docker.getcollate.io/openmetadata/server:1.5.0',
@@ -641,7 +643,7 @@ class TestFlowStateManagement:
             'select_pagila': False,
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': True,
-            'postgres_auth': 'trust',
+            'postgres_auth': False,  # Boolean: no password (trust auth)
             'postgres_port': 5432,
             'domain_input': 'CORP.LOCAL',
             'image_input': 'ubuntu:22.04'
@@ -677,7 +679,7 @@ class TestActionRunnerIntegration:
             'select_pagila': False,
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': True,
-            'postgres_auth': 'trust',
+            'postgres_auth': False,  # Boolean: no password (trust auth)
             'postgres_port': 5432,
             'server_image': 'docker.getcollate.io/openmetadata/server:1.5.0',
             'opensearch_image': 'opensearchproject/opensearch:2.9.0',
@@ -701,7 +703,7 @@ class TestActionRunnerIntegration:
             'select_pagila': False,
             'postgres_image': 'postgres:17.5-alpine',
             'postgres_prebuilt': False,
-            'postgres_auth': 'md5',
+            'postgres_auth': True,  # Boolean: require password
             'postgres_password': 'changeme',
             'postgres_port': 5432
         }

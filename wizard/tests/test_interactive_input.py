@@ -49,7 +49,7 @@ class TestInputCollection:
 
         # Should have requested postgres image
         input_calls = [c for c in runner.calls if c[0] == 'get_input']
-        assert any('PostgreSQL image' in str(c) for c in input_calls)
+        assert any('PostgreSQL Docker image' in str(c) for c in input_calls)
 
     def test_boolean_step_collects_input(self):
         """Boolean-type steps should call get_input()."""

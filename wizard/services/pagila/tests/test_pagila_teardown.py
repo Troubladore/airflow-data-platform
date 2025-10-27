@@ -150,8 +150,10 @@ def test_teardown_spec_step_ids_are_namespaced():
     # Verify we have the expected namespaced boolean steps
     boolean_step_ids = [s.get('id') for s in boolean_steps]
     assert 'pagila_teardown_confirm' in boolean_step_ids
-    assert 'pagila_remove_volumes' in boolean_step_ids
-    assert 'pagila_remove_images' in boolean_step_ids
+    assert 'pagila_remove_images_question' in boolean_step_ids
+    assert 'pagila_remove_repo_question' in boolean_step_ids
+    assert 'pagila_remove_database_data_question' in boolean_step_ids
+    assert 'pagila_remove_config_question' in boolean_step_ids
 
 
 def test_teardown_spec_actions_are_namespaced():
