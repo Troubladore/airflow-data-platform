@@ -102,6 +102,13 @@ class TestEmptyStateHandling:
             ('docker', 'images', '--filter', 'reference=pagila', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
             ('docker', 'volume', 'ls', '--filter', 'name=pagila', '--format', '{{.Name}}'): ''
         }
+        # Track number of get_input calls - should be ZERO for empty system
+        runner.input_call_count = 0
+        original_get_input = runner.get_input
+        def counting_get_input(prompt, default=None):
+            runner.input_call_count += 1
+            return original_get_input(prompt, default)
+        runner.get_input = counting_get_input
         return runner
 
     @pytest.fixture
@@ -123,14 +130,42 @@ class TestEmptyStateHandling:
             "Should detect zero artifacts"
 
     def test_empty_system_does_not_prompt_for_services(self, engine, empty_runner):
-        """Empty system should exit without showing service selection."""
-        # Execute without headless inputs - should not block on selection
+        """Empty system should exit without showing service selection.
+
+        CRITICAL: When 0 artifacts found, should NOT ask:
+        - "Tear down PostgreSQL?"
+        - "Tear down OpenMetadata?"
+        - "Tear down Kerberos?"
+        - "Tear down Pagila?"
+
+        Should show "System is already clean!" and exit immediately.
+
+        This test is for INTERACTIVE mode (no headless_inputs) to ensure
+        the flow doesn't block waiting for user input when system is clean.
+        """
+        # Execute WITHOUT headless inputs (simulates interactive user)
+        # In interactive mode, if service_selection runs, it will call get_input
+        # which we've instrumented to count calls
         engine.execute_flow('clean-slate')
 
-        # Should not have teardown selections (flow exited early)
-        # Empty list is acceptable - means no services selected
-        teardown_selections = engine.state.get('teardown_selections')
-        assert teardown_selections is None or teardown_selections == []
+        # Verify system detected as empty
+        assert engine.state.get('total_artifacts', 0) == 0, \
+            "Should detect zero artifacts"
+
+        # CRITICAL: get_input should NOT have been called
+        # If it was called, that means service selection ran (BUG!)
+        assert empty_runner.input_call_count == 0, \
+            f"Should NOT prompt user for input when 0 artifacts found (got {empty_runner.input_call_count} prompts)"
+
+        # All teardown.enabled flags should remain False (their default)
+        assert engine.state.get('services.postgres.teardown.enabled', False) == False, \
+            "Should NOT enable postgres teardown when 0 artifacts"
+        assert engine.state.get('services.openmetadata.teardown.enabled', False) == False, \
+            "Should NOT enable openmetadata teardown when 0 artifacts"
+        assert engine.state.get('services.kerberos.teardown.enabled', False) == False, \
+            "Should NOT enable kerberos teardown when 0 artifacts"
+        assert engine.state.get('services.pagila.teardown.enabled', False) == False, \
+            "Should NOT enable pagila teardown when 0 artifacts"
 
 
 class TestDiscoveryResultsDisplay:

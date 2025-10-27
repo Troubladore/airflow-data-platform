@@ -22,6 +22,29 @@ from wizard.engine.runner import MockActionRunner
 from wizard.engine.loader import SpecLoader
 
 
+def setup_discovery_mock(runner):
+    """
+    Configure MockActionRunner with discovery responses for clean-slate tests.
+
+    Returns some artifacts so flow continues to service_selection.
+    Tests that need empty system should create their own runner.
+    """
+    runner.responses['run_shell'] = {
+        ('docker', 'ps', '-a', '--filter', 'name=postgres', '--format', '{{.Names}}|{{.Status}}'): 'postgres|Up\n',
+        ('docker', 'images', '--filter', 'reference=postgres', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): 'postgres:17|400MB\n',
+        ('docker', 'volume', 'ls', '--filter', 'name=postgres', '--format', '{{.Name}}'): 'postgres_data\n',
+        ('docker', 'ps', '-a', '--filter', 'name=openmetadata', '--format', '{{.Names}}|{{.Status}}'): '',
+        ('docker', 'images', '--filter', 'reference=openmetadata', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
+        ('docker', 'volume', 'ls', '--filter', 'name=openmetadata', '--format', '{{.Name}}'): '',
+        ('docker', 'ps', '-a', '--filter', 'name=kerberos', '--format', '{{.Names}}|{{.Status}}'): '',
+        ('docker', 'images', '--filter', 'reference=kerberos', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
+        ('docker', 'volume', 'ls', '--filter', 'name=kerberos', '--format', '{{.Name}}'): '',
+        ('docker', 'ps', '-a', '--filter', 'name=pagila', '--format', '{{.Names}}|{{.Status}}'): '',
+        ('docker', 'images', '--filter', 'reference=pagila', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
+        ('docker', 'volume', 'ls', '--filter', 'name=pagila', '--format', '{{.Name}}'): ''
+    }
+
+
 class TestCleanSlateFlowLoads:
     """Tests for clean-slate flow file existence and basic loading."""
 
@@ -86,6 +109,23 @@ class TestServiceTeardownSelection:
     def engine(self):
         """Create WizardEngine with MockActionRunner."""
         runner = MockActionRunner()
+
+        # Mock discovery to return some artifacts (so flow continues to service_selection)
+        runner.responses['run_shell'] = {
+            ('docker', 'ps', '-a', '--filter', 'name=postgres', '--format', '{{.Names}}|{{.Status}}'): 'postgres|Up\n',
+            ('docker', 'images', '--filter', 'reference=postgres', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): 'postgres:17|400MB\n',
+            ('docker', 'volume', 'ls', '--filter', 'name=postgres', '--format', '{{.Name}}'): 'postgres_data\n',
+            ('docker', 'ps', '-a', '--filter', 'name=openmetadata', '--format', '{{.Names}}|{{.Status}}'): '',
+            ('docker', 'images', '--filter', 'reference=openmetadata', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
+            ('docker', 'volume', 'ls', '--filter', 'name=openmetadata', '--format', '{{.Name}}'): '',
+            ('docker', 'ps', '-a', '--filter', 'name=kerberos', '--format', '{{.Names}}|{{.Status}}'): '',
+            ('docker', 'images', '--filter', 'reference=kerberos', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
+            ('docker', 'volume', 'ls', '--filter', 'name=kerberos', '--format', '{{.Name}}'): '',
+            ('docker', 'ps', '-a', '--filter', 'name=pagila', '--format', '{{.Names}}|{{.Status}}'): '',
+            ('docker', 'images', '--filter', 'reference=pagila', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
+            ('docker', 'volume', 'ls', '--filter', 'name=pagila', '--format', '{{.Name}}'): ''
+        }
+
         base_path = Path(__file__).parent.parent
         engine = WizardEngine(runner=runner, base_path=base_path)
 
@@ -336,6 +376,23 @@ class TestSelectiveTeardown:
     def engine(self):
         """Create WizardEngine with MockActionRunner."""
         runner = MockActionRunner()
+
+        # Mock discovery to return some artifacts (so flow continues to service_selection)
+        runner.responses['run_shell'] = {
+            ('docker', 'ps', '-a', '--filter', 'name=postgres', '--format', '{{.Names}}|{{.Status}}'): 'postgres|Up\n',
+            ('docker', 'images', '--filter', 'reference=postgres', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): 'postgres:17|400MB\n',
+            ('docker', 'volume', 'ls', '--filter', 'name=postgres', '--format', '{{.Name}}'): 'postgres_data\n',
+            ('docker', 'ps', '-a', '--filter', 'name=openmetadata', '--format', '{{.Names}}|{{.Status}}'): '',
+            ('docker', 'images', '--filter', 'reference=openmetadata', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
+            ('docker', 'volume', 'ls', '--filter', 'name=openmetadata', '--format', '{{.Name}}'): '',
+            ('docker', 'ps', '-a', '--filter', 'name=kerberos', '--format', '{{.Names}}|{{.Status}}'): '',
+            ('docker', 'images', '--filter', 'reference=kerberos', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
+            ('docker', 'volume', 'ls', '--filter', 'name=kerberos', '--format', '{{.Name}}'): '',
+            ('docker', 'ps', '-a', '--filter', 'name=pagila', '--format', '{{.Names}}|{{.Status}}'): '',
+            ('docker', 'images', '--filter', 'reference=pagila', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
+            ('docker', 'volume', 'ls', '--filter', 'name=pagila', '--format', '{{.Name}}'): ''
+        }
+
         base_path = Path(__file__).parent.parent
         engine = WizardEngine(runner=runner, base_path=base_path)
         return engine
@@ -464,6 +521,7 @@ class TestTeardownActionRecording:
     def engine(self):
         """Create WizardEngine with MockActionRunner."""
         runner = MockActionRunner()
+        setup_discovery_mock(runner)  # Add discovery mock
         base_path = Path(__file__).parent.parent
         engine = WizardEngine(runner=runner, base_path=base_path)
         return engine
@@ -554,6 +612,7 @@ class TestTeardownStateManagement:
     def engine(self):
         """Create WizardEngine with MockActionRunner."""
         runner = MockActionRunner()
+        setup_discovery_mock(runner)  # Add discovery mock
         base_path = Path(__file__).parent.parent
         engine = WizardEngine(runner=runner, base_path=base_path)
         return engine
@@ -627,6 +686,7 @@ class TestConditionalTeardownInclusion:
     def engine(self):
         """Create WizardEngine with MockActionRunner."""
         runner = MockActionRunner()
+        setup_discovery_mock(runner)  # Add discovery mock
         base_path = Path(__file__).parent.parent
         engine = WizardEngine(runner=runner, base_path=base_path)
         return engine
