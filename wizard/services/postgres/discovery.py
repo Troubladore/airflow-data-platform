@@ -1,7 +1,6 @@
 """Discovery functions for PostgreSQL service artifacts."""
 
 from typing import List, Dict, Any
-import os
 
 
 def discover_containers(runner) -> List[Dict[str, str]]:
@@ -90,11 +89,11 @@ def discover_files(runner) -> List[str]:
     files = []
 
     # Check for platform-config.yaml
-    if os.path.exists('platform-config.yaml'):
+    if runner.file_exists('platform-config.yaml'):
         files.append('platform-config.yaml')
 
     # Check for .env files
-    if os.path.exists('platform-bootstrap/.env'):
+    if runner.file_exists('platform-bootstrap/.env'):
         files.append('platform-bootstrap/.env')
 
     return files

@@ -1,7 +1,6 @@
 """Discovery functions for Kerberos service artifacts."""
 
 from typing import List, Dict, Any
-import os
 
 
 def discover_containers(runner) -> List[Dict[str, str]]:
@@ -91,7 +90,7 @@ def discover_files(runner) -> List[str]:
                 files.append(line)
 
     # Check for platform-bootstrap/.env file
-    if os.path.exists('platform-bootstrap/.env'):
+    if runner.file_exists('platform-bootstrap/.env'):
         files.append('platform-bootstrap/.env')
 
     return files
