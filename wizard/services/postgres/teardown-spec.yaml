@@ -6,13 +6,28 @@ requires: []
 steps:
   - id: postgres_teardown_confirm
     type: boolean
-    prompt: "Remove PostgreSQL service?"
+    prompt: "Remove PostgreSQL database service?"
     state_key: services.postgres.teardown.confirm
     default_value: false
     next:
       when_value:
-        true: postgres_remove_images
+        true: show_postgres_details_header
         false: finish
+
+  - id: show_postgres_details_header
+    type: display
+    prompt: |
+
+      ────────────────────────────────────────────────────────
+        PostgreSQL Removal Details
+      ────────────────────────────────────────────────────────
+
+    next: remove_container_action
+
+  - id: remove_container_action
+    type: action
+    action: postgres.teardown.stop_service
+    next: postgres_remove_images
 
   - id: postgres_remove_images
     type: boolean
