@@ -21,17 +21,17 @@ steps:
     next:
       when_value:
         true: remove_repo_action
-        false: remove_database_question
+        false: remove_database_data_question
 
   - id: remove_repo_action
     type: action
     action: pagila.remove_repo
-    next: remove_database_question
+    next: remove_database_data_question
 
-  - id: remove_database_question
+  - id: remove_database_data_question
     type: boolean
-    prompt: "Remove database and data (cannot be recovered)?"
-    state_key: services.pagila.teardown.remove_database
+    prompt: "Remove Pagila database data (cannot be recovered)?"
+    state_key: services.pagila.teardown.remove_database_data
     default_value: false
     next:
       when_value:
