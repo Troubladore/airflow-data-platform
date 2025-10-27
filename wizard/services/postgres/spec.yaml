@@ -8,7 +8,7 @@ provides:
 steps:
   - id: postgres_image
     type: string
-    prompt: "PostgreSQL image [{current_value}]:"
+    prompt: "PostgreSQL image"
     state_key: services.postgres.image
     default_from: services.postgres.image
     default_value: postgres:17.5-alpine
@@ -19,7 +19,7 @@ steps:
 
   - id: postgres_prebuilt
     type: boolean
-    prompt: "Use prebuilt image? (y/n):"
+    prompt: "Use prebuilt image?"
     state_key: services.postgres.prebuilt
     default_value: false
     next: postgres_auth
@@ -51,7 +51,7 @@ steps:
 
   - id: postgres_port
     type: integer
-    prompt: "PostgreSQL port [5432]:"
+    prompt: "PostgreSQL port"
     state_key: services.postgres.port
     default_value: 5432
     validator: postgres.validate_port
