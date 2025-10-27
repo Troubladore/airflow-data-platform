@@ -5,45 +5,65 @@ description: "Teardown Pagila sample database and cleanup"
 steps:
   - id: pagila_teardown_confirm
     type: boolean
-    prompt: "Clean up Pagila sample database components?"
+    prompt: "Remove Pagila?"
     state_key: services.pagila.teardown.confirm
     default_value: false
     next:
       when_value:
-        true: pagila_remove_repo
+        true: show_details_header
         false: finish
 
-  - id: pagila_remove_repo
+  - id: show_details_header
+    type: display
+    prompt: |
+
+      ────────────────────────────────────────────────────────
+        Pagila Removal Options
+      ────────────────────────────────────────────────────────
+
+    next: remove_repo_question
+
+  - id: remove_repo_question
     type: boolean
-    prompt: "Remove Pagila cloned repository folder?"
+    prompt: "Remove cloned repository folder?"
     state_key: services.pagila.teardown.remove_repo
     default_value: false
     next:
       when_value:
         true: remove_repo_action
-        false: drop_database
+        false: remove_database_question
 
   - id: remove_repo_action
     type: action
     action: pagila.remove_repo
-    next: drop_database
+    next: remove_database_question
 
-  - id: drop_database
+  - id: remove_database_question
     type: boolean
-    prompt: "Remove Pagila database (data will be lost)?"
-    state_key: services.pagila.teardown.drop_database
+    prompt: "Remove database and data (cannot be recovered)?"
+    state_key: services.pagila.teardown.remove_database
     default_value: false
     next:
       when_value:
-        true: drop_database_action
-        false: clean_config
+        true: remove_database_action
+        false: remove_config_question
 
-  - id: drop_database_action
+  - id: remove_database_action
     type: action
     action: pagila.drop_database
-    next: clean_config
+    next: remove_config_question
 
-  - id: clean_config
+  - id: remove_config_question
+    type: boolean
+    prompt: "Remove from platform configuration (prevents recreation on next setup)?"
+    state_key: services.pagila.teardown.remove_config
+    default_value: false
+    next:
+      when_value:
+        true: remove_config_action
+        false: finish
+
+  - id: remove_config_action
     type: action
     action: pagila.clean_config
     next: finish
