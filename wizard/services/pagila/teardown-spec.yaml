@@ -5,39 +5,42 @@ description: "Teardown Pagila sample database and cleanup"
 steps:
   - id: pagila_teardown_confirm
     type: boolean
-    prompt: "Remove Pagila database and configuration? (y/n):"
+    prompt: "Tear down Pagila sample database?"
     state_key: services.pagila.teardown.confirm
     default_value: false
     next:
       when_value:
-        true: drop_database
+        true: pagila_remove_repo
         false: finish
 
-  - id: drop_database
-    type: action
-    action: pagila.drop_database
-    next: pagila_remove_volumes
-
-  - id: pagila_remove_volumes
+  - id: pagila_remove_repo
     type: boolean
-    prompt: "Remove Pagila repository? (y/n):"
-    state_key: services.pagila.teardown.remove_volumes
+    prompt: "Remove Pagila cloned repository folder?"
+    state_key: services.pagila.teardown.remove_repo
     default_value: false
     next:
       when_value:
-        true: remove_repo
-        false: pagila_remove_images
+        true: remove_repo_action
+        false: drop_database
 
-  - id: remove_repo
+  - id: remove_repo_action
     type: action
     action: pagila.remove_repo
-    next: pagila_remove_images
+    next: drop_database
 
-  - id: pagila_remove_images
+  - id: drop_database
     type: boolean
-    prompt: "Skip image removal (Pagila has no images)? (y/n):"
-    state_key: services.pagila.teardown.remove_images
+    prompt: "Remove Pagila database (data will be lost)?"
+    state_key: services.pagila.teardown.drop_database
     default_value: false
+    next:
+      when_value:
+        true: drop_database_action
+        false: clean_config
+
+  - id: drop_database_action
+    type: action
+    action: pagila.drop_database
     next: clean_config
 
   - id: clean_config
