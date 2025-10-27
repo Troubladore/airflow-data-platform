@@ -55,8 +55,9 @@ class TestDiscoverySummary:
         runner = MockActionRunner()
         # Mock finding 1 postgres container (will be used in GREEN phase)
         runner.responses['run_shell'] = {
-            ('docker', 'ps', '-a', '--filter', 'name=postgres', '--format', '{{.Names}}|{{.Status}}'):
-                'postgres|Up 2 days\n'
+            'stdout': 'postgres|Up 2 days\n',
+            'stderr': '',
+            'returncode': 0
         }
 
         engine = DiscoveryEngine(runner=runner)
@@ -89,7 +90,9 @@ class TestServiceDiscoveryIntegration:
         """Should import and call postgres discovery functions."""
         runner = MockActionRunner()
         runner.responses['run_shell'] = {
-            ('docker', 'ps', '-a', '--filter', 'name=postgres'): 'postgres|Up\n'
+            'stdout': 'postgres|Up\n',
+            'stderr': '',
+            'returncode': 0
         }
 
         engine = DiscoveryEngine(runner=runner)
