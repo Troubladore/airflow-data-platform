@@ -59,6 +59,50 @@ git checkout fix/accidental-work
 - **Examples Repository** (`airflow-data-platform-examples`): Business implementations using platform as UV dependency
 - **Business Workflow**: Fork examples → customize → pull platform updates automatically
 
+## 🛠️ Tooling Standards
+
+### Python Dependency Management
+**ALWAYS use UV. NEVER use pip.**
+
+```bash
+# ✅ Correct - Use UV for all Python package operations
+uv pip install package-name
+uv pip install -r requirements.txt
+uv sync                          # Install dependencies from pyproject.toml
+uv add package-name              # Add new dependency
+
+# ❌ Wrong - Never use pip directly
+pip install package-name         # NEVER DO THIS
+python -m pip install           # NEVER DO THIS
+```
+
+**Rationale:**
+- UV is significantly faster than pip
+- Consistent lock file behavior across team
+- Better dependency resolution
+- Integrated with our pyproject.toml workflow
+
+### Python Version Management
+**ALWAYS use PyEnv for Python versions and virtual environments.**
+
+```bash
+# ✅ Correct - Use PyEnv
+pyenv install 3.11.0
+pyenv local 3.11.0
+pyenv virtualenv 3.11.0 myproject
+pyenv activate myproject
+
+# ❌ Wrong - Avoid other tools
+python -m venv .venv            # Don't use venv directly
+conda create -n myproject       # Don't use conda
+```
+
+**Rationale:**
+- Consistent Python version management across team
+- Isolated virtual environments per project
+- Works seamlessly with UV
+- Standard tool for our workflow
+
 ## 🔄 Git Workflow Standards
 
 ### Conventional Commits Format
