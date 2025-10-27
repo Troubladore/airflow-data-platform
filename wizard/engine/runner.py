@@ -142,7 +142,9 @@ class MockActionRunner(ActionRunner):
 
         # Pop next scripted response
         if self.input_queue:
-            return self.input_queue.pop(0)
+            response = self.input_queue.pop(0)
+            # Match RealActionRunner: apply default if response is empty
+            return response if response else (default if default else '')
 
         # Fall back to default or empty string
         return default if default else ''
