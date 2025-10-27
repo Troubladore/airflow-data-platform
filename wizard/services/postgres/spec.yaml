@@ -1,0 +1,65 @@
+service: postgres
+version: 1.0
+description: "PostgreSQL database configuration"
+requires: []
+provides:
+  - db.postgres
+
+steps:
+  - id: postgres_image
+    type: string
+    prompt: "PostgreSQL Docker image (used by all services)"
+    state_key: services.postgres.image
+    default_from: services.postgres.image
+    default_value: postgres:17.5-alpine
+    validator: postgres.validate_image_url
+    next:
+      when_changed: postgres_prebuilt
+      when_unchanged: postgres_auth
+
+  - id: postgres_prebuilt
+    type: boolean
+    prompt: "Use prebuilt image?"
+    state_key: services.postgres.prebuilt
+    default_value: false
+    next: postgres_auth
+
+  - id: postgres_auth
+    type: boolean
+    prompt: "Require password for PostgreSQL database?"
+    state_key: services.postgres.require_password
+    default_value: true
+    next:
+      when_value:
+        true: postgres_password
+        false: postgres_port
+
+  - id: postgres_password
+    type: string
+    prompt: "PostgreSQL password:"
+    state_key: services.postgres.password
+    default_value: changeme
+    next: postgres_port
+
+  - id: postgres_port
+    type: integer
+    prompt: "PostgreSQL port"
+    state_key: services.postgres.port
+    default_value: 5432
+    validator: postgres.validate_port
+    next: postgres_save
+
+  - id: postgres_save
+    type: action
+    action: postgres.save_config
+    next: postgres_init
+
+  - id: postgres_init
+    type: action
+    action: postgres.init_database
+    next: postgres_start
+
+  - id: postgres_start
+    type: action
+    action: postgres.start_service
+    next: finish

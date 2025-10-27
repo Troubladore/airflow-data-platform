@@ -98,6 +98,55 @@ git commit -m "docs: update platform-as-dependency documentation"
 - Example fixes in `airflow-data-platform-examples` repository
 - Separate but coordinated development workflows
 
+## 🎨 User Experience Testing - MANDATORY
+
+### Critical Rule: UX Testing Runs in Parallel with Code Review
+
+**EVERY code review (Task Xc) MUST include UX validation.**
+
+### Required Pattern
+
+When completing any task that affects user-facing output:
+
+```
+Task Xc: Launch 2 agents IN PARALLEL (single message, 2 Task calls):
+1. superpowers:code-reviewer (technical review)
+2. general-purpose agent (UX acceptance testing)
+
+Agent 2 prompt must:
+- Run REAL commands via subprocess
+- Capture actual terminal output (stdout/stderr)
+- Evaluate against ux_principles.md
+- Check: prompts, formatting, spacing, alignment, colors, boxes
+- Return structured feedback
+```
+
+### UX Test Requirements
+
+Acceptance tests MUST:
+- ✅ Run actual ./platform commands (not MockActionRunner)
+- ✅ Capture real stdout/stderr
+- ✅ Evaluate formatting, spacing, alignment
+- ✅ Check visual consistency across services
+- ✅ Validate box borders, colors, symbols
+- ✅ Use LLM agent for semantic UX evaluation
+
+### Why This Matters - Lesson Learned
+
+We once had 448 passing tests but the wizard was completely broken:
+- Duplicate prompts (shown twice)
+- Wrong formatting ([False] instead of [y/N])
+- Text running together on same line
+- Crashes
+
+**All tests passed ✅ but wizard was unusable ❌**
+
+**Root cause:** Tests validated logic (state values) but never checked what users actually see.
+
+**Solution:** LLM-based acceptance testing that evaluates real terminal output.
+
+**Never skip UX testing.** It's not optional.
+
 ## 📝 Technical Lessons Learned
 
 ### 1. SQLModel Field Patterns (Critical Fix)

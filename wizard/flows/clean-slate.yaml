@@ -1,0 +1,97 @@
+name: clean-slate
+version: "1.1"
+description: "Clean-slate wizard with system discovery - orchestrates service teardown"
+
+# Discovery phase - runs BEFORE service selection
+steps:
+  - id: run_discovery
+    type: action
+    action: discovery.scan_all_services
+    next: show_discovery_results
+
+  - id: show_discovery_results
+    type: display
+    prompt: |
+      Discovering platform services...
+
+      Discovery complete. Found {total_artifacts} total artifacts.
+    next: check_empty_state
+
+  - id: check_empty_state
+    type: conditional
+    condition: "state.total_artifacts == 0"
+    next:
+      when_true: show_clean_message
+      when_false: select_teardown_services
+
+  - id: show_clean_message
+    type: display
+    prompt: |
+      System is already clean! No platform artifacts detected.
+
+      Checked:
+        - Docker containers
+        - Docker images
+        - Docker volumes
+        - Configuration files
+    next: null
+
+# Service selection - which services to tear down
+service_selection:
+  - id: select_postgres_teardown
+    type: boolean
+    prompt: "Tear down PostgreSQL?"
+    state_key: services.postgres.teardown.enabled
+    default_value: false
+    next: select_openmetadata_teardown
+
+  - id: select_openmetadata_teardown
+    type: boolean
+    prompt: "Tear down OpenMetadata?"
+    state_key: services.openmetadata.teardown.enabled
+    default_value: false
+    next: select_kerberos_teardown
+
+  - id: select_kerberos_teardown
+    type: boolean
+    prompt: "Tear down Kerberos?"
+    state_key: services.kerberos.teardown.enabled
+    default_value: false
+    next: select_pagila_teardown
+
+  - id: select_pagila_teardown
+    type: boolean
+    prompt: "Tear down Pagila?"
+    state_key: services.pagila.teardown.enabled
+    default_value: false
+    next: null
+
+# Services to tear down (CRITICAL: reverse topological ordering)
+# Dependents MUST tear down BEFORE their dependencies
+targets:
+  - service: pagila
+    teardown: true
+    enabled: false
+    depends_on:
+      - postgres  # Pagila depends on postgres, so tears down BEFORE it
+
+  - service: openmetadata
+    teardown: true
+    enabled: false
+    depends_on:
+      - postgres  # OpenMetadata depends on postgres, so tears down BEFORE it
+
+  - service: kerberos
+    teardown: true
+    enabled: false
+    depends_on: []
+
+  - service: postgres
+    teardown: true
+    enabled: false
+    depends_on: []  # Postgres torn down LAST (no dependencies in teardown)
+
+# Execution policy
+policy:
+  ordering: reverse-topological  # Teardown order is REVERSE of setup
+  on_failure: abort

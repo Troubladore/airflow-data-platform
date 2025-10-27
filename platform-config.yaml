@@ -1,0 +1,4 @@
+services:
+  pagila:
+    enabled: true
+    repo_url: https://github.com/devrimgunduz/pagila.git

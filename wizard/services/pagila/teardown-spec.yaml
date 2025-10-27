@@ -1,0 +1,46 @@
+service: pagila
+version: 1.0
+description: "Teardown Pagila sample database and cleanup"
+
+steps:
+  - id: pagila_teardown_confirm
+    type: boolean
+    prompt: "Remove Pagila database and configuration? (y/n):"
+    state_key: services.pagila.teardown.confirm
+    default_value: false
+    next:
+      when_value:
+        true: drop_database
+        false: finish
+
+  - id: drop_database
+    type: action
+    action: pagila.drop_database
+    next: pagila_remove_volumes
+
+  - id: pagila_remove_volumes
+    type: boolean
+    prompt: "Remove Pagila repository? (y/n):"
+    state_key: services.pagila.teardown.remove_volumes
+    default_value: false
+    next:
+      when_value:
+        true: remove_repo
+        false: pagila_remove_images
+
+  - id: remove_repo
+    type: action
+    action: pagila.remove_repo
+    next: pagila_remove_images
+
+  - id: pagila_remove_images
+    type: boolean
+    prompt: "Skip image removal (Pagila has no images)? (y/n):"
+    state_key: services.pagila.teardown.remove_images
+    default_value: false
+    next: clean_config
+
+  - id: clean_config
+    type: action
+    action: pagila.clean_config
+    next: finish

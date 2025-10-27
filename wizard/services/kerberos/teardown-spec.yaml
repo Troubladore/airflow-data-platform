@@ -1,0 +1,60 @@
+service: kerberos
+version: "1.0"
+description: "Kerberos authentication service teardown"
+
+provides:
+  - kerberos_teardown
+
+requires:
+  - kerberos
+
+steps:
+  - id: kerberos_teardown_confirm
+    type: boolean
+    prompt: "Are you sure you want to tear down Kerberos? (y/n):"
+    state_key: services.kerberos.teardown.confirm
+    default_value: false
+    next:
+      when_value:
+        true: stop_service
+        false: finish
+
+  - id: stop_service
+    type: action
+    action: kerberos.stop_service
+    next: kerberos_remove_volumes
+
+  - id: kerberos_remove_volumes
+    type: boolean
+    prompt: "Remove keytab files? (y/n):"
+    state_key: services.kerberos.teardown.remove_volumes
+    default_value: false
+    next:
+      when_value:
+        true: remove_keytabs_action
+        false: kerberos_remove_images
+
+  - id: remove_keytabs_action
+    type: action
+    action: kerberos.remove_keytabs
+    next: kerberos_remove_images
+
+  - id: kerberos_remove_images
+    type: boolean
+    prompt: "Remove Docker images? (y/n):"
+    state_key: services.kerberos.teardown.remove_images
+    default_value: false
+    next:
+      when_value:
+        true: remove_images_action
+        false: clean_config
+
+  - id: remove_images_action
+    type: action
+    action: kerberos.remove_images
+    next: clean_config
+
+  - id: clean_config
+    type: action
+    action: kerberos.clean_configuration
+    next: finish
