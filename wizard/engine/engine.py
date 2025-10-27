@@ -88,7 +88,13 @@ class WizardEngine:
                 if hasattr(step, 'default_from') and step.default_from:
                     default = self.state.get(step.default_from, default)
 
-                user_input = self.runner.get_input(step.prompt, default)
+                # Set current_value in state for interpolation
+                self.state['current_value'] = default
+
+                # Interpolate prompt before displaying
+                interpolated_prompt = self._interpolate_prompt(step.prompt, self.state)
+
+                user_input = self.runner.get_input(interpolated_prompt, default)
 
             # Convert type for integer and boolean steps
             if step.type == 'integer' and user_input:
