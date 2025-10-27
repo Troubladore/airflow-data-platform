@@ -13,6 +13,15 @@ steps:
     state_key: services.pagila.repo_url
     default_value: https://github.com/Troubladore/pagila.git
     validator: pagila.validate_git_url
+    next: pagila_postgres_image
+
+  - id: pagila_postgres_image
+    type: string
+    prompt: "PostgreSQL Docker image for Pagila container:"
+    state_key: services.pagila.postgres_image
+    default_from: services.postgres.image
+    default_value: postgres:17.5-alpine
+    validator: pagila.validate_postgres_image_url
     next: pagila_save
 
   - id: pagila_save
