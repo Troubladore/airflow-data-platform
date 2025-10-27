@@ -562,6 +562,7 @@ class WizardEngine:
             self.validators['kerberos.validate_image_url'] = kerberos.validate_image_url
             self.actions['kerberos.test_kerberos'] = kerberos.test_kerberos
             self.actions['kerberos.save_config'] = kerberos.save_config
+            self.actions['kerberos.start_service'] = kerberos.start_service
 
             # Register pagila
             self.validators['pagila.validate_git_url'] = pagila.validate_git_url

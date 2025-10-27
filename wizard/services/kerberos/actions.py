@@ -56,10 +56,54 @@ def test_kerberos(ctx: Dict[str, Any], runner):
 
 
 def start_service(ctx: Dict[str, Any], runner) -> None:
-    """Start Kerberos service using make.
+    """Start Kerberos service - auto-detects domain vs mock environment.
 
     Args:
-        ctx: Context dictionary (unused)
+        ctx: Context dictionary with kerberos configuration
         runner: ActionRunner instance for side effects
     """
-    runner.run_shell(['make', 'start'], cwd='platform-infrastructure')
+    runner.display("\nSetting up Kerberos environment...")
+
+    # Check if in domain environment
+    check_domain = runner.run_shell(['bash', '-c', 'echo $USERDNSDOMAIN'])
+    in_domain = bool(check_domain.get('stdout', '').strip())
+
+    if in_domain:
+        runner.display("  - Detected domain environment")
+        runner.display("  - Starting Kerberos sidecar for ticket sharing")
+        result = runner.run_shell(['make', 'kerberos-start'], cwd='platform-bootstrap')
+
+        if result.get('returncode') == 0:
+            runner.display("✓ Kerberos sidecar started")
+        else:
+            runner.display("✗ Kerberos sidecar failed to start")
+    else:
+        runner.display("  - Detected non-domain environment (dev/local)")
+        runner.display("  - Creating mock Kerberos container for testing")
+
+        # Get image from context
+        image = ctx.get('services.kerberos.image', 'ubuntu:22.04')
+        domain = ctx.get('services.kerberos.domain', 'MOCK.LOCAL')
+
+        # Create mock ticket cache directory on host
+        runner.run_shell(['mkdir', '-p', '/tmp/krb5cc_mock'])
+
+        # Start container with Kerberos packages but no actual KDC
+        runner.run_shell([
+            'docker', 'run', '-d',
+            '--name', 'kerberos-sidecar-mock',
+            '-v', '/tmp/krb5cc_mock:/tmp/krb5cc',
+            image,
+            'sleep', 'infinity'  # Just keep container running
+        ])
+
+        # Install kerberos client packages in container
+        runner.run_shell([
+            'docker', 'exec', 'kerberos-sidecar-mock',
+            'bash', '-c',
+            'apt-get update -qq && apt-get install -y -qq krb5-user 2>/dev/null || yum install -y -q krb5-workstation 2>/dev/null || true'
+        ])
+
+        runner.display("✓ Mock Kerberos container created (no real KDC)")
+        runner.display(f"    Container: kerberos-sidecar-mock")
+        runner.display(f"    Mock realm: {domain}")
