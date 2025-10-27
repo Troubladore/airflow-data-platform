@@ -1,0 +1,423 @@
+Docker Container/Image Verification Test Results
+Date: Mon Oct 27 07:11:22 AM CDT 2025
+
+[0;34m[INFO][0m Starting Docker verification tests...
+[0;34m[INFO][0m Platform Infrastructure directory: /home/troubladore/repos/airflow-data-platform/platform-infrastructure
+[0;34m[INFO][0m Kerberos directory: /home/troubladore/repos/airflow-data-platform/kerberos
+[0;34m[INFO][0m Platform Bootstrap directory: /home/troubladore/repos/airflow-data-platform/platform-bootstrap
+[0;32m[PASS][0m Docker is available
+[0;32m[PASS][0m Docker Compose is available
+========================================
+SCENARIO 1: PostgreSQL Only
+========================================
+[0;34m[INFO][0m Cleaning Docker environment...
+[0;34m[INFO][0m Docker environment cleaned
+[0;34m[INFO][0m Setting up Postgres-only configuration...
+[0;34m[INFO][0m Starting PostgreSQL container...
+ Network platform_network  Creating
+ Network platform_network  Created
+ Volume "platform_postgres_data"  Creating
+ Volume "platform_postgres_data"  Created
+ Container platform-postgres  Creating
+ Container platform-postgres  Created
+ Container platform-postgres  Starting
+ Container platform-postgres  Started
+========================================
+[0;34m[INFO][0m Verifying Docker objects for: Postgres Only
+========================================
+[0;34m[INFO][0m Checking containers...
+NAMES               IMAGE                  STATUS
+platform-postgres   postgres:17.5-alpine   Up 5 seconds (health: starting)
+[0;32m[PASS][0m Container platform-postgres exists
+[0;32m[PASS][0m Container platform-postgres is running
+[0;34m[INFO][0m 
+[0;34m[INFO][0m Checking images...
+REPOSITORY   TAG           SIZE
+postgres     17.5-alpine   279MB
+[0;34m[INFO][0m 
+[0;34m[INFO][0m Checking networks...
+[0;31m[FAIL][0m Network platform-network does not exist
+[0;34m[INFO][0m Waiting for platform-postgres to become healthy (max 60s)...
+...[0;32m[PASS][0m platform-postgres is healthy
+[0;34m[INFO][0m Testing PostgreSQL connection in platform-postgres with user platform_admin...
+[0;32m[PASS][0m PostgreSQL connection successful
+[0;32m[PASS][0m Scenario 1 completed
+
+========================================
+SCENARIO 2: PostgreSQL + Kerberos Sidecar
+========================================
+[0;34m[INFO][0m Cleaning Docker environment...
+[0;34m[INFO][0m Docker environment cleaned
+[0;34m[INFO][0m Setting up Postgres + Kerberos configuration...
+[0;34m[INFO][0m Checking for kerberos-sidecar image...
+[1;33m[WARN][0m Kerberos sidecar image not found. Building it...
+Building Kerberos sidecar image...
+make[1]: Entering directory '/home/troubladore/repos/airflow-data-platform/kerberos/kerberos-sidecar'
+Warning: formatting library not found, using basic output
+Build Requirements Check for Kerberos Sidecar
+==============================================
+
+=== 1. DOCKER ACCESSIBILITY ===
+
+[PASS] Docker is running and accessible
+
+=== 2. DISK SPACE ===
+
+[WARN] Could not determine disk space
+
+=== 3. ALPINE BASE IMAGE ACCESS ===
+
+Using public Alpine image: alpine:3.19
+
+[PASS] Docker Hub is accessible
+
+=== 4. MICROSOFT ODBC DRIVER ACCESS ===
+
+Using Microsoft download: https://download.microsoft.com
+
+[PASS] Microsoft download site is accessible
+
+=== 5. CORPORATE PROXY DETECTION ===
+
+[PASS] No corporate proxy detected
+
+=== 6. BUILD CONFIGURATION PREVIEW ===
+
+The following configuration will be used for build:
+
+  Base image: alpine:3.19 (public default)
+  ODBC source: https://download.microsoft.com (public default)
+
+=== SUMMARY ===
+
+All build requirements satisfied
+
+Ready to build! Run:
+  make build
+
+Building Kerberos sidecar image...
+Configuration:
+  Base image:  (public default)
+  ODBC source:  (public default)
+docker build \
+	 \
+	 \
+	-t platform/kerberos-sidecar:latest:latest .
+ERROR: failed to build: invalid tag "platform/kerberos-sidecar:latest:latest": invalid reference format
+make[1]: *** [Makefile:31: build] Error 1
+make[1]: Leaving directory '/home/troubladore/repos/airflow-data-platform/kerberos/kerberos-sidecar'
+make: *** [Makefile:40: build] Error 2
+[0;34m[INFO][0m Starting PostgreSQL container...
+ Network platform_network  Creating
+ Network platform_network  Created
+ Volume "platform_postgres_data"  Creating
+ Volume "platform_postgres_data"  Created
+ Container platform-postgres  Creating
+ Container platform-postgres  Created
+ Container platform-postgres  Starting
+ Container platform-postgres  Started
+[0;34m[INFO][0m Starting Kerberos sidecar...
+ kerberos-sidecar Pulling 
+ kerberos-sidecar Error pull access denied for platform/kerberos-sidecar, repository does not exist or may require 'docker login': denied: requested access to the resource is denied
+Error response from daemon: pull access denied for platform/kerberos-sidecar, repository does not exist or may require 'docker login': denied: requested access to the resource is denied
+========================================
+[0;34m[INFO][0m Verifying Docker objects for: Postgres + Kerberos
+========================================
+[0;34m[INFO][0m Checking containers...
+NAMES               IMAGE                  STATUS
+platform-postgres   postgres:17.5-alpine   Up 10 seconds (healthy)
+[0;32m[PASS][0m Container platform-postgres exists
+[0;32m[PASS][0m Container platform-postgres is running
+[0;31m[FAIL][0m Container kerberos-sidecar does not exist
+[0;34m[INFO][0m 
+[0;34m[INFO][0m Checking images...
+REPOSITORY   TAG           SIZE
+alpine       3.19          7.4MB
+postgres     17.5-alpine   279MB
+[0;34m[INFO][0m 
+[0;34m[INFO][0m Checking networks...
+[0;31m[FAIL][0m Network platform-network does not exist
+[0;34m[INFO][0m Waiting for platform-postgres to become healthy (max 60s)...
+[0;32m[PASS][0m platform-postgres is healthy
+[0;31m[FAIL][0m Kerberos sidecar is not running
+[0;34m[INFO][0m Testing PostgreSQL connection in platform-postgres with user platform_admin...
+[0;32m[PASS][0m PostgreSQL connection successful
+[0;32m[PASS][0m Scenario 2 completed
+
+========================================
+SCENARIO 3: Custom Image (postgres:16)
+========================================
+[0;34m[INFO][0m Cleaning Docker environment...
+[0;34m[INFO][0m Docker environment cleaned
+[0;34m[INFO][0m Setting up custom image configuration...
+[0;34m[INFO][0m Removing postgres:16 image if exists...
+[0;34m[INFO][0m Starting PostgreSQL with custom image...
+ platform-postgres Pulling 
+ 38513bd72563 Pulling fs layer 
+ 6a570b5ed774 Pulling fs layer 
+ e69f32e226f6 Pulling fs layer 
+ 147d1d7c0318 Pulling fs layer 
+ bc405403221b Pulling fs layer 
+ 82742b6e768c Pulling fs layer 
+ bd122ab2336d Pulling fs layer 
+ 91264d87777d Pulling fs layer 
+ e7fca4723572 Pulling fs layer 
+ 45e682a0ad62 Pulling fs layer 
+ 8221e00ace81 Pulling fs layer 
+ f50de807d554 Pulling fs layer 
+ b9fcf05c0044 Pulling fs layer 
+ 85ec668df6b0 Pulling fs layer 
+ 91264d87777d Waiting 
+ e7fca4723572 Waiting 
+ 45e682a0ad62 Waiting 
+ 8221e00ace81 Waiting 
+ 147d1d7c0318 Waiting 
+ bc405403221b Waiting 
+ 82742b6e768c Waiting 
+ bd122ab2336d Waiting 
+ f50de807d554 Waiting 
+ b9fcf05c0044 Waiting 
+ 85ec668df6b0 Waiting 
+ 6a570b5ed774 Downloading [========================================>          ]     953B/1.168kB
+ 6a570b5ed774 Downloading [==================================================>]  1.168kB/1.168kB
+ 6a570b5ed774 Verifying Checksum 
+ 6a570b5ed774 Download complete 
+ e69f32e226f6 Downloading [>                                                  ]  65.54kB/6.437MB
+ 38513bd72563 Downloading [>                                                  ]  299.3kB/29.78MB
+ e69f32e226f6 Downloading [========>                                          ]  1.084MB/6.437MB
+ 38513bd72563 Downloading [===>                                               ]  1.847MB/29.78MB
+ 147d1d7c0318 Downloading [>                                                  ]  13.69kB/1.257MB
+ e69f32e226f6 Downloading [==========================>                        ]  3.404MB/6.437MB
+ 38513bd72563 Downloading [=====>                                             ]  3.092MB/29.78MB
+ e69f32e226f6 Downloading [=======================================>           ]  5.067MB/6.437MB
+ 147d1d7c0318 Downloading [============================>                      ]  720.9kB/1.257MB
+ 38513bd72563 Downloading [=======>                                           ]  4.633MB/29.78MB
+ 38513bd72563 Downloading [============>                                      ]  7.741MB/29.78MB
+ 147d1d7c0318 Downloading [====================================>              ]  917.5kB/1.257MB
+ 147d1d7c0318 Downloading [==================================================>]  1.257MB/1.257MB
+ 147d1d7c0318 Download complete 
+ 38513bd72563 Downloading [================>                                  ]  9.593MB/29.78MB
+ e69f32e226f6 Downloading [=================================================> ]  6.337MB/6.437MB
+ 38513bd72563 Downloading [=====================>                             ]   12.7MB/29.78MB
+ e69f32e226f6 Verifying Checksum 
+ e69f32e226f6 Download complete 
+ 38513bd72563 Downloading [=========================>                         ]  15.14MB/29.78MB
+ 38513bd72563 Downloading [================================>                  ]  19.15MB/29.78MB
+ bc405403221b Downloading [>                                                  ]  82.45kB/8.204MB
+ 82742b6e768c Downloading [>                                                  ]  13.27kB/1.311MB
+ 38513bd72563 Downloading [====================================>              ]  21.88MB/29.78MB
+ bc405403221b Downloading [=====>                                             ]  925.1kB/8.204MB
+ 82742b6e768c Downloading [===============================>                   ]  831.5kB/1.311MB
+ 38513bd72563 Downloading [=========================================>         ]  24.67MB/29.78MB
+ bc405403221b Downloading [============>                                      ]   1.99MB/8.204MB
+ 82742b6e768c Verifying Checksum 
+ 82742b6e768c Download complete 
+ bc405403221b Downloading [===================>                               ]   3.17MB/8.204MB
+ 38513bd72563 Downloading [=============================================>     ]  27.13MB/29.78MB
+ bc405403221b Downloading [==========================>                        ]  4.342MB/8.204MB
+ 38513bd72563 Downloading [=================================================> ]  29.57MB/29.78MB
+ 38513bd72563 Verifying Checksum 
+ 38513bd72563 Download complete 
+ bd122ab2336d Downloading [==================================================>]     116B/116B
+ bd122ab2336d Verifying Checksum 
+ bd122ab2336d Download complete 
+ bc405403221b Downloading [=================================>                 ]  5.521MB/8.204MB
+ 38513bd72563 Extracting [>                                                  ]  327.7kB/29.78MB
+ bc405403221b Downloading [========================================>          ]  6.603MB/8.204MB
+ 38513bd72563 Extracting [====>                                              ]  2.949MB/29.78MB
+ 91264d87777d Downloading [=====================>                             ]  1.369kB/3.14kB
+ 91264d87777d Downloading [==================================================>]   3.14kB/3.14kB
+ 91264d87777d Verifying Checksum 
+ 91264d87777d Download complete 
+ bc405403221b Downloading [==============================================>    ]  7.675MB/8.204MB
+ 38513bd72563 Extracting [=======>                                           ]  4.588MB/29.78MB
+ bc405403221b Verifying Checksum 
+ bc405403221b Download complete 
+ e7fca4723572 Downloading [>                                                  ]  540.7kB/113.1MB
+ 38513bd72563 Extracting [===========>                                       ]  6.881MB/29.78MB
+ e7fca4723572 Downloading [=>                                                 ]  3.195MB/113.1MB
+ 45e682a0ad62 Downloading [====>                                              ]     952B/10.01kB
+ 45e682a0ad62 Downloading [==================================================>]  10.01kB/10.01kB
+ 45e682a0ad62 Verifying Checksum 
+ 45e682a0ad62 Download complete 
+ 38513bd72563 Extracting [==============>                                    ]  8.847MB/29.78MB
+ e7fca4723572 Downloading [==>                                                ]  6.423MB/113.1MB
+ 8221e00ace81 Downloading [==================================================>]     128B/128B
+ 8221e00ace81 Verifying Checksum 
+ 8221e00ace81 Download complete 
+ 38513bd72563 Extracting [================>                                  ]   9.83MB/29.78MB
+ e7fca4723572 Downloading [===>                                               ]  8.569MB/113.1MB
+ f50de807d554 Downloading [==================================================>]     167B/167B
+ f50de807d554 Verifying Checksum 
+ f50de807d554 Download complete 
+ e7fca4723572 Downloading [=====>                                             ]  12.32MB/113.1MB
+ 38513bd72563 Extracting [==================>                                ]  11.14MB/29.78MB
+ b9fcf05c0044 Downloading [=======>                                           ]     953B/6.078kB
+ b9fcf05c0044 Downloading [==================================================>]  6.078kB/6.078kB
+ b9fcf05c0044 Verifying Checksum 
+ b9fcf05c0044 Download complete 
+ e7fca4723572 Downloading [======>                                            ]  13.91MB/113.1MB
+ 38513bd72563 Extracting [=====================>                             ]  12.78MB/29.78MB
+ e7fca4723572 Downloading [========>                                          ]  18.19MB/113.1MB
+ 38513bd72563 Extracting [=======================>                           ]  14.09MB/29.78MB
+ 85ec668df6b0 Downloading [==================================================>]     184B/184B
+ 85ec668df6b0 Verifying Checksum 
+ 85ec668df6b0 Download complete 
+ e7fca4723572 Downloading [=========>                                         ]  21.91MB/113.1MB
+ 38513bd72563 Extracting [=========================>                         ]   15.4MB/29.78MB
+ e7fca4723572 Downloading [===========>                                       ]  25.65MB/113.1MB
+ 38513bd72563 Extracting [============================>                      ]  16.71MB/29.78MB
+ e7fca4723572 Downloading [============>                                      ]  28.32MB/113.1MB
+ 38513bd72563 Extracting [==============================>                    ]  18.02MB/29.78MB
+ e7fca4723572 Downloading [==============>                                    ]  32.05MB/113.1MB
+ 38513bd72563 Extracting [================================>                  ]  19.33MB/29.78MB
+ e7fca4723572 Downloading [===============>                                   ]  35.27MB/113.1MB
+ 38513bd72563 Extracting [===================================>               ]  20.97MB/29.78MB
+ e7fca4723572 Downloading [=================>                                 ]   38.5MB/113.1MB
+ 38513bd72563 Extracting [=====================================>             ]  22.61MB/29.78MB
+ e7fca4723572 Downloading [==================>                                ]  42.22MB/113.1MB
+ 38513bd72563 Extracting [========================================>          ]  24.25MB/29.78MB
+ e7fca4723572 Downloading [===================>                               ]  44.89MB/113.1MB
+ 38513bd72563 Extracting [==========================================>        ]  25.56MB/29.78MB
+ e7fca4723572 Downloading [=====================>                             ]  47.55MB/113.1MB
+ e7fca4723572 Downloading [======================>                            ]  50.77MB/113.1MB
+ e7fca4723572 Downloading [=======================>                           ]  53.97MB/113.1MB
+ 38513bd72563 Extracting [============================================>      ]  26.21MB/29.78MB
+ e7fca4723572 Downloading [=========================>                         ]  57.69MB/113.1MB
+ 38513bd72563 Extracting [=============================================>     ]  26.87MB/29.78MB
+ e7fca4723572 Downloading [==========================>                        ]  60.91MB/113.1MB
+ 38513bd72563 Extracting [===============================================>   ]  28.18MB/29.78MB
+ e7fca4723572 Downloading [============================>                      ]  64.65MB/113.1MB
+ e7fca4723572 Downloading [==============================>                    ]  68.37MB/113.1MB
+ 38513bd72563 Extracting [===============================================>   ]  28.51MB/29.78MB
+ e7fca4723572 Downloading [===============================>                   ]   71.6MB/113.1MB
+ e7fca4723572 Downloading [=================================>                 ]  75.34MB/113.1MB
+ 38513bd72563 Extracting [================================================>  ]  28.84MB/29.78MB
+ e7fca4723572 Downloading [==================================>                ]  78.02MB/113.1MB
+ e7fca4723572 Downloading [===================================>               ]  81.25MB/113.1MB
+ e7fca4723572 Downloading [=====================================>             ]  85.52MB/113.1MB
+ 38513bd72563 Extracting [================================================>  ]  29.16MB/29.78MB
+ e7fca4723572 Downloading [=======================================>           ]  88.74MB/113.1MB
+ e7fca4723572 Downloading [========================================>          ]  92.49MB/113.1MB
+ 38513bd72563 Extracting [==================================================>]  29.78MB/29.78MB
+ e7fca4723572 Downloading [=========================================>         ]  94.63MB/113.1MB
+ e7fca4723572 Downloading [===========================================>       ]  97.86MB/113.1MB
+ 38513bd72563 Pull complete 
+ 6a570b5ed774 Extracting [==================================================>]  1.168kB/1.168kB
+ 6a570b5ed774 Extracting [==================================================>]  1.168kB/1.168kB
+ e7fca4723572 Downloading [===========================================>       ]  98.39MB/113.1MB
+ 6a570b5ed774 Pull complete 
+ e69f32e226f6 Extracting [>                                                  ]  65.54kB/6.437MB
+ e7fca4723572 Downloading [=============================================>     ]  102.2MB/113.1MB
+ e69f32e226f6 Extracting [=====>                                             ]  720.9kB/6.437MB
+ e7fca4723572 Downloading [==============================================>    ]  105.4MB/113.1MB
+ e69f32e226f6 Extracting [================>                                  ]  2.097MB/6.437MB
+ e7fca4723572 Downloading [================================================>  ]  108.6MB/113.1MB
+ e69f32e226f6 Extracting [=============================>                     ]  3.801MB/6.437MB
+ e7fca4723572 Downloading [=================================================> ]  111.8MB/113.1MB
+ e69f32e226f6 Extracting [============================================>      ]  5.702MB/6.437MB
+ e69f32e226f6 Extracting [==================================================>]  6.437MB/6.437MB
+ e7fca4723572 Downloading [=================================================> ]  112.8MB/113.1MB
+ e7fca4723572 Verifying Checksum 
+ e7fca4723572 Download complete 
+ e69f32e226f6 Pull complete 
+ 147d1d7c0318 Extracting [=>                                                 ]  32.77kB/1.257MB
+ 147d1d7c0318 Extracting [==================================================>]  1.257MB/1.257MB
+ 147d1d7c0318 Pull complete 
+ bc405403221b Extracting [>                                                  ]   98.3kB/8.204MB
+ bc405403221b Extracting [=================>                                 ]  2.949MB/8.204MB
+ bc405403221b Extracting [=============================>                     ]  4.817MB/8.204MB
+ bc405403221b Extracting [========================================>          ]  6.586MB/8.204MB
+ bc405403221b Extracting [==================================================>]  8.204MB/8.204MB
+ bc405403221b Pull complete 
+ 82742b6e768c Extracting [=>                                                 ]  32.77kB/1.311MB
+ 82742b6e768c Extracting [==================================================>]  1.311MB/1.311MB
+ 82742b6e768c Pull complete 
+ bd122ab2336d Extracting [==================================================>]     116B/116B
+ bd122ab2336d Extracting [==================================================>]     116B/116B
+ bd122ab2336d Pull complete 
+ 91264d87777d Extracting [==================================================>]   3.14kB/3.14kB
+ 91264d87777d Extracting [==================================================>]   3.14kB/3.14kB
+ 91264d87777d Pull complete 
+ e7fca4723572 Extracting [>                                                  ]  557.1kB/113.1MB
+ e7fca4723572 Extracting [==>                                                ]  6.685MB/113.1MB
+ e7fca4723572 Extracting [===>                                               ]  8.913MB/113.1MB
+ e7fca4723572 Extracting [====>                                              ]  11.14MB/113.1MB
+ e7fca4723572 Extracting [=====>                                             ]  13.37MB/113.1MB
+ e7fca4723572 Extracting [=======>                                           ]  16.71MB/113.1MB
+ e7fca4723572 Extracting [=========>                                         ]  20.61MB/113.1MB
+ e7fca4723572 Extracting [==========>                                        ]  24.51MB/113.1MB
+ e7fca4723572 Extracting [=============>                                     ]   31.2MB/113.1MB
+ e7fca4723572 Extracting [=================>                                 ]  38.99MB/113.1MB
+ e7fca4723572 Extracting [====================>                              ]  46.24MB/113.1MB
+ e7fca4723572 Extracting [=======================>                           ]  52.92MB/113.1MB
+ e7fca4723572 Extracting [========================>                          ]  55.71MB/113.1MB
+ e7fca4723572 Extracting [==========================>                        ]  60.16MB/113.1MB
+ e7fca4723572 Extracting [=============================>                     ]  66.29MB/113.1MB
+ e7fca4723572 Extracting [=================================>                 ]  74.65MB/113.1MB
+ e7fca4723572 Extracting [===================================>               ]  81.33MB/113.1MB
+ e7fca4723572 Extracting [======================================>            ]  88.01MB/113.1MB
+ e7fca4723572 Extracting [=========================================>         ]   94.7MB/113.1MB
+ e7fca4723572 Extracting [==========================================>        ]  96.37MB/113.1MB
+ e7fca4723572 Extracting [============================================>      ]  99.71MB/113.1MB
+ e7fca4723572 Extracting [============================================>      ]  100.8MB/113.1MB
+ e7fca4723572 Extracting [=============================================>     ]  103.6MB/113.1MB
+ e7fca4723572 Extracting [===============================================>   ]    107MB/113.1MB
+ e7fca4723572 Extracting [===============================================>   ]  108.1MB/113.1MB
+ e7fca4723572 Extracting [================================================>  ]  109.2MB/113.1MB
+ e7fca4723572 Extracting [================================================>  ]  110.3MB/113.1MB
+ e7fca4723572 Extracting [=================================================> ]  111.4MB/113.1MB
+ e7fca4723572 Extracting [=================================================> ]    112MB/113.1MB
+ e7fca4723572 Extracting [==================================================>]  113.1MB/113.1MB
+ e7fca4723572 Extracting [==================================================>]  113.1MB/113.1MB
+ e7fca4723572 Pull complete 
+ 45e682a0ad62 Extracting [==================================================>]  10.01kB/10.01kB
+ 45e682a0ad62 Extracting [==================================================>]  10.01kB/10.01kB
+ 45e682a0ad62 Pull complete 
+ 8221e00ace81 Extracting [==================================================>]     128B/128B
+ 8221e00ace81 Extracting [==================================================>]     128B/128B
+ 8221e00ace81 Pull complete 
+ f50de807d554 Extracting [==================================================>]     167B/167B
+ f50de807d554 Extracting [==================================================>]     167B/167B
+ f50de807d554 Pull complete 
+ b9fcf05c0044 Extracting [==================================================>]  6.078kB/6.078kB
+ b9fcf05c0044 Extracting [==================================================>]  6.078kB/6.078kB
+ b9fcf05c0044 Pull complete 
+ 85ec668df6b0 Extracting [==================================================>]     184B/184B
+ 85ec668df6b0 Extracting [==================================================>]     184B/184B
+ 85ec668df6b0 Pull complete 
+ platform-postgres Pulled 
+ Network platform_network  Creating
+ Network platform_network  Created
+ Volume "platform_postgres_data"  Creating
+ Volume "platform_postgres_data"  Created
+ Container platform-postgres  Creating
+ Container platform-postgres  Created
+ Container platform-postgres  Starting
+ Container platform-postgres  Started
+[0;34m[INFO][0m Checking if postgres:16 image exists...
+[0;32m[PASS][0m Custom image postgres:16 was pulled
+========================================
+[0;34m[INFO][0m Verifying Docker objects for: Custom Image
+========================================
+[0;34m[INFO][0m Checking containers...
+NAMES               IMAGE         STATUS
+platform-postgres   postgres:16   Up 5 seconds (health: starting)
+[0;32m[PASS][0m Container platform-postgres exists
+[0;32m[PASS][0m Container platform-postgres is running
+[0;34m[INFO][0m 
+[0;34m[INFO][0m Checking images...
+REPOSITORY   TAG           SIZE
+postgres     16            451MB
+alpine       3.19          7.4MB
+postgres     17.5-alpine   279MB
+[0;34m[INFO][0m 
+[0;34m[INFO][0m Checking networks...
+[0;31m[FAIL][0m Network platform-network does not exist
+[0;34m[INFO][0m Checking container image...
+[0;34m[INFO][0m Container is using image: postgres:16
+[0;32m[PASS][0m Container is using custom image postgres:16
+[0;32m[PASS][0m Container platform-postgres is running
+[0;34m[INFO][0m Testing PostgreSQL connection in platform-postgres with user platform_admin...
+[0;31m[FAIL][0m PostgreSQL connection failed after 10 attempts
+Error response from daemon: No such container: platform-postgres

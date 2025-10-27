@@ -33,6 +33,28 @@ def save_config(ctx: Dict[str, Any], runner) -> None:
     runner.save_config(config, 'platform-config.yaml')
 
 
+def pull_image(ctx: Dict[str, Any], runner) -> None:
+    """Pull PostgreSQL Docker image.
+
+    Args:
+        ctx: Context dictionary with image URL
+        runner: ActionRunner instance for side effects
+    """
+    image = ctx.get('services.postgres.image', 'postgres:17.5-alpine')
+    prebuilt = ctx.get('services.postgres.prebuilt', False)
+
+    if not prebuilt:
+        runner.display(f"\nPulling Docker image: {image}")
+        result = runner.run_shell(['docker', 'pull', image])
+
+        if result.get('returncode') == 0:
+            runner.display(f"✓ Image pulled: {image}")
+        else:
+            runner.display(f"✗ Failed to pull image: {image}")
+    else:
+        runner.display(f"\n✓ Using prebuilt image: {image}")
+
+
 def init_database(ctx: Dict[str, Any], runner) -> None:
     """Initialize PostgreSQL database.
 
@@ -42,6 +64,8 @@ def init_database(ctx: Dict[str, Any], runner) -> None:
         ctx: Context dictionary with optional port configuration
         runner: ActionRunner instance for side effects
     """
+    runner.display("\nInitializing PostgreSQL database...")
+
     # Get port from context or use default
     port = ctx.get('services.postgres.port', 5432)
 
@@ -49,7 +73,12 @@ def init_database(ctx: Dict[str, Any], runner) -> None:
     command = ['make', '-C', 'platform-infrastructure', 'init-db', f'PORT={port}']
 
     # Execute command
-    runner.run_shell(command)
+    result = runner.run_shell(command)
+
+    if result.get('returncode') == 0:
+        runner.display("✓ Database initialized")
+    else:
+        runner.display("✗ Database initialization failed")
 
 
 def start_service(ctx: Dict[str, Any], runner) -> None:
@@ -61,8 +90,15 @@ def start_service(ctx: Dict[str, Any], runner) -> None:
         ctx: Context dictionary (unused)
         runner: ActionRunner instance for side effects
     """
+    runner.display("Starting PostgreSQL service...")
+
     # Build command
     command = ['make', '-C', 'platform-infrastructure', 'start']
 
     # Execute command
-    runner.run_shell(command)
+    result = runner.run_shell(command)
+
+    if result.get('returncode') == 0:
+        runner.display("✓ PostgreSQL started successfully")
+    else:
+        runner.display("✗ PostgreSQL failed to start")

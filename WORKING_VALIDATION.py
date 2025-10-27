@@ -2,6 +2,7 @@
 """Final validation with proper service-specific prompts."""
 
 import pexpect
+import sys
 
 def test_postgres_only():
     """Test postgres only (simplest case)."""
@@ -25,7 +26,7 @@ def test_postgres_only():
             child.expect(prompt, timeout=10)
             child.sendline('')
 
-        child.expect('complete', timeout=20)
+        child.expect('complete', timeout=60)
         print("✓ PASS: Postgres only")
         child.close()
         return True
@@ -64,7 +65,7 @@ def test_postgres_kerberos():
         child.expect('image', timeout=10)  # Kerberos image
         child.sendline('')
 
-        child.expect('complete', timeout=20)
+        child.expect('complete', timeout=60)
         print("✓ PASS: Postgres + Kerberos")
         child.close()
         return True
@@ -101,7 +102,7 @@ def test_postgres_pagila():
         child.expect('repository', timeout=10)
         child.sendline('')  # Use default repo URL
 
-        child.expect('complete', timeout=20)
+        child.expect('complete', timeout=60)
         print("✓ PASS: Postgres + Pagila")
         child.close()
         return True
@@ -143,7 +144,7 @@ def test_all_services_no_openmetadata():
         child.expect('repository', timeout=10)
         child.sendline('')
 
-        child.expect('complete', timeout=20)
+        child.expect('complete', timeout=60)
         print("✓ PASS: Postgres + Kerberos + Pagila")
         child.close()
         return True

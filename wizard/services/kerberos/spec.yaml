@@ -30,4 +30,9 @@ steps:
   - id: save_config_action
     type: action
     action: kerberos.save_config
+    next: start_service_action
+
+  - id: start_service_action
+    type: action
+    action: kerberos.start_service
     next: finish

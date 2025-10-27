@@ -3,44 +3,77 @@ version: 1.0
 description: "Teardown Pagila sample database and cleanup"
 
 steps:
-  - id: pagila_teardown_confirm
-    type: boolean
-    prompt: "Remove Pagila database and configuration? (y/n):"
-    state_key: services.pagila.teardown.confirm
-    default_value: false
-    next:
-      when_value:
-        true: drop_database
-        false: finish
+  - id: show_details_header
+    type: display
+    prompt: |
 
-  - id: drop_database
+      ────────────────────────────────────────────────────────
+        Pagila Removal Options
+      ────────────────────────────────────────────────────────
+
+    next: remove_container_action
+
+  - id: remove_container_action
     type: action
-    action: pagila.drop_database
-    next: pagila_remove_volumes
+    action: pagila.stop_service
+    next: remove_images_question
 
-  - id: pagila_remove_volumes
+  - id: remove_images_question
     type: boolean
-    prompt: "Remove Pagila repository? (y/n):"
-    state_key: services.pagila.teardown.remove_volumes
-    default_value: false
-    next:
-      when_value:
-        true: remove_repo
-        false: pagila_remove_images
-
-  - id: remove_repo
-    type: action
-    action: pagila.remove_repo
-    next: pagila_remove_images
-
-  - id: pagila_remove_images
-    type: boolean
-    prompt: "Skip image removal (Pagila has no images)? (y/n):"
+    prompt: "Remove Pagila Docker images?"
     state_key: services.pagila.teardown.remove_images
     default_value: false
-    next: clean_config
+    next:
+      when_value:
+        true: remove_images_action
+        false: remove_repo_question
 
-  - id: clean_config
+  - id: remove_images_action
+    type: action
+    action: pagila.remove_images
+    next: remove_repo_question
+
+  - id: remove_repo_question
+    type: boolean
+    prompt: "Remove cloned repository folder?"
+    state_key: services.pagila.teardown.remove_repo
+    default_value: false
+    next:
+      when_value:
+        true: remove_repo_action
+        false: remove_config_question
+
+  - id: remove_repo_action
+    type: action
+    action: pagila.remove_repo
+    next: remove_database_data_question
+
+  - id: remove_database_data_question
+    type: boolean
+    prompt: "Remove Pagila database data (data will be lost)?"
+    state_key: services.pagila.teardown.remove_database_data
+    default_value: false
+    next:
+      when_value:
+        true: remove_database_action
+        false: remove_config_question
+
+  - id: remove_database_action
+    type: action
+    action: pagila.drop_database
+    next: remove_config_question
+
+  - id: remove_config_question
+    type: boolean
+    prompt: "Remove from platform configuration (custom settings will be forgotten)?"
+    state_key: services.pagila.teardown.remove_config
+    default_value: false
+    next:
+      when_value:
+        true: remove_config_action
+        false: finish
+
+  - id: remove_config_action
     type: action
     action: pagila.clean_config
     next: finish

@@ -5,20 +5,22 @@ from wizard.engine.runner import ActionRunner
 
 
 def stop_service(ctx: Dict[str, Any], runner: ActionRunner) -> None:
-    """Stop PostgreSQL service.
-
-    Uses docker container remove to stop the postgres container.
+    """Stop and remove PostgreSQL container.
 
     Args:
         ctx: Context dictionary (unused)
         runner: ActionRunner instance for side effects
     """
-    # Build command to stop postgres service
-    # Use 'container remove' to include 'remove' keyword for test filtering
-    command = ['docker', 'container', 'remove', '-f', 'platform_postgres']
+    runner.display("\nRemoving PostgreSQL container...")
 
-    # Execute command
-    runner.run_shell(command)
+    # Stop and remove container
+    command = ['docker', 'container', 'remove', '-f', 'platform-postgres']
+    result = runner.run_shell(command)
+
+    if result.get('returncode') == 0:
+        runner.display("✓ PostgreSQL container removed")
+    else:
+        runner.display("⚠ Container may not exist (already removed)")
 
 
 def remove_volumes(ctx: Dict[str, Any], runner: ActionRunner) -> None:

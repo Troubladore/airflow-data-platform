@@ -548,6 +548,7 @@ class WizardEngine:
             self.validators['postgres.validate_image_url'] = postgres.validate_image_url
             self.validators['postgres.validate_port'] = postgres.validate_port
             self.actions['postgres.save_config'] = postgres.save_config
+            self.actions['postgres.pull_image'] = postgres.pull_image
             self.actions['postgres.init_database'] = postgres.init_database
             self.actions['postgres.start_service'] = postgres.start_service
 
@@ -562,6 +563,7 @@ class WizardEngine:
             self.validators['kerberos.validate_image_url'] = kerberos.validate_image_url
             self.actions['kerberos.test_kerberos'] = kerberos.test_kerberos
             self.actions['kerberos.save_config'] = kerberos.save_config
+            self.actions['kerberos.start_service'] = kerberos.start_service
 
             # Register pagila
             self.validators['pagila.validate_git_url'] = pagila.validate_git_url

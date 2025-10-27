@@ -4,52 +4,62 @@ description: "PostgreSQL database teardown"
 requires: []
 
 steps:
-  - id: postgres_teardown_confirm
-    type: boolean
-    prompt: "Are you sure you want to tear down PostgreSQL? (y/n):"
-    state_key: services.postgres.teardown.confirm
-    default_value: false
-    next:
-      when_value:
-        true: stop_service
-        false: finish
+  - id: show_postgres_details_header
+    type: display
+    prompt: |
 
-  - id: stop_service
+      ────────────────────────────────────────────────────────
+        PostgreSQL Removal Options
+      ────────────────────────────────────────────────────────
+
+    next: remove_container_action
+
+  - id: remove_container_action
     type: action
     action: postgres.teardown.stop_service
-    next: postgres_remove_volumes
-
-  - id: postgres_remove_volumes
-    type: boolean
-    prompt: "Remove PostgreSQL data volumes? (y/n):"
-    state_key: services.postgres.teardown.remove_volumes
-    default_value: false
-    next:
-      when_value:
-        true: remove_volumes_action
-        false: postgres_remove_images
-
-  - id: remove_volumes_action
-    type: action
-    action: postgres.teardown.remove_volumes
     next: postgres_remove_images
 
   - id: postgres_remove_images
     type: boolean
-    prompt: "Remove PostgreSQL Docker images? (y/n):"
+    prompt: "Remove PostgreSQL Docker images?"
     state_key: services.postgres.teardown.remove_images
     default_value: false
     next:
       when_value:
         true: remove_images_action
-        false: clean_config
+        false: postgres_remove_volumes
 
   - id: remove_images_action
     type: action
     action: postgres.teardown.remove_images
-    next: clean_config
+    next: postgres_remove_volumes
 
-  - id: clean_config
+  - id: postgres_remove_volumes
+    type: boolean
+    prompt: "Remove PostgreSQL data volumes (data will be lost)?"
+    state_key: services.postgres.teardown.remove_volumes
+    default_value: false
+    next:
+      when_value:
+        true: remove_volumes_action
+        false: remove_config_question
+
+  - id: remove_volumes_action
+    type: action
+    action: postgres.teardown.remove_volumes
+    next: remove_config_question
+
+  - id: remove_config_question
+    type: boolean
+    prompt: "Remove from platform configuration (custom settings will be forgotten)?"
+    state_key: services.postgres.teardown.remove_config
+    default_value: false
+    next:
+      when_value:
+        true: remove_config_action
+        false: finish
+
+  - id: remove_config_action
     type: action
     action: postgres.teardown.clean_config
     next: finish
