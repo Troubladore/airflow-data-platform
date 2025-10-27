@@ -31,6 +31,20 @@ def test_validate_git_url_valid_corporate():
     assert result == "https://git.company.com/repos/pagila.git"
 
 
+def test_validate_git_url_valid_azure_devops():
+    """Accepts valid Azure DevOps URL with @ character"""
+    result = validate_git_url("https://mycorp@dev.azure.com/team_folder/_git/pagila", {})
+    assert isinstance(result, str)
+    assert result == "https://mycorp@dev.azure.com/team_folder/_git/pagila"
+
+
+def test_validate_git_url_valid_azure_devops_with_git():
+    """Accepts valid Azure DevOps URL with .git extension"""
+    result = validate_git_url("https://mycorp@dev.azure.com/team/_git/pagila.git", {})
+    assert isinstance(result, str)
+    assert result == "https://mycorp@dev.azure.com/team/_git/pagila.git"
+
+
 def test_validate_git_url_invalid_empty():
     """Rejects empty URL"""
     with pytest.raises(ValueError, match="cannot be empty"):

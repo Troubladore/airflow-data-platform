@@ -35,8 +35,9 @@ def validate_git_url(value: str, ctx: Dict[str, Any]) -> str:
         raise ValueError("Invalid characters in Git URL")
 
     # Basic URL pattern - should have domain and path
-    # Pattern: https://domain.com/path or https://domain.com/path.git
-    pattern = r'^https://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(/[a-zA-Z0-9._/-]+(\.git)?)?$'
+    # Pattern: https://[username@]domain.com/path or https://[username@]domain.com/path.git
+    # Supports Azure DevOps format: https://org@dev.azure.com/team/_git/repo
+    pattern = r'^https://([a-zA-Z0-9.-]+@)?[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(/[a-zA-Z0-9._/-]+(\.git)?)?$'
 
     if not re.match(pattern, value):
         raise ValueError("Invalid Git URL format")
