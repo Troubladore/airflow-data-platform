@@ -11,6 +11,26 @@ steps:
         Pagila Removal Options
       ────────────────────────────────────────────────────────
 
+    next: remove_container_action
+
+  - id: remove_container_action
+    type: action
+    action: pagila.stop_service
+    next: remove_images_question
+
+  - id: remove_images_question
+    type: boolean
+    prompt: "Remove Pagila Docker images?"
+    state_key: services.pagila.teardown.remove_images
+    default_value: false
+    next:
+      when_value:
+        true: remove_images_action
+        false: remove_repo_question
+
+  - id: remove_images_action
+    type: action
+    action: pagila.remove_images
     next: remove_repo_question
 
   - id: remove_repo_question
