@@ -168,11 +168,6 @@ class WizardEngine:
 
         # Interactive steps (string, boolean, integer, enum)
         if step.type in ['string', 'boolean', 'integer', 'enum']:
-            # Display prompt
-            if step.prompt:
-                prompt_text = self._interpolate_prompt(step.prompt, self.state)
-                self.runner.display(prompt_text)
-
             # Collect input with validation
             user_input = self._get_validated_input(step)
 
