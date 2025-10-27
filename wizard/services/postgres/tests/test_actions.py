@@ -1,7 +1,7 @@
 """Tests for PostgreSQL action functions - RED phase."""
 
 import pytest
-from wizard.services.postgres.actions import save_config, init_database, start_service
+from wizard.services.postgres.actions import save_config, start_service
 from wizard.engine.runner import MockActionRunner
 
 
@@ -54,39 +54,6 @@ class TestSaveConfig:
         assert config['services']['postgres']['password'] == 'changeme'
 
 
-class TestInitDatabase:
-    """Tests for init_database action."""
-
-    def test_init_database_calls_runner_run_shell(self):
-        """Should call runner.run_shell with make init-db command."""
-        runner = MockActionRunner()
-        ctx = {
-            'services.postgres.port': 5432
-        }
-
-        init_database(ctx, runner)
-
-        # Verify runner.run_shell was called
-        assert len(runner.calls) == 1
-        call = runner.calls[0]
-        assert call[0] == 'run_shell'
-
-        # Verify command
-        command = call[1]
-        assert command == ['make', '-C', 'platform-infrastructure', 'init-db', 'PORT=5432']
-
-    def test_init_database_uses_default_port(self):
-        """Should use default port 5432 when not specified."""
-        runner = MockActionRunner()
-        ctx = {}
-
-        init_database(ctx, runner)
-
-        call = runner.calls[0]
-        command = call[1]
-        assert 'PORT=5432' in command
-
-
 class TestStartService:
     """Tests for start_service action."""
 
@@ -97,9 +64,10 @@ class TestStartService:
 
         start_service(ctx, runner)
 
-        # Verify runner.run_shell was called
-        assert len(runner.calls) == 1
-        call = runner.calls[0]
+        # Verify runner.run_shell was called (filter out display calls)
+        shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
+        assert len(shell_calls) == 1
+        call = shell_calls[0]
         assert call[0] == 'run_shell'
 
         # Verify command
@@ -113,4 +81,5 @@ class TestStartService:
 
         # Should not raise
         start_service(ctx, runner)
-        assert len(runner.calls) == 1
+        shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
+        assert len(shell_calls) == 1

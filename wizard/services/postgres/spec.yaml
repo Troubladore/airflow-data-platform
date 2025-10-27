@@ -57,11 +57,6 @@ steps:
   - id: postgres_pull_image
     type: action
     action: postgres.pull_image
-    next: postgres_init
-
-  - id: postgres_init
-    type: action
-    action: postgres.init_database
     next: postgres_start
 
   - id: postgres_start

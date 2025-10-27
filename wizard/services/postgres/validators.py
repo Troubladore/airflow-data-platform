@@ -11,6 +11,7 @@ def validate_image_url(value: str, ctx: Dict[str, Any]) -> str:
     - name:tag (e.g., postgres:17.5-alpine)
     - registry/name:tag (e.g., artifactory.company.com/postgres:17.5-alpine)
     - registry:port/name:tag (e.g., registry.local:5000/postgres:17.5)
+    - registry/path/to/name:tag (e.g., mycorp.jfrog.io/team/project/postgres:17.5)
 
     Args:
         value: Image URL to validate
@@ -30,8 +31,9 @@ def validate_image_url(value: str, ctx: Dict[str, Any]) -> str:
         raise ValueError("Image URL cannot be empty")
 
     # Regex pattern for Docker image URL
-    # Matches: [registry[:port]/]name:tag
-    pattern = r'^([a-zA-Z0-9._-]+(?:\:[0-9]+)?/)?[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+$'
+    # Matches: [registry[:port]/]path/to/name:tag
+    # Allows multiple path segments for registries like JFrog Artifactory
+    pattern = r'^([a-zA-Z0-9._-]+(?:\:[0-9]+)?/)?([a-zA-Z0-9._-]+/)*[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+$'
 
     if not re.match(pattern, value):
         raise ValueError("Invalid image URL format")

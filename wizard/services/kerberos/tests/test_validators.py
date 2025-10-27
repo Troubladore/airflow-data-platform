@@ -81,6 +81,12 @@ def test_validate_image_url_valid_custom_registry():
     assert result == "myregistry.com/kerberos-base:latest"
 
 
+def test_validate_image_url_valid_multi_path():
+    """Accepts image URL with multiple path segments (e.g., JFrog Artifactory)"""
+    result = validate_image_url("mycorp.jfrog.io/some-name/some-artifact/20.2:2022", {})
+    assert result == "mycorp.jfrog.io/some-name/some-artifact/20.2:2022"
+
+
 def test_validate_image_url_invalid_empty():
     """Rejects empty image URL"""
     with pytest.raises(ValueError, match="cannot be empty"):
