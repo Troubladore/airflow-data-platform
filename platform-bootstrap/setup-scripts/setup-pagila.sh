@@ -241,27 +241,43 @@ if [ -d "$PAGILA_DIR" ]; then
     if ask_yes_no "Update pagila repository?"; then
         print_info "Updating pagila..."
         cd "$PAGILA_DIR"
-        git pull
+
+        # Check current branch
+        CURRENT_BRANCH=$(git branch --show-current)
+        print_info "Current branch: $CURRENT_BRANCH"
+
+        # Only pull the current branch (no extra branches)
+        if git pull origin "$CURRENT_BRANCH"; then
+            print_success "Pagila updated (branch: $CURRENT_BRANCH)"
+        else
+            print_warning "Failed to update - repository may have local changes"
+        fi
+
         cd "$PLATFORM_DIR"
-        print_success "Pagila updated"
     fi
 else
     print_info "Cloning pagila from: $PAGILA_REPO_URL"
     print_info "Destination: $PAGILA_DIR"
+
+    # Use branch if specified, otherwise default to develop
+    PAGILA_BRANCH="${PAGILA_BRANCH:-develop}"
+    print_info "Branch: $PAGILA_BRANCH (single-branch clone)"
     echo ""
 
     cd "$(dirname "$PAGILA_DIR")"
-    # Clone develop branch (our fork's working branch, main tracks upstream)
-    if git clone -b develop "$PAGILA_REPO_URL" pagila; then
-        print_success "Pagila cloned successfully (develop branch)"
+    # Clone only the specified branch (--single-branch to avoid pulling all branches)
+    if git clone -b "$PAGILA_BRANCH" --single-branch --depth 10 "$PAGILA_REPO_URL" pagila; then
+        print_success "Pagila cloned successfully (branch: $PAGILA_BRANCH)"
+        print_info "Only the '$PAGILA_BRANCH' branch was cloned (no extra branches)"
         cd "$PLATFORM_DIR"
     else
-        print_error "Failed to clone pagila"
+        print_error "Failed to clone pagila branch: $PAGILA_BRANCH"
         echo ""
         echo "Troubleshooting:"
-        echo "  1. Check internet connectivity"
+        echo "  1. Check if branch '$PAGILA_BRANCH' exists in repository"
         echo "  2. Verify repository URL: $PAGILA_REPO_URL"
-        echo "  3. Check git is installed: git --version"
+        echo "  3. Check internet connectivity"
+        echo "  4. Check git is installed: git --version"
         exit 1
     fi
 fi
@@ -354,9 +370,31 @@ if [ "${SKIP_START:-false}" = false ]; then
     POSTGRES_IMAGE="${IMAGE_POSTGRES:-postgres:17.5-alpine}"
     print_info "Using PostgreSQL image: $POSTGRES_IMAGE"
 
-    if [[ "$POSTGRES_IMAGE" == *"artifactory"* ]]; then
-        print_info "Corporate Artifactory image detected"
-        print_warning "Ensure you've run: docker login artifactory.company.com"
+    # Check if this is a corporate registry image
+    if echo "$POSTGRES_IMAGE" | grep -q '/'; then
+        print_info "Corporate registry image detected"
+
+        # Check if image exists locally to avoid pull failures
+        if docker image inspect "$POSTGRES_IMAGE" >/dev/null 2>&1; then
+            print_check "PASS" "Image exists locally - will use cached image"
+        else
+            print_warning "Image not found locally: $POSTGRES_IMAGE"
+            print_info "Will attempt to pull from registry"
+
+            if [[ "$POSTGRES_IMAGE" == *"artifactory"* ]]; then
+                print_warning "Ensure you've run: docker login artifactory.company.com"
+            fi
+
+            # Try to pull the image
+            print_info "Pulling image..."
+            if ! docker pull "$POSTGRES_IMAGE"; then
+                print_error "Failed to pull corporate image"
+                print_info "Ensure the image exists in your registry or is available locally"
+                print_info "You can create a mock image with:"
+                print_info "  docker tag postgres:17.5-alpine '$POSTGRES_IMAGE'"
+                exit 1
+            fi
+        fi
         echo ""
     fi
 
