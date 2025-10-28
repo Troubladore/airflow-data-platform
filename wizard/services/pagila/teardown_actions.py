@@ -76,7 +76,7 @@ def remove_repo(ctx: Dict[str, Any], runner) -> None:
 
 
 def remove_volumes(ctx: Dict[str, Any], runner) -> None:
-    """Remove Pagila volumes (alias for remove_repo for uniform interface).
+    """Remove Pagila Docker volumes.
 
     Args:
         ctx: Context dictionary
@@ -85,8 +85,8 @@ def remove_volumes(ctx: Dict[str, Any], runner) -> None:
     Returns:
         None
     """
-    # Alias for uniform interface
-    remove_repo(ctx, runner)
+    command = ['docker', 'volume', 'rm', 'pagila_pgdata', '--force']
+    runner.run_shell(command)
 
 
 def remove_images(ctx: Dict[str, Any], runner) -> None:
