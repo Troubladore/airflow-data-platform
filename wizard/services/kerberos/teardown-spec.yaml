@@ -9,16 +9,6 @@ requires:
   - kerberos
 
 steps:
-  - id: kerberos_teardown_confirm
-    type: boolean
-    prompt: "Confirm Kerberos teardown?"
-    state_key: services.kerberos.teardown.confirm
-    default_value: false
-    next:
-      when_value:
-        true: show_details_header
-        false: finish
-
   - id: show_details_header
     type: display
     prompt: |

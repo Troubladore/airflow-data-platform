@@ -4,16 +4,6 @@ description: "PostgreSQL database teardown"
 requires: []
 
 steps:
-  - id: postgres_teardown_confirm
-    type: boolean
-    prompt: "Confirm PostgreSQL teardown?"
-    state_key: services.postgres.teardown.confirm
-    default_value: false
-    next:
-      when_value:
-        true: show_postgres_details_header
-        false: finish
-
   - id: show_postgres_details_header
     type: display
     prompt: |
