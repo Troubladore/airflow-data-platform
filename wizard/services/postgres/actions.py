@@ -215,8 +215,13 @@ def _run_postgres_diagnostics(ctx: Dict[str, Any], runner, start_result) -> None
     collector = DiagnosticCollector()
     service_diag = ServiceDiagnostics(runner)
 
-    # Record the failure
+    # Record the failure with working directory context
     error_msg = start_result.get('stderr', '') or start_result.get('stdout', '') or 'Unknown error'
+
+    # Get current working directory for diagnostics
+    pwd_result = runner.run_shell(['pwd'])
+    current_dir = pwd_result.get('stdout', '').strip() if pwd_result else 'unknown'
+
     collector.record_failure(
         service="postgres",
         phase="docker_compose_up",
@@ -225,7 +230,9 @@ def _run_postgres_diagnostics(ctx: Dict[str, Any], runner, start_result) -> None
             "image": ctx.get('services.postgres.image', 'postgres:17.5-alpine'),
             "auth_method": ctx.get('services.postgres.auth_method', 'trust'),
             "port": ctx.get('services.postgres.port', 5432),
-            "command": "make -C platform-infrastructure start"
+            "command": "make -C platform-infrastructure start",
+            "working_directory": current_dir,
+            "attempted_path": "platform-infrastructure"
         }
     )
 
@@ -306,16 +313,44 @@ def _run_postgres_diagnostics(ctx: Dict[str, Any], runner, start_result) -> None
 
     elif 'no such file or directory' in error_msg.lower():
         runner.display("📁 Missing file or directory")
-        runner.display("  • Check if platform-infrastructure directory exists")
-        runner.display("  • Verify .env file is present: ls -la platform-bootstrap/.env")
-        runner.display("  • Ensure docker-compose.yml exists")
 
-        # Check for common missing files
-        if not runner.run_shell(['test', '-d', 'platform-infrastructure']).get('returncode') == 0:
-            runner.display("  ❌ platform-infrastructure directory is missing!")
-        elif not runner.run_shell(['test', '-f', 'platform-bootstrap/.env']).get('returncode') == 0:
-            runner.display("  ❌ platform-bootstrap/.env is missing!")
-            runner.display("  • Run: ./platform setup")
+        # Show current working directory
+        pwd_check = runner.run_shell(['pwd'])
+        current_dir = pwd_check.get('stdout', '').strip() if pwd_check else 'unknown'
+        runner.display(f"  • Current directory: {current_dir}")
+
+        # The make command tries to change to platform-infrastructure
+        runner.display("  • Command tried: make -C platform-infrastructure start")
+        runner.display("  • This attempts to change to: platform-infrastructure/")
+
+        # Check what exists from current location
+        ls_result = runner.run_shell(['ls', '-la'])
+        if ls_result.get('returncode') == 0:
+            output_lines = ls_result.get('stdout', '').split('\n')
+            has_platform_infra = any('platform-infrastructure' in line for line in output_lines)
+
+            if not has_platform_infra:
+                runner.display("  ❌ platform-infrastructure not found in current directory!")
+                runner.display(f"  • Make sure you're running from the repo root")
+
+        # Check specific paths
+        checks = [
+            ('platform-infrastructure', "Main infrastructure directory"),
+            ('platform-infrastructure/Makefile', "Infrastructure Makefile"),
+            ('platform-infrastructure/docker-compose.yml', "Docker Compose file"),
+            ('platform-infrastructure/.env', "Infrastructure env file"),
+            ('platform-bootstrap/.env', "Bootstrap env file")
+        ]
+
+        for path, description in checks:
+            test_result = runner.run_shell(['test', '-e', path])
+            if test_result.get('returncode') != 0:
+                runner.display(f"  ❌ Missing: {path} ({description})")
+
+                # If it's a symlink, check if it's broken
+                link_check = runner.run_shell(['test', '-L', path])
+                if link_check.get('returncode') == 0:
+                    runner.display(f"     → It's a broken symlink!")
 
     # Check if no-password mode issue
     if ctx.get('services.postgres.auth_method') == 'trust':
