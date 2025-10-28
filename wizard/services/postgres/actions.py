@@ -123,6 +123,9 @@ def pull_image(ctx: Dict[str, Any], runner) -> None:
     The prebuilt flag controls whether we layer customizations on the image,
     NOT whether we pull it. Both modes may need to pull from registry.
 
+    For corporate registry images (detected by having slashes), check if they
+    exist locally first to avoid failing pulls from non-existent registries.
+
     Args:
         ctx: Context dictionary with image URL and prebuilt flag
         runner: ActionRunner instance for side effects
@@ -130,12 +133,27 @@ def pull_image(ctx: Dict[str, Any], runner) -> None:
     image = ctx.get('services.postgres.image', 'postgres:17.5-alpine')
     prebuilt = ctx.get('services.postgres.prebuilt', False)
 
+    # Check if this looks like a corporate registry image (has registry path)
+    is_corporate_image = '/' in image.split(':')[0]  # Has registry/path before tag
+
+    if is_corporate_image:
+        # Check if image exists locally first
+        check_result = runner.run_shell(['docker', 'image', 'inspect', image])
+        if check_result.get('returncode') == 0:
+            # Image exists locally
+            if prebuilt:
+                runner.display(f"\n✓ Prebuilt image already exists locally: {image}")
+            else:
+                runner.display(f"\n✓ Image already exists locally: {image}")
+            return
+
+    # Image doesn't exist locally or is from Docker Hub - attempt pull
     if prebuilt:
         runner.display(f"\nPulling prebuilt image (will use as-is): {image}")
     else:
         runner.display(f"\nPulling Docker image: {image}")
 
-    # Always pull the image - both modes may need it from registry
+    # Pull the image from registry
     result = runner.run_shell(['docker', 'pull', image])
 
     if result.get('returncode') == 0:

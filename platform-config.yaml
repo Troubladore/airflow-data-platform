@@ -1,7 +1,12 @@
 services:
+  kerberos:
+    domain: CORP.EXAMPLE.COM
+    enabled: true
+    image: mycorp.jfrog.io/docker-mirror/mycorp-approved-images/kerberos-base:latest
+    use_prebuilt: true
   postgres:
     auth_method: trust
     enabled: true
-    image: postgres:17.5-alpine
+    image: mycorp.jfrog.io/docker-mirror/mycorp-approved-images/postgres/17.5:2025.10.01
     password: null
     prebuilt: false
