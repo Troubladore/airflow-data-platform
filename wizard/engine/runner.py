@@ -63,6 +63,18 @@ class ActionRunner(ABC):
 class RealActionRunner(ActionRunner):
     """Real implementation - actually does things."""
 
+    def __init__(self, verbose: bool = False):
+        """Initialize with optional verbose mode.
+
+        Args:
+            verbose: If True, show command output in real-time
+        """
+        self.verbose = verbose
+        # Check for verbose environment variable as well
+        import os
+        if os.environ.get('WIZARD_VERBOSE'):
+            self.verbose = True
+
     def save_config(self, config: dict, path: str):
         import yaml
         import os
@@ -138,12 +150,114 @@ class RealActionRunner(ActionRunner):
 
     def run_shell(self, command: List[str], cwd: str = None):
         import subprocess
-        result = subprocess.run(command, cwd=cwd, capture_output=True, text=True)
-        return {
-            'stdout': result.stdout,
-            'stderr': result.stderr,
-            'returncode': result.returncode
-        }
+        import os
+        import platform
+
+        # Detect WSL2 environment
+        is_wsl = False
+        if platform.system() == 'Linux':
+            # Check if running under WSL
+            if os.path.exists('/proc/version'):
+                with open('/proc/version', 'r') as f:
+                    if 'microsoft' in f.read().lower():
+                        is_wsl = True
+
+        # Log command execution in verbose mode
+        if self.verbose:
+            print(f"[VERBOSE] Running command: {' '.join(command)}")
+            if is_wsl:
+                print("[VERBOSE] WSL2 environment detected")
+            if cwd:
+                print(f"[VERBOSE] Working directory: {cwd}")
+            else:
+                print(f"[VERBOSE] Working directory: {os.getcwd()}")
+
+        # Special handling for 'make -C' commands
+        if command[0] == 'make' and '-C' in command:
+            # Find the directory argument after -C
+            try:
+                c_index = command.index('-C')
+                if c_index + 1 < len(command):
+                    target_dir = command[c_index + 1]
+
+                    # Check if target directory exists
+                    if not os.path.exists(target_dir):
+                        error_msg = f"make -C target directory does not exist: {target_dir}"
+                        if self.verbose:
+                            print(f"[VERBOSE] ERROR: {error_msg}")
+                            print(f"[VERBOSE] Current directory: {os.getcwd()}")
+                            print(f"[VERBOSE] Directory contents:")
+                            try:
+                                for item in os.listdir('.'):
+                                    print(f"[VERBOSE]   - {item}")
+                            except:
+                                pass
+
+                        return {
+                            'stdout': '',
+                            'stderr': f"make: *** {target_dir}: No such file or directory.  Stop.",
+                            'returncode': 2
+                        }
+
+                    # In WSL2, convert Windows paths if needed
+                    if is_wsl and target_dir.startswith('/mnt/'):
+                        if self.verbose:
+                            print(f"[VERBOSE] WSL2: Converting Windows path: {target_dir}")
+            except (ValueError, IndexError):
+                pass
+
+        try:
+            if self.verbose:
+                # In verbose mode, show output in real-time
+                result = subprocess.run(
+                    command,
+                    cwd=cwd,
+                    text=True,
+                    capture_output=False,  # Don't capture, let it flow to terminal
+                    stdout=None,  # Inherit stdout
+                    stderr=None   # Inherit stderr
+                )
+                # For compatibility, still return empty strings for output
+                return {
+                    'stdout': '',
+                    'stderr': '',
+                    'returncode': result.returncode
+                }
+            else:
+                # Normal mode: capture output silently
+                result = subprocess.run(command, cwd=cwd, capture_output=True, text=True)
+                return {
+                    'stdout': result.stdout,
+                    'stderr': result.stderr,
+                    'returncode': result.returncode
+                }
+        except FileNotFoundError as e:
+            # This is likely the "No such file or directory" error
+            error_msg = f"FileNotFoundError: {str(e)}"
+            if self.verbose:
+                print(f"[VERBOSE] ERROR: {error_msg}")
+                print(f"[VERBOSE] Command not found or path issue: {command[0]}")
+                print(f"[VERBOSE] Current working directory: {os.getcwd()}")
+                if cwd:
+                    print(f"[VERBOSE] Attempted to run in: {cwd}")
+                    print(f"[VERBOSE] Does that directory exist? {os.path.exists(cwd)}")
+
+            return {
+                'stdout': '',
+                'stderr': error_msg,
+                'returncode': 127  # Standard "command not found" exit code
+            }
+        except Exception as e:
+            # Catch any other exceptions
+            error_msg = f"{type(e).__name__}: {str(e)}"
+            if self.verbose:
+                print(f"[VERBOSE] UNEXPECTED ERROR: {error_msg}")
+
+            return {
+                'stdout': '',
+                'stderr': error_msg,
+                'returncode': 1
+            }
 
     def check_docker(self) -> bool:
         result = self.run_shell(['docker', '--version'])
