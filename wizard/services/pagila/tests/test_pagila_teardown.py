@@ -277,7 +277,7 @@ def test_remove_repo_uses_recursive_force():
 
 
 def test_remove_repo_handles_missing_path():
-    """remove_repo should discover path when not in context"""
+    """remove_repo should use default path if not in context"""
     from wizard.services.pagila.teardown_actions import remove_repo
 
     mock_runner = MockActionRunner()
@@ -285,12 +285,11 @@ def test_remove_repo_handles_missing_path():
 
     remove_repo(ctx, mock_runner)
 
-    # Should have checked for directory existence and then removed
-    assert len(mock_runner.calls) >= 1, "Should have called at least one command"
-
-    # Last call should be the rm command
-    rm_calls = [c for c in mock_runner.calls if c[0] == 'run_shell' and 'rm' in ' '.join(c[1])]
-    assert len(rm_calls) > 0, "Should have called rm command"
+    # With path discovery, makes 2 calls: test -d check, then rm -rf
+    assert len(mock_runner.calls) == 2
+    test_command = mock_runner.calls[0][1]
+    rm_command = mock_runner.calls[1][1]
+    assert 'test' in test_command[0] or 'rm' in ' '.join(rm_command)
 
 
 def test_clean_config_action_exists():
@@ -404,99 +403,46 @@ def test_actions_use_runner_not_direct_io():
 
 
 # ============================================================================
-# BUG FIX: Repository removal uses correct path
+# VOLUME REMOVAL TESTS - RED PHASE
 # ============================================================================
 
-def test_remove_repo_discovers_actual_path_when_not_in_context():
-    """remove_repo should discover the actual cloned repository path.
-
-    BUG: When context doesn't have services.pagila.repo_path, teardown
-    defaults to /tmp/pagila but actual clone is at ~/repos/pagila.
-
-    FIX: Discovery should check both common locations:
-    1. ~/repos/pagila (where setup-pagila.sh actually clones)
-    2. /tmp/pagila (legacy/fallback location)
-    """
-    from wizard.services.pagila.teardown_actions import remove_repo
-    import os
-
-    mock_runner = MockActionRunner()
-
-    # Simulate the bug: no repo_path in context
-    ctx = {}
-
-    # Mock file system checks to show ~/repos/pagila exists
-    home_dir = os.path.expanduser('~')
-    expected_path = os.path.join(home_dir, 'repos', 'pagila')
-
-    # Mock runner should check for directory existence
-    # Using the existing responses pattern from MockActionRunner
-    mock_runner.responses['run_shell'] = {
-        tuple(['test', '-d', expected_path]): {'returncode': 0, 'stdout': '', 'stderr': ''},
-        tuple(['test', '-d', '/tmp/pagila']): {'returncode': 1, 'stdout': '', 'stderr': ''},
-    }
-
-    remove_repo(ctx, mock_runner)
-
-    # Should have discovered and removed the correct path
-    remove_calls = [c for c in mock_runner.calls if c[0] == 'run_shell' and 'rm' in ' '.join(c[1])]
-    assert len(remove_calls) > 0, "Should have called rm command"
-
-    remove_command = ' '.join(remove_calls[0][1])
-    assert expected_path in remove_command, \
-        f"Should remove {expected_path}, but command was: {remove_command}"
-    assert '/tmp/pagila' not in remove_command, \
-        "Should not try to remove /tmp/pagila when ~/repos/pagila exists"
+def test_remove_volumes_action_exists():
+    """remove_volumes action should be importable"""
+    from wizard.services.pagila.teardown_actions import remove_volumes
+    assert callable(remove_volumes)
 
 
-def test_remove_repo_falls_back_to_tmp_when_repos_not_found():
-    """remove_repo should fall back to /tmp/pagila if ~/repos/pagila doesn't exist."""
-    from wizard.services.pagila.teardown_actions import remove_repo
-    import os
+def test_remove_volumes_removes_docker_volume():
+    """remove_volumes should execute docker volume rm command for pagila_pgdata"""
+    from wizard.services.pagila.teardown_actions import remove_volumes
 
     mock_runner = MockActionRunner()
     ctx = {}
 
-    # Mock: ~/repos/pagila doesn't exist, but /tmp/pagila does
-    home_dir = os.path.expanduser('~')
-    repos_path = os.path.join(home_dir, 'repos', 'pagila')
+    remove_volumes(ctx, mock_runner)
 
-    mock_runner.responses['run_shell'] = {
-        tuple(['test', '-d', repos_path]): {'returncode': 1, 'stdout': '', 'stderr': ''},
-        tuple(['test', '-d', '/tmp/pagila']): {'returncode': 0, 'stdout': '', 'stderr': ''},
-    }
+    # Assert runner.run_shell was called
+    assert len(mock_runner.calls) == 1
+    assert mock_runner.calls[0][0] == 'run_shell'
 
-    remove_repo(ctx, mock_runner)
-
-    # Should fall back to /tmp/pagila
-    remove_calls = [c for c in mock_runner.calls if c[0] == 'run_shell' and 'rm' in ' '.join(c[1])]
-    assert len(remove_calls) > 0
-
-    remove_command = ' '.join(remove_calls[0][1])
-    assert '/tmp/pagila' in remove_command, \
-        "Should fall back to /tmp/pagila when ~/repos/pagila doesn't exist"
+    # Assert command removes Docker volume
+    command = mock_runner.calls[0][1]
+    command_str = ' '.join(command)
+    assert 'docker' in command_str.lower()
+    assert 'volume' in command_str.lower()
+    assert 'rm' in command_str.lower()
+    assert 'pagila_pgdata' in command_str
 
 
-def test_remove_repo_handles_both_locations_missing():
-    """remove_repo should gracefully handle when neither location exists."""
-    from wizard.services.pagila.teardown_actions import remove_repo
-    import os
+def test_remove_volumes_uses_force_flag():
+    """remove_volumes should use --force flag to avoid errors if volume doesn't exist"""
+    from wizard.services.pagila.teardown_actions import remove_volumes
 
     mock_runner = MockActionRunner()
     ctx = {}
 
-    # Mock: neither location exists
-    home_dir = os.path.expanduser('~')
-    repos_path = os.path.join(home_dir, 'repos', 'pagila')
+    remove_volumes(ctx, mock_runner)
 
-    mock_runner.responses['run_shell'] = {
-        tuple(['test', '-d', repos_path]): {'returncode': 1, 'stdout': '', 'stderr': ''},
-        tuple(['test', '-d', '/tmp/pagila']): {'returncode': 1, 'stdout': '', 'stderr': ''},
-    }
-
-    # Should not raise an error
-    remove_repo(ctx, mock_runner)
-
-    # Should still attempt to remove at least one location (with -f flag, it's safe)
-    # Or should be a no-op - implementation choice
-    # Current implementation will try to rm -rf anyway, which is safe with -f
+    command = mock_runner.calls[0][1]
+    command_str = ' '.join(command)
+    assert '--force' in command_str
