@@ -1,9 +1,9 @@
 services:
   kerberos:
-    domain: null
+    domain: CORP.EXAMPLE.COM
     enabled: true
-    image: ubuntu:22.04
-    use_prebuilt: false
+    image: mycorp.jfrog.io/docker-mirror/mycorp-approved-images/kerberos-base:latest
+    use_prebuilt: true
   postgres:
     auth_method: trust
     enabled: true

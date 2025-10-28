@@ -148,16 +148,20 @@ def start_service(ctx: Dict[str, Any], runner) -> None:
         import time
         time.sleep(2)
 
-        # Install kerberos client packages in container
-        runner.display("  - Installing Kerberos client packages in container")
-        install_result = runner.run_shell([
-            'docker', 'exec', 'kerberos-sidecar-mock',
-            'bash', '-c',
-            'apt-get update -qq && apt-get install -y -qq krb5-user 2>/dev/null || yum install -y -q krb5-workstation 2>/dev/null || true'
-        ])
+        # Only install packages if not using a prebuilt image
+        if not ctx.get('services.kerberos.use_prebuilt', False):
+            # Install kerberos client packages in container
+            runner.display("  - Installing Kerberos client packages in container")
+            install_result = runner.run_shell([
+                'docker', 'exec', 'kerberos-sidecar-mock',
+                'bash', '-c',
+                'apt-get update -qq && apt-get install -y -qq krb5-user 2>/dev/null || yum install -y -q krb5-workstation 2>/dev/null || true'
+            ])
 
-        if install_result.get('returncode') != 0:
-            runner.display(f"⚠ Package installation warning: {install_result.get('stderr', '')}")
+            if install_result.get('returncode') != 0:
+                runner.display(f"⚠ Package installation warning: {install_result.get('stderr', '')}")
+        else:
+            runner.display("  - Using prebuilt image (packages already installed)")
 
         runner.display("✓ Mock Kerberos container created (no real KDC)")
         runner.display(f"    Container: kerberos-sidecar-mock")
