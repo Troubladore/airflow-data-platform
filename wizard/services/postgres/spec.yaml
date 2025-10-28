@@ -13,15 +13,6 @@ steps:
     default_from: services.postgres.image
     default_value: postgres:17.5-alpine
     validator: postgres.validate_image_url
-    next:
-      when_changed: postgres_prebuilt
-      when_unchanged: postgres_auth
-
-  - id: postgres_prebuilt
-    type: boolean
-    prompt: "Use prebuilt image?"
-    state_key: services.postgres.prebuilt
-    default_value: false
     next: postgres_auth
 
   - id: postgres_auth

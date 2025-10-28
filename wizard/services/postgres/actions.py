@@ -1,16 +1,9 @@
 """PostgreSQL actions - GREEN phase implementation.
 
-Key Design Decision: The 'prebuilt' Flag
-=========================================
-The prebuilt flag controls whether the platform LAYERS CUSTOMIZATIONS on the image,
-NOT whether we pull it from the registry.
-
-- prebuilt=false (default): Platform may add SSL certificates, Kerberos config,
-  corporate CA certs, or other customizations at runtime or build time
-- prebuilt=true: Use the image AS-IS without any platform modifications
-  (image already has everything needed)
-
-Both modes may need to pull the image from a Docker registry.
+Note: PostgreSQL uses Docker images directly without any building or layering.
+Unlike services like Kerberos that install additional packages via Dockerfile,
+PostgreSQL simply uses the provided image as-is with configuration through
+environment variables and mounted initialization scripts.
 """
 
 from typing import Dict, Any
@@ -43,7 +36,6 @@ def save_config(ctx: Dict[str, Any], runner) -> None:
             'postgres': {
                 'enabled': True,
                 'image': ctx.get('services.postgres.image', 'postgres:17.5-alpine'),
-                'prebuilt': ctx.get('services.postgres.prebuilt', False),
                 'auth_method': auth_method,
                 'password': password
             }
@@ -119,20 +111,16 @@ def _build_env_file_content(
 
 
 def pull_image(ctx: Dict[str, Any], runner) -> None:
-    """Pull PostgreSQL Docker image.
-
-    The prebuilt flag controls whether we layer customizations on the image,
-    NOT whether we pull it. Both modes may need to pull from registry.
+    """Pull PostgreSQL Docker image if not already available locally.
 
     For corporate registry images (detected by having slashes), check if they
     exist locally first to avoid failing pulls from non-existent registries.
 
     Args:
-        ctx: Context dictionary with image URL and prebuilt flag
+        ctx: Context dictionary with image URL
         runner: ActionRunner instance for side effects
     """
     image = ctx.get('services.postgres.image', 'postgres:17.5-alpine')
-    prebuilt = ctx.get('services.postgres.prebuilt', False)
 
     # Check if this looks like a corporate registry image (has registry path)
     is_corporate_image = '/' in image.split(':')[0]  # Has registry/path before tag
@@ -142,26 +130,17 @@ def pull_image(ctx: Dict[str, Any], runner) -> None:
         check_result = runner.run_shell(['docker', 'image', 'inspect', image])
         if check_result.get('returncode') == 0:
             # Image exists locally
-            if prebuilt:
-                runner.display(f"\n✓ Prebuilt image already exists locally: {image}")
-            else:
-                runner.display(f"\n✓ Image already exists locally: {image}")
+            runner.display(f"\n✓ Image already exists locally: {image}")
             return
 
     # Image doesn't exist locally or is from Docker Hub - attempt pull
-    if prebuilt:
-        runner.display(f"\nPulling prebuilt image (will use as-is): {image}")
-    else:
-        runner.display(f"\nPulling Docker image: {image}")
+    runner.display(f"\nPulling Docker image: {image}")
 
     # Pull the image from registry
     result = runner.run_shell(['docker', 'pull', image])
 
     if result.get('returncode') == 0:
-        if prebuilt:
-            runner.display(f"✓ Prebuilt image ready (no customizations): {image}")
-        else:
-            runner.display(f"✓ Image pulled: {image}")
+        runner.display(f"✓ Image pulled: {image}")
     else:
         runner.display(f"✗ Failed to pull image: {image}")
 
