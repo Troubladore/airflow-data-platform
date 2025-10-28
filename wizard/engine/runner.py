@@ -152,6 +152,7 @@ class RealActionRunner(ActionRunner):
         import subprocess
         import os
         import platform
+        import sys
 
         # Detect WSL2 environment
         is_wsl = False
@@ -208,20 +209,40 @@ class RealActionRunner(ActionRunner):
 
         try:
             if self.verbose:
-                # In verbose mode, show output in real-time
-                result = subprocess.run(
+                # In verbose mode, we need to both show AND capture output
+                # Use Popen to tee output to both terminal and capture
+                import io
+                from subprocess import Popen, PIPE
+
+                process = Popen(
                     command,
                     cwd=cwd,
-                    text=True,
-                    capture_output=False,  # Don't capture, let it flow to terminal
-                    stdout=None,  # Inherit stdout
-                    stderr=None   # Inherit stderr
+                    stdout=PIPE,
+                    stderr=PIPE,
+                    text=True
                 )
-                # For compatibility, still return empty strings for output
+
+                stdout_lines = []
+                stderr_lines = []
+
+                # Read stdout line by line and display in real-time
+                for line in process.stdout:
+                    print(line, end='')  # Show to terminal
+                    stdout_lines.append(line)  # Capture for return
+
+                # Wait for process to complete and get stderr
+                stderr = process.stderr.read()
+                if stderr:
+                    print(stderr, end='', file=sys.stderr)  # Show to terminal
+                    stderr_lines.append(stderr)
+
+                process.wait()
+
+                # Return captured output so wizard can read it
                 return {
-                    'stdout': '',
-                    'stderr': '',
-                    'returncode': result.returncode
+                    'stdout': ''.join(stdout_lines),
+                    'stderr': ''.join(stderr_lines),
+                    'returncode': process.returncode
                 }
             else:
                 # Normal mode: capture output silently
