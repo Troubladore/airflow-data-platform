@@ -34,15 +34,15 @@ class WizardEngine:
         self.actions: Dict[str, callable] = {}
 
     def _load_existing_state(self) -> Dict[str, Any]:
-        """Load existing configuration from platform-bootstrap/.env file.
+        """Load existing configuration from platform-bootstrap/.env and platform-config.yaml files.
 
         Returns:
             Dictionary with existing configuration values
         """
         state = {}
-        env_file = 'platform-bootstrap/.env'
 
-        # Check if .env file exists
+        # 1. Load from platform-bootstrap/.env file
+        env_file = 'platform-bootstrap/.env'
         if self.runner.file_exists(env_file):
             # Read the custom PostgreSQL image if present
             result = self.runner.run_shell(['grep', '^IMAGE_POSTGRES=', env_file])
@@ -52,6 +52,30 @@ class WizardEngine:
                     image = line.split('=', 1)[1].strip()
                     # Store in state using the same key as the spec expects
                     state['services.postgres.image'] = image
+
+        # 2. Load from platform-config.yaml if it exists
+        config_file = 'platform-config.yaml'
+        if self.runner.file_exists(config_file):
+            try:
+                import yaml
+                result = self.runner.run_shell(['cat', config_file])
+                if result.get('returncode') == 0 and result.get('stdout'):
+                    config = yaml.safe_load(result['stdout'])
+                    if config and 'services' in config:
+                        # Load all service configurations generically
+                        for service_name, service_config in config['services'].items():
+                            if isinstance(service_config, dict):
+                                for key, value in service_config.items():
+                                    # Skip 'enabled' flags as they are determined by the setup flow
+                                    if key != 'enabled':
+                                        state_key = f'services.{service_name}.{key}'
+                                        # Don't override PostgreSQL image from .env
+                                        if state_key == 'services.postgres.image' and state_key in state:
+                                            continue
+                                        state[state_key] = value
+            except Exception:
+                # If YAML parsing fails, continue without those settings
+                pass
 
         return state
 

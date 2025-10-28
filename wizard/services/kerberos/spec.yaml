@@ -11,6 +11,7 @@ steps:
   - id: domain_input
     type: string
     state_key: services.kerberos.domain
+    default_from: services.kerberos.domain
     prompt: "Enter Kerberos domain (e.g., COMPANY.COM):"
     validator: kerberos.validate_domain
     next: image_input
@@ -18,8 +19,9 @@ steps:
   - id: image_input
     type: string
     state_key: services.kerberos.image
+    default_from: services.kerberos.image
     prompt: "Enter Docker image for Kerberos (e.g., ubuntu:22.04):"
-    default: "ubuntu:22.04"
+    default_value: "ubuntu:22.04"
     validator: kerberos.validate_image_url
     next: test_kerberos_action
 

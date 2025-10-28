@@ -13,6 +13,7 @@ steps:
     type: string
     prompt: "OpenMetadata server Docker image URL:"
     state_key: services.openmetadata.server_image
+    default_from: services.openmetadata.server_image
     default_value: "docker.getcollate.io/openmetadata/server:1.5.0"
     validator: openmetadata.validate_image_url
     next: opensearch_image
@@ -21,6 +22,7 @@ steps:
     type: string
     prompt: "OpenSearch Docker image URL:"
     state_key: services.openmetadata.opensearch_image
+    default_from: services.openmetadata.opensearch_image
     default_value: "opensearchproject/opensearch:2.9.0"
     validator: openmetadata.validate_image_url
     next: port
@@ -29,6 +31,7 @@ steps:
     type: integer
     prompt: "OpenMetadata server port:"
     state_key: services.openmetadata.port
+    default_from: services.openmetadata.port
     default_value: 8585
     validator: openmetadata.validate_port
     next: use_prebuilt
@@ -37,6 +40,7 @@ steps:
     type: boolean
     prompt: "Use prebuilt Docker images? (y/n):"
     state_key: services.openmetadata.use_prebuilt
+    default_from: services.openmetadata.use_prebuilt
     default_value: true
     next: openmetadata_save
 
