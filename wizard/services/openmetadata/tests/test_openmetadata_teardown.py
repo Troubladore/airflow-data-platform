@@ -184,9 +184,9 @@ def test_stop_service_calls_docker_compose_stop():
     assert len(mock_runner.calls) == 1
     assert mock_runner.calls[0][0] == 'run_shell'
 
-    # Verify command uses docker-compose down
+    # Verify command uses docker compose down
     command = mock_runner.calls[0][1]
-    assert 'docker-compose' in command
+    assert 'docker' in command and 'compose' in command
     assert 'down' in command
     assert 'openmetadata' in ' '.join(command)
 

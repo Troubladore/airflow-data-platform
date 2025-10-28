@@ -342,11 +342,32 @@ class WizardEngine:
         Evaluate a condition string against current state.
 
         Args:
-            condition: Condition string (e.g., "state.total_artifacts == 0")
+            condition: Condition string (e.g., "state.total_artifacts == 0" or "has_artifacts('postgres')")
 
         Returns:
             True if condition is met
         """
+        # Check for has_artifacts() function
+        if condition.startswith('has_artifacts('):
+            # Extract service name from has_artifacts('service_name')
+            import re
+            match = re.match(r"has_artifacts\(['\"](\w+)['\"]\)", condition)
+            if match:
+                service_name = match.group(1)
+                # Check if service has any artifacts in discovery_results
+                discovery_results = self.state.get('discovery_results', {})
+                service_results = discovery_results.get(service_name, {})
+
+                # Count total artifacts for this service
+                total_artifacts = (
+                    len(service_results.get('containers', [])) +
+                    len(service_results.get('images', [])) +
+                    len(service_results.get('volumes', [])) +
+                    len(service_results.get('files', []))
+                )
+
+                return total_artifacts > 0
+
         # Simple condition evaluation for now
         # Format: "state.key == value"
         if '==' in condition:
@@ -429,16 +450,14 @@ class WizardEngine:
         # Check if this is a teardown flow
         is_teardown_flow = any(target.get('teardown', False) for target in flow.targets)
 
-        # Initialize service states
-        for target in flow.targets:
-            service_name = target['service']
-            enabled = target.get('enabled', False)
-
-            if is_teardown_flow:
-                # For teardown flows, use teardown.enabled state key
-                self.state[f'services.{service_name}.teardown.enabled'] = enabled
-            else:
-                # For setup flows, use regular enabled state key
+        # DON'T initialize service states here for teardown flows!
+        # Service selection will set them, and we only want to set defaults
+        # for services that were NOT asked about (skipped by conditionals).
+        # For setup flows, we still need to initialize since postgres is always enabled.
+        if not is_teardown_flow:
+            for target in flow.targets:
+                service_name = target['service']
+                enabled = target.get('enabled', False)
                 self.state[f'services.{service_name}.enabled'] = enabled
 
         # Execute flow-level steps (e.g., discovery)
@@ -449,8 +468,7 @@ class WizardEngine:
         # Execute service selection steps ONLY if flow didn't terminate early
         # (e.g., when system is clean with 0 artifacts, flow exits early)
         if should_continue and flow.service_selection:
-            for step in flow.service_selection:
-                self._execute_step(step, self.headless_inputs if self.headless_mode else None)
+            self._execute_flow_steps(flow.service_selection, headless_inputs)
 
         # Postgres is always enabled for setup flows
         if not is_teardown_flow:

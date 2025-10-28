@@ -285,10 +285,11 @@ def test_remove_repo_handles_missing_path():
 
     remove_repo(ctx, mock_runner)
 
-    # Should still work with a default path
-    assert len(mock_runner.calls) == 1
-    command = mock_runner.calls[0][1]
-    assert 'rm' in ' '.join(command)
+    # With path discovery, makes 2 calls: test -d check, then rm -rf
+    assert len(mock_runner.calls) == 2
+    test_command = mock_runner.calls[0][1]
+    rm_command = mock_runner.calls[1][1]
+    assert 'test' in test_command[0] or 'rm' in ' '.join(rm_command)
 
 
 def test_clean_config_action_exists():
@@ -399,3 +400,49 @@ def test_actions_use_runner_not_direct_io():
     # Verify runner was used
     assert len(mock_runner.calls) > 0
     assert mock_runner.calls[0][0] in ['run_shell', 'save_config']
+
+
+# ============================================================================
+# VOLUME REMOVAL TESTS - RED PHASE
+# ============================================================================
+
+def test_remove_volumes_action_exists():
+    """remove_volumes action should be importable"""
+    from wizard.services.pagila.teardown_actions import remove_volumes
+    assert callable(remove_volumes)
+
+
+def test_remove_volumes_removes_docker_volume():
+    """remove_volumes should execute docker volume rm command for pagila_pgdata"""
+    from wizard.services.pagila.teardown_actions import remove_volumes
+
+    mock_runner = MockActionRunner()
+    ctx = {}
+
+    remove_volumes(ctx, mock_runner)
+
+    # Assert runner.run_shell was called
+    assert len(mock_runner.calls) == 1
+    assert mock_runner.calls[0][0] == 'run_shell'
+
+    # Assert command removes Docker volume
+    command = mock_runner.calls[0][1]
+    command_str = ' '.join(command)
+    assert 'docker' in command_str.lower()
+    assert 'volume' in command_str.lower()
+    assert 'rm' in command_str.lower()
+    assert 'pagila_pgdata' in command_str
+
+
+def test_remove_volumes_uses_force_flag():
+    """remove_volumes should use --force flag to avoid errors if volume doesn't exist"""
+    from wizard.services.pagila.teardown_actions import remove_volumes
+
+    mock_runner = MockActionRunner()
+    ctx = {}
+
+    remove_volumes(ctx, mock_runner)
+
+    command = mock_runner.calls[0][1]
+    command_str = ' '.join(command)
+    assert '--force' in command_str

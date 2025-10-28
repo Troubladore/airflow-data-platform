@@ -7,8 +7,8 @@
 
 .PHONY: help start stop restart status logs clean
 
-# Load configuration from .env if it exists
--include .env
+# Load configuration from central platform-bootstrap/.env
+-include ../platform-bootstrap/.env
 export
 
 DOCKER_COMPOSE := docker compose
@@ -30,10 +30,9 @@ help: ## Show this help message
 start: ## Start shared infrastructure
 	@echo "Starting platform infrastructure..."
 	@echo ""
-	@if [ ! -f .env ]; then \
-		echo "⚠️  No .env file found"; \
-		echo "Create one: cp .env.example .env"; \
-		echo "Then customize PLATFORM_DB_PASSWORD"; \
+	@if [ ! -f ../platform-bootstrap/.env ]; then \
+		echo "⚠️  No configuration found"; \
+		echo "Run setup wizard: python -m wizard or ./platform setup"; \
 		exit 1; \
 	fi
 	@echo "Starting services..."

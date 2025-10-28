@@ -49,6 +49,16 @@ class ActionRunner(ABC):
         """
         pass
 
+    @abstractmethod
+    def write_file(self, path: str, content: str) -> None:
+        """Write content to a file.
+
+        Args:
+            path: Path to file to write
+            content: Content to write to file
+        """
+        pass
+
 
 class RealActionRunner(ActionRunner):
     """Real implementation - actually does things."""
@@ -173,6 +183,11 @@ class RealActionRunner(ActionRunner):
             print()  # Add newline after user input
             return response
 
+    def write_file(self, path: str, content: str) -> None:
+        """Write content to a file."""
+        with open(path, 'w') as f:
+            f.write(content)
+
 
 class MockActionRunner(ActionRunner):
     """Mock for testing - records calls."""
@@ -197,7 +212,12 @@ class MockActionRunner(ActionRunner):
                 # Try exact tuple match first
                 command_tuple = tuple(command)
                 if command_tuple in response_dict:
-                    return {'stdout': response_dict[command_tuple], 'stderr': '', 'returncode': 0}
+                    # Return the dict directly if it's already a proper response
+                    result = response_dict[command_tuple]
+                    if isinstance(result, dict) and 'returncode' in result:
+                        return result
+                    # Otherwise wrap it as stdout (backward compatibility)
+                    return {'stdout': result, 'stderr': '', 'returncode': 0}
 
             # Otherwise use as default response
             return response_dict
@@ -229,3 +249,7 @@ class MockActionRunner(ActionRunner):
 
         # Fall back to default or empty string
         return default if default else ''
+
+    def write_file(self, path: str, content: str) -> None:
+        """Record write_file call for test verification."""
+        self.calls.append(('write_file', path, content))

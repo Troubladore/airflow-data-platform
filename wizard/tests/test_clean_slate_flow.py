@@ -26,22 +26,22 @@ def setup_discovery_mock(runner):
     """
     Configure MockActionRunner with discovery responses for clean-slate tests.
 
-    Returns some artifacts so flow continues to service_selection.
+    Returns artifacts for ALL services so all services are asked about in service_selection.
     Tests that need empty system should create their own runner.
     """
     runner.responses['run_shell'] = {
         ('docker', 'ps', '-a', '--filter', 'name=postgres', '--format', '{{.Names}}|{{.Status}}'): 'postgres|Up\n',
         ('docker', 'images', '--filter', 'reference=postgres', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): 'postgres:17|400MB\n',
         ('docker', 'volume', 'ls', '--filter', 'name=postgres', '--format', '{{.Name}}'): 'postgres_data\n',
-        ('docker', 'ps', '-a', '--filter', 'name=openmetadata', '--format', '{{.Names}}|{{.Status}}'): '',
-        ('docker', 'images', '--filter', 'reference=openmetadata', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
-        ('docker', 'volume', 'ls', '--filter', 'name=openmetadata', '--format', '{{.Name}}'): '',
+        ('docker', 'ps', '-a', '--filter', 'name=openmetadata', '--format', '{{.Names}}|{{.Status}}'): 'openmetadata|Up\n',
+        ('docker', 'images', '--filter', 'reference=openmetadata', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): 'openmetadata:1.0|500MB\n',
+        ('docker', 'volume', 'ls', '--filter', 'name=openmetadata', '--format', '{{.Name}}'): 'openmetadata_data\n',
         ('docker', 'ps', '-a', '--filter', 'name=kerberos', '--format', '{{.Names}}|{{.Status}}'): 'kerberos|Up\n',
         ('docker', 'images', '--filter', 'reference=kerberos', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): 'kerberos:latest|150MB\n',
-        ('docker', 'volume', 'ls', '--filter', 'name=kerberos', '--format', '{{.Name}}'): '',
+        ('docker', 'volume', 'ls', '--filter', 'name=kerberos', '--format', '{{.Name}}'): 'kerberos_data\n',
         ('docker', 'ps', '-a', '--filter', 'name=pagila', '--format', '{{.Names}}|{{.Status}}'): '',
-        ('docker', 'images', '--filter', 'reference=pagila', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
-        ('docker', 'volume', 'ls', '--filter', 'name=pagila', '--format', '{{.Name}}'): ''
+        ('docker', 'images', '--filter', 'reference=pagila*', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
+        ('docker', 'volume', 'ls', '--filter', 'name=pagila', '--format', '{{.Name}}|{{.Size}}'): 'pagila_pgdata|100MB\n'
     }
 
 
@@ -110,21 +110,8 @@ class TestServiceTeardownSelection:
         """Create WizardEngine with MockActionRunner."""
         runner = MockActionRunner()
 
-        # Mock discovery to return some artifacts (so flow continues to service_selection)
-        runner.responses['run_shell'] = {
-            ('docker', 'ps', '-a', '--filter', 'name=postgres', '--format', '{{.Names}}|{{.Status}}'): 'postgres|Up\n',
-            ('docker', 'images', '--filter', 'reference=postgres', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): 'postgres:17|400MB\n',
-            ('docker', 'volume', 'ls', '--filter', 'name=postgres', '--format', '{{.Name}}'): 'postgres_data\n',
-            ('docker', 'ps', '-a', '--filter', 'name=openmetadata', '--format', '{{.Names}}|{{.Status}}'): '',
-            ('docker', 'images', '--filter', 'reference=openmetadata', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
-            ('docker', 'volume', 'ls', '--filter', 'name=openmetadata', '--format', '{{.Name}}'): '',
-            ('docker', 'ps', '-a', '--filter', 'name=kerberos', '--format', '{{.Names}}|{{.Status}}'): '',
-            ('docker', 'images', '--filter', 'reference=kerberos', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
-            ('docker', 'volume', 'ls', '--filter', 'name=kerberos', '--format', '{{.Name}}'): '',
-            ('docker', 'ps', '-a', '--filter', 'name=pagila', '--format', '{{.Names}}|{{.Status}}'): '',
-            ('docker', 'images', '--filter', 'reference=pagila', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
-            ('docker', 'volume', 'ls', '--filter', 'name=pagila', '--format', '{{.Name}}'): ''
-        }
+        # Use standard setup with ALL services having artifacts
+        setup_discovery_mock(runner)
 
         base_path = Path(__file__).parent.parent
         engine = WizardEngine(runner=runner, base_path=base_path)
@@ -377,21 +364,8 @@ class TestSelectiveTeardown:
         """Create WizardEngine with MockActionRunner."""
         runner = MockActionRunner()
 
-        # Mock discovery to return some artifacts (so flow continues to service_selection)
-        runner.responses['run_shell'] = {
-            ('docker', 'ps', '-a', '--filter', 'name=postgres', '--format', '{{.Names}}|{{.Status}}'): 'postgres|Up\n',
-            ('docker', 'images', '--filter', 'reference=postgres', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): 'postgres:17|400MB\n',
-            ('docker', 'volume', 'ls', '--filter', 'name=postgres', '--format', '{{.Name}}'): 'postgres_data\n',
-            ('docker', 'ps', '-a', '--filter', 'name=openmetadata', '--format', '{{.Names}}|{{.Status}}'): '',
-            ('docker', 'images', '--filter', 'reference=openmetadata', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
-            ('docker', 'volume', 'ls', '--filter', 'name=openmetadata', '--format', '{{.Name}}'): '',
-            ('docker', 'ps', '-a', '--filter', 'name=kerberos', '--format', '{{.Names}}|{{.Status}}'): '',
-            ('docker', 'images', '--filter', 'reference=kerberos', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
-            ('docker', 'volume', 'ls', '--filter', 'name=kerberos', '--format', '{{.Name}}'): '',
-            ('docker', 'ps', '-a', '--filter', 'name=pagila', '--format', '{{.Names}}|{{.Status}}'): '',
-            ('docker', 'images', '--filter', 'reference=pagila', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
-            ('docker', 'volume', 'ls', '--filter', 'name=pagila', '--format', '{{.Name}}'): ''
-        }
+        # Use standard setup with ALL services having artifacts
+        setup_discovery_mock(runner)
 
         base_path = Path(__file__).parent.parent
         engine = WizardEngine(runner=runner, base_path=base_path)
@@ -754,6 +728,68 @@ class TestConditionalTeardownInclusion:
         # Verify pagila teardown executed
         runner = engine.runner
         assert len(runner.calls) > 0, "Should have executed pagila teardown"
+
+
+class TestConditionalServiceSelection:
+    """Tests that services are only asked about when artifacts are discovered.
+
+    RED PHASE: These tests verify the requirement that clean-slate should only
+    prompt for services that have discovered artifacts, not all services.
+    """
+
+    @pytest.fixture
+    def engine_pagila_only(self):
+        """Create engine with ONLY Pagila artifacts discovered."""
+        runner = MockActionRunner()
+
+        # Mock discovery to return ONLY pagila artifacts
+        runner.responses['run_shell'] = {
+            # PostgreSQL - no artifacts
+            ('docker', 'ps', '-a', '--filter', 'name=postgres', '--format', '{{.Names}}|{{.Status}}'): '',
+            ('docker', 'images', '--filter', 'reference=postgres', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
+            ('docker', 'volume', 'ls', '--filter', 'name=postgres', '--format', '{{.Name}}'): '',
+            # OpenMetadata - no artifacts
+            ('docker', 'ps', '-a', '--filter', 'name=openmetadata', '--format', '{{.Names}}|{{.Status}}'): '',
+            ('docker', 'images', '--filter', 'reference=openmetadata', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
+            ('docker', 'volume', 'ls', '--filter', 'name=openmetadata', '--format', '{{.Name}}'): '',
+            # Kerberos - no artifacts
+            ('docker', 'ps', '-a', '--filter', 'name=kerberos', '--format', '{{.Names}}|{{.Status}}'): '',
+            ('docker', 'images', '--filter', 'reference=kerberos', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
+            ('docker', 'volume', 'ls', '--filter', 'name=kerberos', '--format', '{{.Name}}'): '',
+            # Pagila - ONLY this has artifacts (volume with size)
+            ('docker', 'ps', '-a', '--filter', 'name=pagila', '--format', '{{.Names}}|{{.Status}}'): '',
+            ('docker', 'images', '--filter', 'reference=pagila*', '--format', '{{.Repository}}:{{.Tag}}|{{.Size}}'): '',
+            ('docker', 'volume', 'ls', '--filter', 'name=pagila', '--format', '{{.Name}}|{{.Size}}'): 'pagila_pgdata|100MB\n'
+        }
+
+        base_path = Path(__file__).parent.parent
+        engine = WizardEngine(runner=runner, base_path=base_path)
+        return engine
+
+    def test_only_asks_about_services_with_artifacts(self, engine_pagila_only):
+        """Should ONLY prompt for Pagila teardown when only Pagila has artifacts.
+
+        This is the RED test. Currently clean-slate asks about ALL 4 services,
+        wasting the user's time. It should only ask about services with discovered artifacts.
+        """
+        headless_inputs = {
+            # Should ONLY need this input (Pagila has artifacts)
+            'select_pagila_teardown': False,
+            # These should NOT be asked (no artifacts found)
+            # 'select_postgres_teardown': False,  # Should not be needed
+            # 'select_openmetadata_teardown': False,  # Should not be needed
+            # 'select_kerberos_teardown': False,  # Should not be needed
+        }
+
+        engine_pagila_only.execute_flow('clean-slate', headless_inputs=headless_inputs)
+
+        # Verify only Pagila selection was recorded
+        assert 'services.pagila.teardown.enabled' in engine_pagila_only.state
+
+        # These should NOT be in state (questions should have been skipped)
+        assert 'services.postgres.teardown.enabled' not in engine_pagila_only.state
+        assert 'services.openmetadata.teardown.enabled' not in engine_pagila_only.state
+        assert 'services.kerberos.teardown.enabled' not in engine_pagila_only.state
 
 
 class TestFlowPolicyCompliance:

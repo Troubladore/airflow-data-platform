@@ -1,7 +1,7 @@
 """Tests for PostgreSQL action functions - RED phase."""
 
 import pytest
-from wizard.services.postgres.actions import save_config, start_service
+from wizard.services.postgres.actions import save_config, start_service, pull_image
 from wizard.engine.runner import MockActionRunner
 
 
@@ -21,8 +21,9 @@ class TestSaveConfig:
         save_config(ctx, runner)
 
         # Verify runner.save_config was called
-        assert len(runner.calls) == 1
-        call = runner.calls[0]
+        save_config_calls = [c for c in runner.calls if c[0] == 'save_config']
+        assert len(save_config_calls) == 1
+        call = save_config_calls[0]
         assert call[0] == 'save_config'
 
         # Verify config structure
@@ -52,6 +53,58 @@ class TestSaveConfig:
         assert config['services']['postgres']['prebuilt'] is False
         assert config['services']['postgres']['auth_method'] == 'md5'
         assert config['services']['postgres']['password'] == 'changeme'
+
+    def test_save_config_creates_env_file(self):
+        """Should create platform-bootstrap/.env file with required variables."""
+        runner = MockActionRunner()
+        ctx = {
+            'services.postgres.image': 'postgres:17.5-alpine',
+            'services.postgres.prebuilt': False,
+            'services.postgres.auth_method': 'md5',
+            'services.postgres.password': 'secret_password',
+            'services.openmetadata.enabled': True,
+            'services.kerberos.enabled': False,
+            'services.pagila.enabled': True
+        }
+
+        save_config(ctx, runner)
+
+        # Verify write_file was called
+        write_calls = [c for c in runner.calls if c[0] == 'write_file']
+        assert len(write_calls) == 1, "Should call write_file exactly once"
+
+        call = write_calls[0]
+        assert call[1] == 'platform-bootstrap/.env', "Should write to platform-bootstrap/.env"
+
+        # Verify .env content
+        env_content = call[2]
+        assert 'PLATFORM_DB_PASSWORD=secret_password' in env_content, "Should set PLATFORM_DB_PASSWORD"
+        assert 'OPENMETADATA_DB_PASSWORD=' in env_content, "Should include OPENMETADATA_DB_PASSWORD when enabled"
+        assert 'ENABLE_OPENMETADATA=true' in env_content, "Should include service enable flag"
+        assert 'ENABLE_KERBEROS=false' in env_content, "Should include service enable flag"
+        assert 'ENABLE_PAGILA=true' in env_content, "Should include service enable flag"
+
+    def test_save_config_creates_env_file_with_trust_auth(self):
+        """Should create .env file even with trust authentication (no password)."""
+        runner = MockActionRunner()
+        ctx = {
+            'services.postgres.require_password': False,
+            'services.postgres.image': 'postgres:17.5-alpine',
+            'services.openmetadata.enabled': False,
+            'services.kerberos.enabled': False,
+            'services.pagila.enabled': False
+        }
+
+        save_config(ctx, runner)
+
+        # Verify write_file was called
+        write_calls = [c for c in runner.calls if c[0] == 'write_file']
+        assert len(write_calls) == 1
+
+        call = write_calls[0]
+        env_content = call[2]
+        # With trust auth, we still need .env but password can be empty or placeholder
+        assert 'PLATFORM_DB_PASSWORD=' in env_content, "Should include PLATFORM_DB_PASSWORD line"
 
 
 class TestStartService:
@@ -83,3 +136,78 @@ class TestStartService:
         start_service(ctx, runner)
         shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
         assert len(shell_calls) == 1
+
+
+class TestPullImage:
+    """Tests for pull_image action - validates prebuilt flag behavior."""
+
+    def test_pull_image_layered_mode_pulls_image(self):
+        """Layered mode (prebuilt=False): should pull image for customization."""
+        runner = MockActionRunner()
+        ctx = {
+            'services.postgres.image': 'postgres:17.5-alpine',
+            'services.postgres.prebuilt': False
+        }
+
+        pull_image(ctx, runner)
+
+        # Verify docker pull was called
+        shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
+        assert len(shell_calls) == 1
+        command = shell_calls[0][1]
+        assert command == ['docker', 'pull', 'postgres:17.5-alpine']
+
+        # Verify appropriate message
+        display_calls = [c for c in runner.calls if c[0] == 'display']
+        assert any('Pulling' in str(c[1]) for c in display_calls)
+
+    def test_pull_image_prebuilt_mode_still_pulls(self):
+        """Prebuilt mode (prebuilt=True): should STILL pull image if needed.
+
+        Prebuilt means 'use as-is without customization', not 'skip docker pull'.
+        The image may still need to be pulled from registry.
+        """
+        runner = MockActionRunner()
+        ctx = {
+            'services.postgres.image': 'postgres:17.5-alpine',
+            'services.postgres.prebuilt': True
+        }
+
+        pull_image(ctx, runner)
+
+        # CRITICAL: Prebuilt should still pull image
+        shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
+        assert len(shell_calls) == 1
+        command = shell_calls[0][1]
+        assert command == ['docker', 'pull', 'postgres:17.5-alpine']
+
+        # Message should indicate using image as-is
+        display_calls = [c for c in runner.calls if c[0] == 'display']
+        assert any('prebuilt' in str(c[1]).lower() or 'as-is' in str(c[1]).lower()
+                   for c in display_calls)
+
+    def test_pull_image_uses_default_image(self):
+        """Should use default image if not specified in context."""
+        runner = MockActionRunner()
+        ctx = {}
+
+        pull_image(ctx, runner)
+
+        shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
+        assert len(shell_calls) == 1
+        command = shell_calls[0][1]
+        assert command == ['docker', 'pull', 'postgres:17.5-alpine']
+
+    def test_pull_image_handles_custom_image(self):
+        """Should work with custom image URL."""
+        runner = MockActionRunner()
+        ctx = {
+            'services.postgres.image': 'myorg/postgres:17-hardened',
+            'services.postgres.prebuilt': True
+        }
+
+        pull_image(ctx, runner)
+
+        shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
+        command = shell_calls[0][1]
+        assert command == ['docker', 'pull', 'myorg/postgres:17-hardened']

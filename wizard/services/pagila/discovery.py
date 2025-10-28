@@ -47,15 +47,26 @@ def discover_images(runner) -> List[Dict[str, str]]:
 def discover_volumes(runner) -> List[Dict[str, str]]:
     """Find pagila data volumes.
 
-    Pagila doesn't have its own volumes - data is stored in postgres volume.
-
     Args:
         runner: ActionRunner for executing queries
 
     Returns:
-        List of dicts: [] (always empty for pagila)
+        List of dicts: [{'name': 'pagila_pgdata', 'size': '100MB'}, ...]
     """
-    return []
+    result = runner.run_shell([
+        'docker', 'volume', 'ls',
+        '--filter', 'name=pagila',
+        '--format', '{{.Name}}|{{.Size}}'
+    ])
+
+    volumes = []
+    if result.get('stdout') and result.get('returncode') == 0:
+        for line in result['stdout'].strip().split('\n'):
+            if line and '|' in line:
+                name, size = line.split('|', 1)
+                volumes.append({'name': name, 'size': size})
+
+    return volumes
 
 
 def discover_files(runner) -> List[str]:
@@ -81,7 +92,7 @@ def discover_custom(runner) -> Dict[str, Any]:
     """Find pagila-specific custom artifacts.
 
     Pagila has two custom artifacts:
-    1. Git repository at /tmp/pagila
+    1. Git repository (checks ~/repos/pagila and /tmp/pagila)
     2. Database schema in postgres (SELECT from pg_database WHERE datname='pagila')
 
     Args:
@@ -90,19 +101,34 @@ def discover_custom(runner) -> Dict[str, Any]:
     Returns:
         Dict with repository and database info:
         {
-            'repository': {'exists': True, 'path': '/tmp/pagila'},
+            'repository': {'exists': True, 'path': '/home/user/repos/pagila'},
             'database': {'exists': True, 'name': 'pagila'}
         }
     """
+    import os
+
     result = {
-        'repository': {'exists': False, 'path': '/tmp/pagila'},
+        'repository': {'exists': False, 'path': None},
         'database': {'exists': False, 'name': 'pagila'}
     }
 
-    # Check for repository at /tmp/pagila
-    repo_check = runner.run_shell(['test', '-d', '/tmp/pagila'])
-    if repo_check.get('returncode') == 0:
-        result['repository']['exists'] = True
+    # Check for repository in common locations
+    home_dir = os.path.expanduser('~')
+    possible_paths = [
+        os.path.join(home_dir, 'repos', 'pagila'),  # Primary location (setup-pagila.sh)
+        '/tmp/pagila'  # Legacy/fallback location
+    ]
+
+    for path in possible_paths:
+        repo_check = runner.run_shell(['test', '-d', path])
+        if repo_check.get('returncode') == 0:
+            result['repository']['exists'] = True
+            result['repository']['path'] = path
+            break
+
+    # If not found, default to primary location
+    if not result['repository']['path']:
+        result['repository']['path'] = possible_paths[0]
 
     # Check for pagila database in postgres
     db_check = runner.run_shell([
