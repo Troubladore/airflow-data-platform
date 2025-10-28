@@ -81,7 +81,7 @@ def discover_custom(runner) -> Dict[str, Any]:
     """Find pagila-specific custom artifacts.
 
     Pagila has two custom artifacts:
-    1. Git repository at /tmp/pagila
+    1. Git repository (checks ~/repos/pagila and /tmp/pagila)
     2. Database schema in postgres (SELECT from pg_database WHERE datname='pagila')
 
     Args:
@@ -90,19 +90,34 @@ def discover_custom(runner) -> Dict[str, Any]:
     Returns:
         Dict with repository and database info:
         {
-            'repository': {'exists': True, 'path': '/tmp/pagila'},
+            'repository': {'exists': True, 'path': '/home/user/repos/pagila'},
             'database': {'exists': True, 'name': 'pagila'}
         }
     """
+    import os
+
     result = {
-        'repository': {'exists': False, 'path': '/tmp/pagila'},
+        'repository': {'exists': False, 'path': None},
         'database': {'exists': False, 'name': 'pagila'}
     }
 
-    # Check for repository at /tmp/pagila
-    repo_check = runner.run_shell(['test', '-d', '/tmp/pagila'])
-    if repo_check.get('returncode') == 0:
-        result['repository']['exists'] = True
+    # Check for repository in common locations
+    home_dir = os.path.expanduser('~')
+    possible_paths = [
+        os.path.join(home_dir, 'repos', 'pagila'),  # Primary location (setup-pagila.sh)
+        '/tmp/pagila'  # Legacy/fallback location
+    ]
+
+    for path in possible_paths:
+        repo_check = runner.run_shell(['test', '-d', path])
+        if repo_check.get('returncode') == 0:
+            result['repository']['exists'] = True
+            result['repository']['path'] = path
+            break
+
+    # If not found, default to primary location
+    if not result['repository']['path']:
+        result['repository']['path'] = possible_paths[0]
 
     # Check for pagila database in postgres
     db_check = runner.run_shell([

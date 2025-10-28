@@ -46,7 +46,31 @@ def remove_repo(ctx: Dict[str, Any], runner) -> None:
     Returns:
         None
     """
-    repo_path = ctx.get('services.pagila.repo_path', '/tmp/pagila')
+    import os
+
+    # Try to get repo_path from context first
+    repo_path = ctx.get('services.pagila.repo_path')
+
+    # If not in context, discover the actual location
+    if not repo_path:
+        # Check common locations where Pagila might be cloned
+        home_dir = os.path.expanduser('~')
+        possible_paths = [
+            os.path.join(home_dir, 'repos', 'pagila'),  # Primary location (setup-pagila.sh)
+            '/tmp/pagila'  # Legacy/fallback location
+        ]
+
+        # Find the first path that exists
+        for path in possible_paths:
+            check_result = runner.run_shell(['test', '-d', path])
+            if check_result.get('returncode') == 0:
+                repo_path = path
+                break
+
+        # If none found, default to the primary location (rm -rf is safe with -f)
+        if not repo_path:
+            repo_path = possible_paths[0]
+
     command = ['rm', '-rf', repo_path]
     runner.run_shell(command, cwd='platform-bootstrap')
 

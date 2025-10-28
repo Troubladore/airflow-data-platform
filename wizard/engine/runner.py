@@ -212,7 +212,12 @@ class MockActionRunner(ActionRunner):
                 # Try exact tuple match first
                 command_tuple = tuple(command)
                 if command_tuple in response_dict:
-                    return {'stdout': response_dict[command_tuple], 'stderr': '', 'returncode': 0}
+                    # Return the dict directly if it's already a proper response
+                    result = response_dict[command_tuple]
+                    if isinstance(result, dict) and 'returncode' in result:
+                        return result
+                    # Otherwise wrap it as stdout (backward compatibility)
+                    return {'stdout': result, 'stderr': '', 'returncode': 0}
 
             # Otherwise use as default response
             return response_dict
