@@ -47,15 +47,26 @@ def discover_images(runner) -> List[Dict[str, str]]:
 def discover_volumes(runner) -> List[Dict[str, str]]:
     """Find pagila data volumes.
 
-    Pagila doesn't have its own volumes - data is stored in postgres volume.
-
     Args:
         runner: ActionRunner for executing queries
 
     Returns:
-        List of dicts: [] (always empty for pagila)
+        List of dicts: [{'name': 'pagila_pgdata', 'size': '100MB'}, ...]
     """
-    return []
+    result = runner.run_shell([
+        'docker', 'volume', 'ls',
+        '--filter', 'name=pagila',
+        '--format', '{{.Name}}|{{.Size}}'
+    ])
+
+    volumes = []
+    if result.get('stdout') and result.get('returncode') == 0:
+        for line in result['stdout'].strip().split('\n'):
+            if line and '|' in line:
+                name, size = line.split('|', 1)
+                volumes.append({'name': name, 'size': size})
+
+    return volumes
 
 
 def discover_files(runner) -> List[str]:
