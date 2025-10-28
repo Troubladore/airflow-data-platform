@@ -37,16 +37,24 @@ setup_wizard() {
 
     cd "$SCRIPT_DIR"
 
+    # Check for verbose mode
+    VERBOSE_FLAG=""
+    if [[ "${WIZARD_VERBOSE:-}" == "1" ]] || [[ "${2:-}" == "--verbose" ]] || [[ "${2:-}" == "-v" ]]; then
+        VERBOSE_FLAG="verbose=True"
+        echo "Running in verbose mode..."
+    fi
+
     # Run Python wizard via uv
     if uv run python3 -c "
 import sys
+import os
 sys.path.insert(0, '$SCRIPT_DIR')
 
 from wizard.engine.engine import WizardEngine
 from wizard.engine.runner import RealActionRunner
 
-# Create engine with real runner
-runner = RealActionRunner()
+# Create engine with real runner (verbose mode if requested)
+runner = RealActionRunner($VERBOSE_FLAG)
 engine = WizardEngine(runner=runner, base_path='$SCRIPT_DIR/wizard')
 
 # Execute setup flow
@@ -66,16 +74,24 @@ clean_slate_wizard() {
 
     cd "$SCRIPT_DIR"
 
+    # Check for verbose mode
+    VERBOSE_FLAG=""
+    if [[ "${WIZARD_VERBOSE:-}" == "1" ]] || [[ "${2:-}" == "--verbose" ]] || [[ "${2:-}" == "-v" ]]; then
+        VERBOSE_FLAG="verbose=True"
+        echo "Running in verbose mode..."
+    fi
+
     # Run Python wizard via uv
     if uv run python3 -c "
 import sys
+import os
 sys.path.insert(0, '$SCRIPT_DIR')
 
 from wizard.engine.engine import WizardEngine
 from wizard.engine.runner import RealActionRunner
 
-# Create engine with real runner
-runner = RealActionRunner()
+# Create engine with real runner (verbose mode if requested)
+runner = RealActionRunner($VERBOSE_FLAG)
 engine = WizardEngine(runner=runner, base_path='$SCRIPT_DIR/wizard')
 
 # Execute clean-slate flow
@@ -98,21 +114,27 @@ config_command() {
 # Main command router
 case "${1:-}" in
     setup)
-        setup_wizard
+        setup_wizard "$@"
         ;;
     clean-slate)
-        clean_slate_wizard
+        clean_slate_wizard "$@"
         ;;
     config)
-        config_command
+        config_command "$@"
         ;;
     *)
-        echo "Usage: ./platform {setup|clean-slate|config}"
+        echo "Usage: ./platform {setup|clean-slate|config} [--verbose|-v]"
         echo ""
         echo "Commands:"
         echo "  setup        Run platform configuration wizard"
         echo "  clean-slate  Remove all platform services"
         echo "  config       Show current configuration"
+        echo ""
+        echo "Options:"
+        echo "  --verbose,-v   Show detailed command execution"
+        echo ""
+        echo "Environment:"
+        echo "  WIZARD_VERBOSE=1  Enable verbose mode via environment"
         exit 1
         ;;
 esac
