@@ -15,13 +15,18 @@ def save_config(ctx: Dict[str, Any], runner) -> None:
     # Support both 'domain' and 'realm' keys for backward compatibility
     domain = ctx.get('services.kerberos.domain') or ctx.get('services.kerberos.realm')
 
+    # Get image with fallback if empty
+    image = ctx.get('services.kerberos.image') or 'ubuntu:22.04'
+    if not image or image.strip() == '':
+        image = 'ubuntu:22.04'
+
     # Build config dictionary
     config = {
         'services': {
             'kerberos': {
                 'enabled': True,
                 'domain': domain,
-                'image': ctx.get('services.kerberos.image', 'ubuntu:22.04'),
+                'image': image,
                 'use_prebuilt': ctx.get('services.kerberos.use_prebuilt', False)
             }
         }
@@ -97,30 +102,64 @@ def start_service(ctx: Dict[str, Any], runner) -> None:
         runner.display("  - Detected non-domain environment (dev/local)")
         runner.display("  - Creating mock Kerberos container for testing")
 
-        # Get image from context
-        image = ctx.get('services.kerberos.image', 'ubuntu:22.04')
+        # Get image from context, with fallback if empty or missing
+        image = ctx.get('services.kerberos.image') or 'ubuntu:22.04'
+        if not image or image.strip() == '':
+            image = 'ubuntu:22.04'
         # Use default if domain is missing or empty string
         domain = ctx.get('services.kerberos.domain') or 'MOCK.LOCAL'
 
-        # Create mock ticket cache directory on host
-        runner.run_shell(['mkdir', '-p', '/tmp/krb5cc_mock'])
+        # First check if container already exists and remove it
+        check_result = runner.run_shell(['docker', 'ps', '-a', '-q', '-f', 'name=kerberos-sidecar-mock'])
+        if check_result.get('stdout', '').strip():
+            runner.display("  - Removing existing mock container")
+            runner.run_shell(['docker', 'rm', '-f', 'kerberos-sidecar-mock'])
+
+        # Ensure platform network exists
+        network_check = runner.run_shell(['docker', 'network', 'ls', '--format', '{{.Name}}', '--filter', 'name=platform_network'])
+        if 'platform_network' not in network_check.get('stdout', ''):
+            runner.display("  - Creating platform network")
+            network_result = runner.run_shell(['docker', 'network', 'create', 'platform_network'])
+            if network_result.get('returncode') != 0:
+                runner.display(f"⚠ Failed to create network: {network_result.get('stderr', '')}")
+
+        # Create Docker volume for mock Kerberos cache (persistent and Docker-managed)
+        runner.display("  - Creating Docker volume for mock Kerberos cache")
+        volume_result = runner.run_shell(['docker', 'volume', 'create', 'kerberos-mock-cache'])
+        if volume_result.get('returncode') != 0 and 'already exists' not in volume_result.get('stderr', ''):
+            runner.display(f"⚠ Volume creation note: {volume_result.get('stderr', '')}")
 
         # Start container with Kerberos packages but no actual KDC
-        runner.run_shell([
+        runner.display(f"  - Starting mock container with image: {image}")
+        run_result = runner.run_shell([
             'docker', 'run', '-d',
             '--name', 'kerberos-sidecar-mock',
-            '-v', '/tmp/krb5cc_mock:/tmp/krb5cc',
+            '--network', 'platform_network',  # Add to platform network
+            '-v', 'kerberos-mock-cache:/tmp/krb5cc',  # Use Docker volume
             image,
             'sleep', 'infinity'  # Just keep container running
         ])
 
+        if run_result.get('returncode') != 0:
+            runner.display(f"✗ Failed to start mock container: {run_result.get('stderr', '')}")
+            return
+
+        # Wait a moment for container to be ready
+        import time
+        time.sleep(2)
+
         # Install kerberos client packages in container
-        runner.run_shell([
+        runner.display("  - Installing Kerberos client packages in container")
+        install_result = runner.run_shell([
             'docker', 'exec', 'kerberos-sidecar-mock',
             'bash', '-c',
             'apt-get update -qq && apt-get install -y -qq krb5-user 2>/dev/null || yum install -y -q krb5-workstation 2>/dev/null || true'
         ])
 
+        if install_result.get('returncode') != 0:
+            runner.display(f"⚠ Package installation warning: {install_result.get('stderr', '')}")
+
         runner.display("✓ Mock Kerberos container created (no real KDC)")
         runner.display(f"    Container: kerberos-sidecar-mock")
         runner.display(f"    Mock realm: {domain}")
+        runner.display(f"    Volume: kerberos-mock-cache")
