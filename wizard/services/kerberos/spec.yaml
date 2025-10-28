@@ -19,6 +19,7 @@ steps:
     type: string
     state_key: services.kerberos.image
     prompt: "Enter Docker image for Kerberos (e.g., ubuntu:22.04):"
+    default: "ubuntu:22.04"
     validator: kerberos.validate_image_url
     next: test_kerberos_action
 
