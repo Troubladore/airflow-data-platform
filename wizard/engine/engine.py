@@ -195,6 +195,14 @@ class WizardEngine:
             )
             return None
 
+        # Handle cleanup orphaned resources action
+        if step.action == 'discovery.cleanup_orphaned_resources':
+            # Remove dangling images
+            self.runner.run_shell(['docker', 'image', 'prune', '-f'])
+            # Remove orphaned volumes (not used by any container)
+            self.runner.run_shell(['docker', 'volume', 'prune', '-f'])
+            return None
+
         # Interactive steps (string, boolean, integer, enum)
         if step.type in ['string', 'boolean', 'integer', 'enum']:
             # Collect input with validation
@@ -485,6 +493,10 @@ class WizardEngine:
             self._execute_services_reverse_topological(flow, headless_inputs, is_teardown_flow)
         else:
             self._execute_services_topological(flow, headless_inputs, is_teardown_flow)
+
+        # Execute final cleanup steps if specified (e.g., for clean-slate flow)
+        if hasattr(flow, 'final_cleanup') and flow.final_cleanup:
+            self._execute_flow_steps(flow.final_cleanup, headless_inputs)
 
     def _execute_services_topological(self, flow, headless_inputs: Optional[Dict], is_teardown_flow: bool):
         """Execute services in normal topological order (for setup)."""

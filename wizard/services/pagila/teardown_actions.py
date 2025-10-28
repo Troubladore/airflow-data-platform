@@ -4,7 +4,11 @@ from typing import Dict, Any
 
 
 def stop_service(ctx: Dict[str, Any], runner) -> None:
-    """Stop Pagila service (no-op as Pagila has no dedicated service).
+    """Stop and remove Pagila containers.
+
+    Pagila creates containers:
+    - pagila-postgres: Main PostgreSQL container for Pagila
+    - pagila-jsonb-restore: Container created by docker-compose for data restoration
 
     Args:
         ctx: Context dictionary
@@ -13,9 +17,13 @@ def stop_service(ctx: Dict[str, Any], runner) -> None:
     Returns:
         None
     """
-    # Pagila doesn't have a dedicated service to stop
-    # This is a no-op for uniform interface
-    pass
+    # Remove all pagila-related containers
+    containers = ['pagila-postgres', 'pagila-jsonb-restore', 'pagila']  # Include legacy 'pagila' name
+
+    for container in containers:
+        command = ['docker', 'rm', '-f', container]
+        # Use runner.run_shell with error suppression (container might not exist)
+        runner.run_shell(command)
 
 
 def drop_database(ctx: Dict[str, Any], runner) -> None:
