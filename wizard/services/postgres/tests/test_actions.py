@@ -1,7 +1,7 @@
 """Tests for PostgreSQL action functions - RED phase."""
 
 import pytest
-from wizard.services.postgres.actions import save_config, start_service
+from wizard.services.postgres.actions import save_config, start_service, pull_image
 from wizard.engine.runner import MockActionRunner
 
 
@@ -83,3 +83,78 @@ class TestStartService:
         start_service(ctx, runner)
         shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
         assert len(shell_calls) == 1
+
+
+class TestPullImage:
+    """Tests for pull_image action - validates prebuilt flag behavior."""
+
+    def test_pull_image_layered_mode_pulls_image(self):
+        """Layered mode (prebuilt=False): should pull image for customization."""
+        runner = MockActionRunner()
+        ctx = {
+            'services.postgres.image': 'postgres:17.5-alpine',
+            'services.postgres.prebuilt': False
+        }
+
+        pull_image(ctx, runner)
+
+        # Verify docker pull was called
+        shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
+        assert len(shell_calls) == 1
+        command = shell_calls[0][1]
+        assert command == ['docker', 'pull', 'postgres:17.5-alpine']
+
+        # Verify appropriate message
+        display_calls = [c for c in runner.calls if c[0] == 'display']
+        assert any('Pulling' in str(c[1]) for c in display_calls)
+
+    def test_pull_image_prebuilt_mode_still_pulls(self):
+        """Prebuilt mode (prebuilt=True): should STILL pull image if needed.
+
+        Prebuilt means 'use as-is without customization', not 'skip docker pull'.
+        The image may still need to be pulled from registry.
+        """
+        runner = MockActionRunner()
+        ctx = {
+            'services.postgres.image': 'postgres:17.5-alpine',
+            'services.postgres.prebuilt': True
+        }
+
+        pull_image(ctx, runner)
+
+        # CRITICAL: Prebuilt should still pull image
+        shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
+        assert len(shell_calls) == 1
+        command = shell_calls[0][1]
+        assert command == ['docker', 'pull', 'postgres:17.5-alpine']
+
+        # Message should indicate using image as-is
+        display_calls = [c for c in runner.calls if c[0] == 'display']
+        assert any('prebuilt' in str(c[1]).lower() or 'as-is' in str(c[1]).lower()
+                   for c in display_calls)
+
+    def test_pull_image_uses_default_image(self):
+        """Should use default image if not specified in context."""
+        runner = MockActionRunner()
+        ctx = {}
+
+        pull_image(ctx, runner)
+
+        shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
+        assert len(shell_calls) == 1
+        command = shell_calls[0][1]
+        assert command == ['docker', 'pull', 'postgres:17.5-alpine']
+
+    def test_pull_image_handles_custom_image(self):
+        """Should work with custom image URL."""
+        runner = MockActionRunner()
+        ctx = {
+            'services.postgres.image': 'myorg/postgres:17-hardened',
+            'services.postgres.prebuilt': True
+        }
+
+        pull_image(ctx, runner)
+
+        shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
+        command = shell_calls[0][1]
+        assert command == ['docker', 'pull', 'myorg/postgres:17-hardened']

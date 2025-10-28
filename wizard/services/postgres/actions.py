@@ -1,4 +1,17 @@
-"""PostgreSQL actions - GREEN phase implementation."""
+"""PostgreSQL actions - GREEN phase implementation.
+
+Key Design Decision: The 'prebuilt' Flag
+=========================================
+The prebuilt flag controls whether the platform LAYERS CUSTOMIZATIONS on the image,
+NOT whether we pull it from the registry.
+
+- prebuilt=false (default): Platform may add SSL certificates, Kerberos config,
+  corporate CA certs, or other customizations at runtime or build time
+- prebuilt=true: Use the image AS-IS without any platform modifications
+  (image already has everything needed)
+
+Both modes may need to pull the image from a Docker registry.
+"""
 
 from typing import Dict, Any
 
@@ -42,23 +55,31 @@ def save_config(ctx: Dict[str, Any], runner) -> None:
 def pull_image(ctx: Dict[str, Any], runner) -> None:
     """Pull PostgreSQL Docker image.
 
+    The prebuilt flag controls whether we layer customizations on the image,
+    NOT whether we pull it. Both modes may need to pull from registry.
+
     Args:
-        ctx: Context dictionary with image URL
+        ctx: Context dictionary with image URL and prebuilt flag
         runner: ActionRunner instance for side effects
     """
     image = ctx.get('services.postgres.image', 'postgres:17.5-alpine')
     prebuilt = ctx.get('services.postgres.prebuilt', False)
 
-    if not prebuilt:
-        runner.display(f"\nPulling Docker image: {image}")
-        result = runner.run_shell(['docker', 'pull', image])
-
-        if result.get('returncode') == 0:
-            runner.display(f"✓ Image pulled: {image}")
-        else:
-            runner.display(f"✗ Failed to pull image: {image}")
+    if prebuilt:
+        runner.display(f"\nPulling prebuilt image (will use as-is): {image}")
     else:
-        runner.display(f"\n✓ Using prebuilt image: {image}")
+        runner.display(f"\nPulling Docker image: {image}")
+
+    # Always pull the image - both modes may need it from registry
+    result = runner.run_shell(['docker', 'pull', image])
+
+    if result.get('returncode') == 0:
+        if prebuilt:
+            runner.display(f"✓ Prebuilt image ready (no customizations): {image}")
+        else:
+            runner.display(f"✓ Image pulled: {image}")
+    else:
+        runner.display(f"✗ Failed to pull image: {image}")
 
 
 def start_service(ctx: Dict[str, Any], runner) -> None:
