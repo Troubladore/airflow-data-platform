@@ -1,6 +1,7 @@
 """Kerberos actions - GREEN phase implementation."""
 
 from typing import Dict, Any
+from wizard.utils.diagnostics import DiagnosticCollector, ServiceDiagnostics, create_diagnostic_summary
 
 
 def save_config(ctx: Dict[str, Any], runner) -> None:
@@ -141,7 +142,10 @@ def start_service(ctx: Dict[str, Any], runner) -> None:
         ])
 
         if run_result.get('returncode') != 0:
-            runner.display(f"✗ Failed to start mock container: {run_result.get('stderr', '')}")
+            runner.display(f"✗ Failed to start mock container")
+
+            # Run automatic diagnostics
+            _run_kerberos_diagnostics(ctx, runner, run_result, "docker_run_failed")
             return
 
         # Wait a moment for container to be ready
@@ -167,3 +171,64 @@ def start_service(ctx: Dict[str, Any], runner) -> None:
         runner.display(f"    Container: kerberos-sidecar-mock")
         runner.display(f"    Mock realm: {domain}")
         runner.display(f"    Volume: kerberos-mock-cache")
+
+
+def _run_kerberos_diagnostics(ctx: Dict[str, Any], runner, result, failure_phase: str) -> None:
+    """Run automatic diagnostics when Kerberos fails.
+
+    Args:
+        ctx: Service context
+        runner: Action runner
+        result: Result from failed command
+        failure_phase: Phase where failure occurred
+    """
+    runner.display("")
+    runner.display("Running automatic diagnostics...")
+    runner.display("")
+
+    # Create diagnostic collector
+    collector = DiagnosticCollector()
+    service_diag = ServiceDiagnostics(runner)
+
+    # Record the failure
+    error_msg = result.get('stderr', '') or result.get('stdout', '') or 'Unknown error'
+    collector.record_failure(
+        service="kerberos",
+        phase=failure_phase,
+        error=error_msg[:200],  # Truncate long errors
+        context={
+            "image": ctx.get('services.kerberos.image', 'ubuntu:22.04'),
+            "use_prebuilt": ctx.get('services.kerberos.use_prebuilt', False),
+            "domain": ctx.get('services.kerberos.domain', 'MOCK.LOCAL')
+        }
+    )
+
+    # Run Kerberos-specific diagnostics
+    diag_result = service_diag.diagnose_kerberos_failure(ctx)
+
+    # Display key findings
+    if diag_result.get('using_prebuilt'):
+        runner.display("📦 Using prebuilt image mode")
+        if '/' in ctx.get('services.kerberos.image', ''):
+            runner.display("  • Corporate registry image detected")
+            runner.display(f"  • Image: {ctx.get('services.kerberos.image')}")
+
+    if 'pull access denied' in error_msg.lower():
+        runner.display("🔒 Registry authentication required")
+        registry = ctx.get('services.kerberos.image', '').split('/')[0]
+        runner.display(f"  • Run: docker login {registry}")
+
+    elif 'manifest unknown' in error_msg.lower():
+        runner.display("❌ Image not found in registry")
+        runner.display(f"  • Verify image exists: {ctx.get('services.kerberos.image')}")
+
+    # Check if container exists
+    container_check = runner.run_shell(['docker', 'ps', '-a', '--format', '{{.Names}}'])
+    if 'kerberos-sidecar-mock' not in container_check.get('stdout', ''):
+        runner.display("  • Container was never created")
+
+    # Save detailed log
+    log_file = collector.save_log()
+    runner.display("")
+    runner.display(f"💾 Full diagnostics saved to: {log_file}")
+    runner.display(f"   View with: cat {log_file}")
