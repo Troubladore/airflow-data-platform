@@ -14,7 +14,7 @@ def stop_service(ctx: Dict[str, Any], runner) -> None:
     """
     # Build command to halt OpenMetadata services
     # Use 'down' instead of 'stop' to avoid test filtering conflicts
-    command = ['docker-compose', '-f', 'openmetadata/docker-compose.yml', 'down']
+    command = ['docker', 'compose', '-f', 'openmetadata/docker-compose.yml', 'down']
 
     # Execute command
     runner.run_shell(command)
