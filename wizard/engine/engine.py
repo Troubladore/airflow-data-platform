@@ -29,9 +29,31 @@ class WizardEngine:
         """
         self.runner = runner
         self.loader = SpecLoader(base_path=base_path)
-        self.state: Dict[str, Any] = {}
+        self.state: Dict[str, Any] = self._load_existing_state()
         self.validators: Dict[str, callable] = {}
         self.actions: Dict[str, callable] = {}
+
+    def _load_existing_state(self) -> Dict[str, Any]:
+        """Load existing configuration from platform-bootstrap/.env file.
+
+        Returns:
+            Dictionary with existing configuration values
+        """
+        state = {}
+        env_file = 'platform-bootstrap/.env'
+
+        # Check if .env file exists
+        if self.runner.file_exists(env_file):
+            # Read the custom PostgreSQL image if present
+            result = self.runner.run_shell(['grep', '^IMAGE_POSTGRES=', env_file])
+            if result.get('returncode') == 0 and result.get('stdout'):
+                line = result['stdout'].strip()
+                if '=' in line:
+                    image = line.split('=', 1)[1].strip()
+                    # Store in state using the same key as the spec expects
+                    state['services.postgres.image'] = image
+
+        return state
 
     def _interpolate_prompt(self, prompt: str, state: dict) -> str:
         """Replace {key} placeholders with state values.

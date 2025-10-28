@@ -43,13 +43,28 @@ def remove_images(ctx: Dict[str, Any], runner: ActionRunner) -> None:
     """Remove PostgreSQL Docker images.
 
     Removes the PostgreSQL Docker image from local registry.
+    Reads custom image from platform-bootstrap/.env if present.
 
     Args:
         ctx: Context dictionary with image configuration
         runner: ActionRunner instance for side effects
     """
-    # Get image from context or use default
-    image = ctx.get('services.postgres.image', 'postgres:17.5-alpine')
+    # First, try to get the image from the .env file (where custom images are stored)
+    image = None
+    env_file = 'platform-bootstrap/.env'
+
+    if runner.file_exists(env_file):
+        # Read the .env file to get the custom image if set
+        result = runner.run_shell(['grep', '^IMAGE_POSTGRES=', env_file])
+        if result.get('returncode') == 0 and result.get('stdout'):
+            # Extract the image name from IMAGE_POSTGRES=image:tag
+            line = result['stdout'].strip()
+            if '=' in line:
+                image = line.split('=', 1)[1].strip()
+
+    # Fall back to context or default if not found in .env
+    if not image:
+        image = ctx.get('services.postgres.image', 'postgres:17.5-alpine')
 
     # Build command to remove image
     command = ['docker', 'rmi', image, '--force']
