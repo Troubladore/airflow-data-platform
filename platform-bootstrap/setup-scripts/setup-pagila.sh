@@ -309,6 +309,13 @@ if [ ! -f "$PAGILA_ENV_FILE" ]; then
         # Replace default password with random one (use | as delimiter since password may contain /)
         sed -i "s|POSTGRES_PASSWORD=changeme_generate_random_password|POSTGRES_PASSWORD=$RANDOM_PASSWORD|" "$PAGILA_ENV_FILE"
 
+        # Also ensure password is never empty (PostgreSQL requires non-empty password)
+        # Check if POSTGRES_PASSWORD line exists but is empty
+        if grep -q "^POSTGRES_PASSWORD=$" "$PAGILA_ENV_FILE"; then
+            print_warning "Empty password detected - generating random password"
+            sed -i "s|^POSTGRES_PASSWORD=$|POSTGRES_PASSWORD=$RANDOM_PASSWORD|" "$PAGILA_ENV_FILE"
+        fi
+
         print_success ".env created with random password"
         echo ""
         print_info "Note: Pagila uses 'trust' authentication (pg_hba.conf)"
@@ -328,6 +335,24 @@ EOF
     fi
 else
     print_check "PASS" ".env exists"
+
+    # Even if .env exists, ensure password is not empty
+    # PostgreSQL requires non-empty POSTGRES_PASSWORD
+    if grep -q "^POSTGRES_PASSWORD=$" "$PAGILA_ENV_FILE"; then
+        print_warning "Empty password detected in existing .env"
+        print_info "Generating random password (PostgreSQL requires non-empty password)"
+
+        # Generate random password
+        if command -v openssl >/dev/null 2>&1; then
+            RANDOM_PASSWORD=$(openssl rand -base64 32)
+        else
+            RANDOM_PASSWORD=$(head -c 32 /dev/urandom | base64)
+        fi
+
+        # Replace empty password with random one
+        sed -i "s|^POSTGRES_PASSWORD=$|POSTGRES_PASSWORD=$RANDOM_PASSWORD|" "$PAGILA_ENV_FILE"
+        print_success "Password updated"
+    fi
 fi
 
 echo ""
