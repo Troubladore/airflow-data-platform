@@ -1,0 +1,129 @@
+# Test Image Configuration
+# ========================
+# This file contains test cases for complex corporate Docker image paths
+# used to verify the platform installer works correctly with enterprise
+# registry naming conventions.
+#
+# Usage:
+#   ./mock-corporate-image.py test-setup     # Create all test images
+#   ./mock-corporate-image.py test-teardown  # Remove all test images
+#   ./mock-corporate-image.py test-status    # Show status of test images
+
+test_images:
+  # Complex PostgreSQL image from corporate registry with nested paths
+  postgres_corporate_complex:
+    description: "Complex corporate PostgreSQL image with deep registry path"
+    type: "tag"  # Simple tagging of existing image
+    source_image: "postgres:17.5-alpine"
+    mock_name: "mycorp.jfrog.io/docker-mirror/mycorp-approved-images/postgres/17.5:2025.10.01"
+    use_case: "Tests handling of deep registry paths with multiple segments and date-based tags"
+
+  # Alternative PostgreSQL with port number in registry
+  postgres_with_port:
+    description: "PostgreSQL from registry with port number"
+    type: "tag"
+    source_image: "postgres:17.5-alpine"
+    mock_name: "internal.artifactory.company.com:8443/docker-prod/postgres/17.5:v2025.10-hardened"
+    use_case: "Tests handling of registry URLs with port numbers"
+
+  # Kerberos prebuilt image with packages
+  kerberos_prebuilt_ubuntu:
+    description: "Prebuilt Kerberos image based on Ubuntu"
+    type: "build-kerberos"
+    source_image: "ubuntu:22.04"
+    mock_name: "mycorp.jfrog.io/platform/kerberos-sidecar:ubuntu-22.04-prebuilt"
+    use_case: "Tests prebuilt Kerberos images with all packages installed"
+
+  # Kerberos with complex path based on Debian
+  kerberos_prebuilt_debian:
+    description: "Prebuilt Kerberos on Debian from complex registry"
+    type: "build-kerberos"
+    source_image: "debian:12-slim"
+    mock_name: "company.registry.io:5000/security/kerberos/debian:12-slim-krb5-v1.20"
+    use_case: "Tests Kerberos with different base OS and complex naming"
+
+  # OpenMetadata server image
+  openmetadata_server:
+    description: "OpenMetadata server from corporate registry"
+    type: "tag"
+    source_image: "openmetadata/server:1.5.11"
+    mock_name: "artifactory.corp.net/docker-public/openmetadata/server:1.5.11-approved"
+    use_case: "Tests OpenMetadata server image handling"
+
+  # OpenSearch for OpenMetadata
+  opensearch_corporate:
+    description: "OpenSearch from corporate registry"
+    type: "tag"
+    source_image: "opensearchproject/opensearch:2.18.0"
+    mock_name: "docker-registry.internal.company.com/data/opensearch:2.18.0-enterprise"
+    use_case: "Tests OpenSearch image with corporate naming"
+
+  # Authentication-restricted scenario base image (Wolfi/Alpine)
+  wolfi_base:
+    description: "Corporate base image (Wolfi/Alpine) requiring auth to pull"
+    type: "tag"
+    source_image: "alpine:3.19"  # Using Alpine as Wolfi substitute
+    mock_name: "mycorp.jfrog.io/docker-mirror/mycorp-approved-images/wolfi-base:latest"
+    use_case: "Simulates auth-restricted base image that requires credentials"
+
+  # Prebuilt Kerberos from auth-restricted base
+  kerberos_base_prebuilt:
+    description: "Prebuilt Kerberos image from auth-restricted Wolfi base"
+    type: "build-kerberos"
+    source_image: "mycorp.jfrog.io/docker-mirror/mycorp-approved-images/wolfi-base:latest"
+    mock_name: "mycorp.jfrog.io/docker-mirror/mycorp-approved-images/kerberos-base:latest"
+    use_case: "Simulates prebuilt Kerberos when base requires auth"
+
+  # SQL Auth testing image with Kerberos + Microsoft SQL drivers
+  sql_auth_base_prebuilt:
+    description: "Prebuilt SQL auth testing image with Kerberos + MSSQL drivers"
+    type: "build-sql-auth"
+    source_image: "mycorp.jfrog.io/docker-mirror/mycorp-approved-images/wolfi-base:latest"
+    mock_name: "mycorp.jfrog.io/docker-mirror/mycorp-approved-images/sql-auth-base:latest"
+    use_case: "Tests SQL authentication with prebuilt Kerberos and Microsoft drivers"
+
+# Test scenarios to validate
+test_scenarios:
+  - name: "PostgreSQL Custom Image Persistence"
+    description: "Verify custom PostgreSQL image persists across wizard runs"
+    steps:
+      - "Create mock: postgres_corporate_complex"
+      - "Run ./platform setup with custom image"
+      - "Verify image is stored in platform-bootstrap/.env"
+      - "Run ./platform setup again"
+      - "Verify wizard remembers the custom image"
+      - "Run ./platform clean-slate"
+      - "Verify custom image is properly removed"
+
+  - name: "Kerberos Prebuilt Image"
+    description: "Verify prebuilt Kerberos images work correctly"
+    steps:
+      - "Create mock: kerberos_prebuilt_ubuntu"
+      - "Run ./platform setup and select Kerberos"
+      - "Use the prebuilt image and select 'prebuilt' mode"
+      - "Verify Kerberos container starts with packages installed"
+      - "Run ./platform clean-slate"
+      - "Verify image is removed"
+
+  - name: "Multiple Service Custom Images"
+    description: "Test multiple services with custom images"
+    steps:
+      - "Create all mocks"
+      - "Setup PostgreSQL with postgres_corporate_complex"
+      - "Setup OpenMetadata with custom server and opensearch images"
+      - "Setup Kerberos with prebuilt image"
+      - "Verify all services retain custom images on re-run"
+      - "Clean slate and verify all removed"
+
+  - name: "Authentication-Restricted Prebuilt Images"
+    description: "Simulate environment where base images require auth to pull"
+    steps:
+      - "Create wolfi_base mock (simulates auth-required base)"
+      - "Build kerberos_base_prebuilt from wolfi_base"
+      - "Build sql_auth_base_prebuilt from wolfi_base"
+      - "Run ./platform setup with prebuilt mode"
+      - "Use kerberos_base_prebuilt for Kerberos sidecar"
+      - "Use sql_auth_base_prebuilt for SQL auth testing"
+      - "Verify containers start without trying to pull base images"
+      - "Verify Kerberos ticket sharing works"
+      - "Verify SQL authentication capabilities"
