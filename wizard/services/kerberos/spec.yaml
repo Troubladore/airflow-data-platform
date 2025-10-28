@@ -14,25 +14,23 @@ steps:
     default_from: services.kerberos.domain
     prompt: "Enter Kerberos domain (e.g., COMPANY.COM):"
     validator: kerberos.validate_domain
+    next: use_prebuilt_input
+
+  - id: use_prebuilt_input
+    type: boolean
+    state_key: services.kerberos.use_prebuilt
+    default_from: services.kerberos.use_prebuilt
+    prompt: "Will you use a prebuilt image with Kerberos packages already installed?"
+    default_value: false
     next: image_input
 
   - id: image_input
     type: string
     state_key: services.kerberos.image
     default_from: services.kerberos.image
-    prompt: "Enter Docker image for Kerberos (e.g., ubuntu:22.04):"
+    prompt: "Enter Docker image for Kerberos (e.g., ubuntu:22.04 or mykerberos-image for prebuilt):"
     default_value: "ubuntu:22.04"
     validator: kerberos.validate_image_url
-    next:
-      when_changed: use_prebuilt_input
-      when_unchanged: test_kerberos_action
-
-  - id: use_prebuilt_input
-    type: boolean
-    state_key: services.kerberos.use_prebuilt
-    default_from: services.kerberos.use_prebuilt
-    prompt: "Is this a prebuilt image with Kerberos packages already installed?"
-    default_value: false
     next: test_kerberos_action
 
   - id: test_kerberos_action

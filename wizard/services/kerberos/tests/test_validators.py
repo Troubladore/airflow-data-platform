@@ -158,3 +158,54 @@ def test_validate_image_url_raises_valueerror():
     """Validator must raise ValueError."""
     with pytest.raises(ValueError):
         validate_image_url("", {})
+
+
+# ============================================================================
+# RED PHASE: Issue 1 - Prebuilt images without tags
+# ============================================================================
+# User reported: "Error: Image URL must include a tag" when specifying
+# a local prebuilt image like "mykerberos-image"
+# The validator should allow images without tags when in prebuilt mode
+# ============================================================================
+
+def test_validate_image_url_accepts_local_image_without_tag_in_prebuilt_mode():
+    """Should accept local image without tag when using prebuilt mode.
+
+    Bug: User gets "Error: Image URL must include a tag" for local prebuilt
+    images like "mykerberos-image". Prebuilt images often don't need explicit
+    tags since they're already fully built.
+    """
+    # When context indicates prebuilt mode, allow images without tags
+    ctx = {'services.kerberos.use_prebuilt': True}
+    result = validate_image_url("mykerberos-image", ctx)
+    assert result == "mykerberos-image"  # Should accept without tag
+
+
+def test_validate_image_url_accepts_complex_path_without_tag_in_prebuilt_mode():
+    """Should accept registry path without tag when using prebuilt mode.
+
+    Corporate registries may have prebuilt images without explicit tags.
+    """
+    ctx = {'services.kerberos.use_prebuilt': True}
+    result = validate_image_url("mycorp.jfrog.io/docker-mirror/kerberos-base", ctx)
+    assert result == "mycorp.jfrog.io/docker-mirror/kerberos-base"
+
+
+def test_validate_image_url_still_requires_tag_in_non_prebuilt_mode():
+    """Should still require tag when NOT in prebuilt mode.
+
+    Regular (non-prebuilt) images must have tags for version control.
+    """
+    ctx = {'services.kerberos.use_prebuilt': False}
+    with pytest.raises(ValueError, match="tag"):
+        validate_image_url("ubuntu", ctx)
+
+
+def test_validate_image_url_accepts_tag_in_prebuilt_mode():
+    """Should still accept images WITH tags in prebuilt mode.
+
+    If user provides a tag in prebuilt mode, that's fine too.
+    """
+    ctx = {'services.kerberos.use_prebuilt': True}
+    result = validate_image_url("mykerberos-image:latest", ctx)
+    assert result == "mykerberos-image:latest"
