@@ -233,6 +233,49 @@ Install OpenMetadata?: Install Kerberos?: PostgreSQL image:
 - Don't approve PRs with broken terminal output
 - UX testing is MANDATORY, not optional
 
+## Acceptance Testing Methodology
+
+### The Expect-Observe-Evaluate Pattern
+
+**Before taking any action, ask:**
+> "What do I expect to happen when I take the next action?"
+
+**After the action completes, observe:**
+> "Is that what actually happened? Is that better or worse than I expected?"
+
+**Evaluation stance:**
+- **Be mildly critical** - Don't let slop through
+- **Be pragmatic** - Perfect is the enemy of the good
+- **Focus on user impact** - Does this work for real users?
+
+### Acceptance Test Structure
+
+Each acceptance test should:
+1. **State expectation** - What should happen (in comments or docstring)
+2. **Execute action** - Run the actual wizard command with pexpect
+3. **Observe results** - Capture what actually happened
+4. **Evaluate** - Compare actual vs expected, assess quality
+5. **Report** - PASS/FAIL with specific evidence
+
+### Example Test Flow
+
+```python
+def test_clean_slate_removes_containers():
+    """
+    Expectation: Clean-slate should remove all platform containers.
+    """
+    # Take action
+    child = pexpect.spawn('./platform clean-slate', timeout=60)
+    # ... interact with prompts
+
+    # Observe
+    containers = subprocess.run(['docker', 'ps', '-a'], capture_output=True)
+
+    # Evaluate
+    assert 'platform-postgres' not in containers.stdout.decode()
+    # Better: No containers, cleaner than having stopped ones
+```
+
 ## Lesson Learned
 
 We once had 448 passing unit tests but the wizard was completely broken in actual use. Why?
