@@ -11,6 +11,7 @@ steps:
     type: string
     prompt: "Pagila repository URL:"
     state_key: services.pagila.repo_url
+    default_from: services.pagila.repo_url
     default_value: https://github.com/Troubladore/pagila.git
     validator: pagila.validate_git_url
     next: pagila_branch
@@ -19,6 +20,7 @@ steps:
     type: string
     prompt: "Pagila repository branch (leave empty for default):"
     state_key: services.pagila.branch
+    default_from: services.pagila.branch
     default_value: ""
     next: pagila_postgres_image
 
