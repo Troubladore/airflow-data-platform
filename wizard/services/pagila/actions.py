@@ -88,6 +88,13 @@ def _run_pagila_diagnostics(ctx: Dict[str, Any], runner, result, failure_phase: 
     """
     runner.display("")
     runner.display("Running automatic diagnostics...")
+
+    # Detect environment
+    import platform
+    is_wsl = 'microsoft' in platform.uname().release.lower()
+    if is_wsl:
+        runner.display("🖥️ WSL2 environment detected")
+
     runner.display("")
 
     # Create diagnostic collector
@@ -110,6 +117,15 @@ def _run_pagila_diagnostics(ctx: Dict[str, Any], runner, result, failure_phase: 
     # Run Pagila-specific diagnostics
     diag_result = service_diag.diagnose_pagila_failure(ctx)
 
+    # Display diagnosis and suggestions from improved diagnostic
+    if 'diagnosis' in diag_result and diag_result['diagnosis']:
+        runner.display(f"📊 Diagnosis: {diag_result['diagnosis']}")
+
+    if 'suggestions' in diag_result and diag_result['suggestions']:
+        runner.display("💡 Suggestions:")
+        for suggestion in diag_result['suggestions']:
+            runner.display(f"  • {suggestion}")
+
     # Display key findings
     if not diag_result.get('repo_cloned'):
         runner.display("📂 Repository not cloned")
@@ -128,7 +144,16 @@ def _run_pagila_diagnostics(ctx: Dict[str, Any], runner, result, failure_phase: 
         runner.display("📂 Repository cloned successfully")
 
         # Check for Docker-related errors
-        if 'docker' in error_msg.lower():
+        if 'unhealthy' in error_msg.lower() or 'health' in error_msg.lower():
+            runner.display("🏥 Container health check issue detected")
+
+            # WSL2-specific checks
+            if is_wsl:
+                runner.display("  • WSL2 may have file permission issues")
+                runner.display("  • Try: chmod 644 ../pagila/*.conf")
+                runner.display("  • Or slower I/O may cause timing issues")
+
+        elif 'docker' in error_msg.lower():
             runner.display("🐳 Docker setup issue detected")
 
             if 'permission denied' in error_msg.lower():

@@ -151,13 +151,50 @@ class ServiceDiagnostics:
         }
 
         # Check if pagila directory exists
-        dir_check = self.runner.run_shell(['test', '-d', '../pagila'])
+        # The pagila directory is cloned at the same level as airflow-data-platform
+        import os
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        pagila_path = os.path.join(os.path.dirname(repo_root), 'pagila')
+
+        dir_check = self.runner.run_shell(['test', '-d', pagila_path])
         if dir_check.get('returncode') == 0:
             result['repo_cloned'] = True
             result['diagnosis'] = 'Repository cloned but Docker setup failed'
+
+            # Get more specific diagnostic info about the failure
+            # Check container health status
+            health_check = self.runner.run_shell([
+                'docker', 'inspect', 'pagila-postgres',
+                '--format', '{{.State.Health.Status}}'
+            ])
+            if health_check.get('stdout'):
+                health_status = health_check.get('stdout', '').strip()
+                if health_status == 'unhealthy':
+                    # Get container logs to understand why it's unhealthy
+                    logs = self.runner.run_shell(['docker', 'logs', 'pagila-postgres', '--tail', '50'])
+                    log_output = logs.get('stderr', '') or logs.get('stdout', '')
+
+                    # Check for common issues in logs
+                    if 'POSTGRES_PASSWORD' in log_output and 'must specify' in log_output:
+                        result['diagnosis'] = 'PostgreSQL requires non-empty password'
+                        result['suggestions'].append('Check POSTGRES_PASSWORD in pagila/.env is not empty')
+                    elif 'permission denied' in log_output.lower():
+                        result['diagnosis'] = 'Permission issues with volume or config files'
+                        result['suggestions'].append('Check file permissions in pagila directory')
+                    elif 'config_file' in log_output and 'No such file' in log_output:
+                        result['diagnosis'] = 'Configuration files not found'
+                        result['suggestions'].append('Check pg_hba.conf and postgresql.conf exist in pagila/')
+                    else:
+                        result['diagnosis'] = f'Container unhealthy: {health_status}'
+                        if log_output:
+                            # Include relevant error from logs
+                            error_lines = [line for line in log_output.split('\n')
+                                         if 'error' in line.lower() or 'fatal' in line.lower()]
+                            if error_lines:
+                                result['diagnosis'] += f' - {error_lines[0][:100]}'
         else:
             result['repo_cloned'] = False
-            result['diagnosis'] = 'Git clone may have failed'
+            result['diagnosis'] = f'Git clone may have failed (checked: {pagila_path})'
             result['suggestions'].append(f'Check network access to {ctx.get("services.pagila.repo_url", "repo")}')
 
         return result
