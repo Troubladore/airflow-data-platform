@@ -6,15 +6,30 @@ from typing import List, Dict, Any
 def discover_containers(runner) -> List[Dict[str, str]]:
     """Find all pagila-related containers.
 
-    Pagila doesn't have its own containers - it uses the postgres container.
+    Pagila creates its own containers:
+    - pagila-postgres: Main PostgreSQL container for Pagila
+    - pagila-jsonb-restore: Container created by docker-compose for data restoration
 
     Args:
         runner: ActionRunner for executing queries
 
     Returns:
-        List of dicts: [] (always empty for pagila)
+        List of dicts: [{'name': 'pagila-postgres', 'status': 'Up 2 days'}, ...]
     """
-    return []
+    result = runner.run_shell([
+        'docker', 'ps', '-a',
+        '--filter', 'name=pagila',
+        '--format', '{{.Names}}|{{.Status}}'
+    ])
+
+    containers = []
+    if result.get('stdout'):
+        for line in result['stdout'].strip().split('\n'):
+            if '|' in line:
+                name, status = line.split('|', 1)
+                containers.append({'name': name, 'status': status})
+
+    return containers
 
 
 def discover_images(runner) -> List[Dict[str, str]]:

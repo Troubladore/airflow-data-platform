@@ -123,6 +123,13 @@ targets:
     enabled: false
     depends_on: []  # Postgres torn down LAST (no dependencies in teardown)
 
+# Final cleanup - runs AFTER all services are torn down
+final_cleanup:
+  - id: cleanup_orphaned_resources
+    type: action
+    action: discovery.cleanup_orphaned_resources
+    next: null
+
 # Execution policy
 policy:
   ordering: reverse-topological  # Teardown order is REVERSE of setup

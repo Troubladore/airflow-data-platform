@@ -15,7 +15,7 @@ steps:
 
   - id: stop_service
     type: action
-    action: pagila.stop_service
+    action: pagila.teardown.stop_service
     next: pagila_remove_images_question
 
   - id: pagila_remove_images_question

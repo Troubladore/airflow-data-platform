@@ -61,4 +61,5 @@ class Flow(BaseModel):
     service_selection: List[Step] = Field(default_factory=list, description="Steps for selecting services")
     targets: List[Dict[str, Any]] = Field(default_factory=list, description="Services to include in flow")
     glue: Optional[List[Dict[str, Any]]] = Field(None, description="Cross-service coordination steps")
+    final_cleanup: Optional[List[Step]] = Field(None, description="Final cleanup steps to run after all services")
     policy: Optional[Dict[str, str]] = Field(None, description="Execution policy (ordering, failure handling)")
