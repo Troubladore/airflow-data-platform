@@ -7,8 +7,8 @@
 
 .PHONY: help start stop restart status logs clean
 
-# Load configuration from .env if it exists
--include .env
+# Load configuration from central platform-bootstrap/.env
+-include ../platform-bootstrap/.env
 export
 
 DOCKER_COMPOSE := docker compose

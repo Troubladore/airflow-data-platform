@@ -55,14 +55,16 @@ class TestSaveConfig:
         assert config['services']['postgres']['password'] == 'changeme'
 
     def test_save_config_creates_env_file(self):
-        """Should create platform-infrastructure/.env file with required variables."""
+        """Should create platform-bootstrap/.env file with required variables."""
         runner = MockActionRunner()
         ctx = {
             'services.postgres.image': 'postgres:17.5-alpine',
             'services.postgres.prebuilt': False,
             'services.postgres.auth_method': 'md5',
             'services.postgres.password': 'secret_password',
-            'services.openmetadata.enabled': True  # Enable to test password inclusion
+            'services.openmetadata.enabled': True,
+            'services.kerberos.enabled': False,
+            'services.pagila.enabled': True
         }
 
         save_config(ctx, runner)
@@ -72,19 +74,25 @@ class TestSaveConfig:
         assert len(write_calls) == 1, "Should call write_file exactly once"
 
         call = write_calls[0]
-        assert call[1] == 'platform-infrastructure/.env', "Should write to platform-infrastructure/.env"
+        assert call[1] == 'platform-bootstrap/.env', "Should write to platform-bootstrap/.env"
 
         # Verify .env content
         env_content = call[2]
         assert 'PLATFORM_DB_PASSWORD=secret_password' in env_content, "Should set PLATFORM_DB_PASSWORD"
-        assert 'OPENMETADATA_DB_PASSWORD=' in env_content, "Should include OPENMETADATA_DB_PASSWORD"
+        assert 'OPENMETADATA_DB_PASSWORD=' in env_content, "Should include OPENMETADATA_DB_PASSWORD when enabled"
+        assert 'ENABLE_OPENMETADATA=true' in env_content, "Should include service enable flag"
+        assert 'ENABLE_KERBEROS=false' in env_content, "Should include service enable flag"
+        assert 'ENABLE_PAGILA=true' in env_content, "Should include service enable flag"
 
     def test_save_config_creates_env_file_with_trust_auth(self):
         """Should create .env file even with trust authentication (no password)."""
         runner = MockActionRunner()
         ctx = {
             'services.postgres.require_password': False,
-            'services.postgres.image': 'postgres:17.5-alpine'
+            'services.postgres.image': 'postgres:17.5-alpine',
+            'services.openmetadata.enabled': False,
+            'services.kerberos.enabled': False,
+            'services.pagila.enabled': False
         }
 
         save_config(ctx, runner)
