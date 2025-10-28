@@ -14,6 +14,7 @@ Both modes may need to pull the image from a Docker registry.
 """
 
 from typing import Dict, Any
+from wizard.utils.diagnostics import DiagnosticCollector, ServiceDiagnostics, create_diagnostic_summary
 
 
 def save_config(ctx: Dict[str, Any], runner) -> None:
@@ -166,15 +167,20 @@ def pull_image(ctx: Dict[str, Any], runner) -> None:
 
 
 def start_service(ctx: Dict[str, Any], runner) -> None:
-    """Start PostgreSQL service.
-
-    Calls make start command.
+    """Start PostgreSQL service with automatic diagnostics on failure.
 
     Args:
-        ctx: Context dictionary (unused)
+        ctx: Context dictionary with service configuration
         runner: ActionRunner instance for side effects
     """
     runner.display("Starting PostgreSQL service...")
+
+    # Show configuration being used
+    image = ctx.get('services.postgres.image', 'postgres:17.5-alpine')
+    auth_method = ctx.get('services.postgres.auth_method', 'trust')
+
+    runner.display(f"  Image: {image}")
+    runner.display(f"  Auth: {auth_method} {'(no password)' if auth_method == 'trust' else '(password required)'}")
 
     # Build command
     command = ['make', '-C', 'platform-infrastructure', 'start']
@@ -186,3 +192,123 @@ def start_service(ctx: Dict[str, Any], runner) -> None:
         runner.display("✓ PostgreSQL started successfully")
     else:
         runner.display("✗ PostgreSQL failed to start")
+        runner.display("")
+        runner.display("Running automatic diagnostics...")
+        runner.display("")
+
+        # Run comprehensive diagnostics automatically
+        _run_postgres_diagnostics(ctx, runner, result)
+
+def _run_postgres_diagnostics(ctx: Dict[str, Any], runner, start_result) -> None:
+    """Run automatic diagnostics when PostgreSQL fails to start.
+
+    Args:
+        ctx: Service context
+        runner: Action runner
+        start_result: Result from failed startup command
+    """
+    runner.display("")
+    runner.display("Running automatic diagnostics...")
+    runner.display("")
+
+    # Create diagnostic collector
+    collector = DiagnosticCollector()
+    service_diag = ServiceDiagnostics(runner)
+
+    # Record the failure
+    error_msg = start_result.get('stderr', '') or start_result.get('stdout', '') or 'Unknown error'
+    collector.record_failure(
+        service="postgres",
+        phase="docker_compose_up",
+        error=error_msg[:200],  # Truncate long errors
+        context={
+            "image": ctx.get('services.postgres.image', 'postgres:17.5-alpine'),
+            "auth_method": ctx.get('services.postgres.auth_method', 'trust'),
+            "port": ctx.get('services.postgres.port', 5432),
+            "command": "make -C platform-infrastructure start"
+        }
+    )
+
+    # Run PostgreSQL-specific diagnostics
+    diag_result = service_diag.diagnose_postgres_failure(ctx)
+
+    # Display key findings based on diagnostic results
+    if not diag_result.get('container_exists'):
+        runner.display("❌ Container was not created - Docker Compose failed")
+
+        # Check docker-compose validation
+        compose_check = runner.run_shell(
+            ['docker', 'compose', '-f', 'platform-infrastructure/docker-compose.yml', 'config']
+        )
+        if compose_check.get('returncode') != 0:
+            runner.display("  • docker-compose.yml has syntax errors")
+    else:
+        runner.display("⚠ Container was created but failed to start/stay running")
+
+        # Get container logs
+        logs_result = runner.run_shell(['docker', 'logs', 'platform-postgres', '--tail', '20'])
+        if logs_result.get('stderr'):
+            runner.display("  • Container error:")
+            for line in logs_result.get('stderr', '').split('\n')[:3]:
+                if line.strip():
+                    runner.display(f"    {line}")
+
+    # Check image status
+    image = ctx.get('services.postgres.image', 'postgres:17.5-alpine')
+    image_check = runner.run_shell(['docker', 'image', 'inspect', image])
+
+    if image_check.get('returncode') != 0:
+        runner.display(f"📦 Image not found locally: {image}")
+
+        # Check if it's a corporate registry
+        if '/' in image.split(':')[0]:
+            runner.display("  • Corporate registry detected")
+            runner.display(f"  • Try: docker pull {image}")
+            runner.display(f"  • May need: docker login {image.split('/')[0]}")
+
+    # Parse common error patterns
+    if 'pull access denied' in error_msg.lower():
+        runner.display("🔒 Registry authentication required")
+        runner.display(f"  • Run: docker login {image.split('/')[0]}")
+
+    elif 'manifest unknown' in error_msg.lower():
+        runner.display("❌ Image not found in registry")
+        runner.display(f"  • Verify image exists: {image}")
+
+    elif 'toomanyrequests' in error_msg.lower():
+        runner.display("⏱️ Docker Hub rate limit exceeded")
+        runner.display("  • Wait 6 hours or authenticate: docker login")
+
+    elif 'address already in use' in error_msg.lower():
+        runner.display("🔒 Port 5432 is already in use")
+
+        # Check what's using the port
+        port_check = runner.run_shell(['lsof', '-i', ':5432'])
+        if port_check.get('stdout'):
+            runner.display("  • Process using port:")
+            for line in port_check.get('stdout', '').split('\n')[:2]:
+                if line.strip():
+                    runner.display(f"    {line}")
+
+    elif 'no space left' in error_msg.lower():
+        runner.display("💾 Disk space issue")
+        runner.display("  • Clean up: docker system prune -a")
+
+    # Check if no-password mode issue
+    if ctx.get('services.postgres.auth_method') == 'trust':
+        runner.display("ℹ️ Using no-password mode (trust authentication)")
+        if 'PLATFORM_DB_PASSWORD' in error_msg:
+            runner.display("  • Config mismatch: password env var set but trust mode enabled")
+
+    # Save detailed log
+    log_file = collector.save_log()
+    runner.display("")
+    runner.display(f"💾 Full diagnostics saved to: {log_file}")
+    runner.display(f"   View with: cat {log_file}")
+    runner.display("")
+    runner.display("Next steps:")
+    runner.display("  1. Review the errors above")
+    if '/' in image.split(':')[0]:
+        runner.display("  2. If using corporate registry, ensure docker login completed")
+    runner.display("  3. Try manual start: cd platform-infrastructure && docker compose up")
+    runner.display("  4. Share the diagnostic log if requesting help")

@@ -75,3 +75,4 @@ platform-bootstrap/.secrets/
 platform-bootstrap/diagnostic-context.md
 platform-bootstrap/diagnostic-context.json
 .worktrees/
+postgres_diagnostic_*.log
