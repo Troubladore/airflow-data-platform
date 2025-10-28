@@ -89,8 +89,103 @@ When working with custom Docker images for enterprise environments:
 - Test both layered and prebuilt modes
 - Validate complex registry paths with ports and deep nesting
 
+## Handling Corporate Kerberos/Pagila Test Requests
+
+When the user says: **"Can you make sure the corporate Kerberos path works?"** or similar:
+
+### STOP AND THINK FIRST
+1. Check what's currently running: `docker ps`
+2. Check existing configuration: `ls -la platform-config.yaml platform-bootstrap/.env`
+3. Check if test images exist: `docker images | grep mycorp`
+
+### Complete Test Process
+
+#### 1. Clean Slate First
+```bash
+# Use printf to provide all confirmations
+printf "y\ny\ny\ny\ny\n" | ./platform clean-slate
+
+# Verify cleanup
+rm -f platform-config.yaml platform-bootstrap/.env
+docker ps -a | grep platform  # Should be empty
+```
+
+#### 2. Ensure Test Images Exist
+```bash
+# Check test image status
+cd /home/eru_admin/repos/airflow-data-platform
+python3 mock-corporate-image.py test-status
+
+# If not all ready, create them
+python3 mock-corporate-image.py test-setup
+```
+
+#### 3. Key Corporate Test Images
+The user wants to test these specific corporate registry paths:
+- **PostgreSQL**: `mycorp.jfrog.io/docker-mirror/mycorp-approved-images/postgres/17.5:2025.10.01`
+- **Kerberos Prebuilt**: `mycorp.jfrog.io/docker-mirror/mycorp-approved-images/kerberos-base:latest`
+- **SQL Auth**: `mycorp.jfrog.io/docker-mirror/mycorp-approved-images/sql-auth-base:latest`
+- **OpenMetadata**: `artifactory.corp.net/docker-public/openmetadata/server:1.5.11-approved`
+
+#### 4. Run Platform Setup Interactively
+Since the wizard has validation issues with complex paths, run interactively:
+```bash
+./platform setup
+```
+
+When prompted:
+- Platform name: `corporate-test`
+- Install PostgreSQL: `y`
+- PostgreSQL image: Try the corporate one, if rejected use default: `postgres:17.5-alpine`
+- Database settings: Use defaults or simple values
+- Install OpenMetadata: `n` (unless testing that too)
+- Install Kerberos: `y`
+- Kerberos image: `mycorp.jfrog.io/docker-mirror/mycorp-approved-images/kerberos-base:latest`
+- Kerberos mode: `prebuilt` (IMPORTANT!)
+- Realm: `CORP.EXAMPLE.COM`
+- KDC: `kdc.corp.example.com`
+- Admin server: `kadmin.corp.example.com`
+
+#### 5. Verify Kerberos is Working
+```bash
+# Check container is running
+docker ps | grep kerberos
+
+# Verify prebuilt packages work
+docker exec kerberos-platform klist -V
+
+# Check configuration was saved
+grep "kerberos-base:latest" platform-config.yaml
+grep "prebuilt" platform-bootstrap/.env
+```
+
+#### 6. Test Clean-Slate Removes Everything
+```bash
+# Run clean-slate with confirmations
+printf "y\ny\ny\ny\ny\n" | ./platform clean-slate
+
+# Verify corporate images can be removed
+docker images | grep mycorp  # Should still exist but not be in use
+```
+
+### Key Points to Remember
+1. **The wizard may reject complex image paths** - This is a known issue
+2. **Always use PREBUILT mode** for corporate Kerberos images
+3. **The test scripts work** but wizard validation is stricter
+4. **Check before acting** - Don't assume clean state
+
+### Alternative: Use Test Scripts
+If the wizard is problematic, use the comprehensive tests:
+```bash
+# These scripts handle everything automatically
+./tests/test-custom-image-validation.sh
+./tests/test-platform-integration.sh
+./tests/test-clean-slate-images.sh
+```
+
 ## Future Improvements
 
+- Fix wizard validation to accept complex corporate registry paths
 - Consider creating a Python equivalent of the formatting library for the wizard
 - Add more comprehensive test coverage for edge cases
 - Document all test scenarios in a central test plan
