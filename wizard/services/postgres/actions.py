@@ -56,17 +56,19 @@ def save_config(ctx: Dict[str, Any], runner) -> None:
     # This file is required by the Makefile before running 'make start'
     env_content = _build_env_file_content(
         platform_password=password or '',
-        image=ctx.get('services.postgres.image', 'postgres:17.5-alpine')
+        image=ctx.get('services.postgres.image', 'postgres:17.5-alpine'),
+        openmetadata_enabled=ctx.get('services.openmetadata.enabled', False)
     )
     runner.write_file('platform-infrastructure/.env', env_content)
 
 
-def _build_env_file_content(platform_password: str, image: str) -> str:
+def _build_env_file_content(platform_password: str, image: str, openmetadata_enabled: bool = False) -> str:
     """Build .env file content from configuration values.
 
     Args:
         platform_password: PLATFORM_DB_PASSWORD value
         image: PostgreSQL image URL (optional, only included if non-default)
+        openmetadata_enabled: Whether OpenMetadata service is enabled
 
     Returns:
         Complete .env file content as string
@@ -78,11 +80,16 @@ def _build_env_file_content(platform_password: str, image: str) -> str:
         "",
         "# PostgreSQL Configuration",
         f"PLATFORM_DB_PASSWORD={platform_password}",
-        "",
-        "# Service user passwords",
-        "OPENMETADATA_DB_PASSWORD=changeme_openmetadata_password",
         ""
     ]
+
+    # Only include service passwords if those services are enabled
+    if openmetadata_enabled:
+        lines.extend([
+            "# Service user passwords",
+            "OPENMETADATA_DB_PASSWORD=changeme_openmetadata_password",
+            ""
+        ])
 
     # Only include IMAGE_POSTGRES if it's not the default
     if image != 'postgres:17.5-alpine':
