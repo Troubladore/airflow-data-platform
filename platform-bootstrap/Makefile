@@ -54,6 +54,9 @@ _ensure-python-env:
 setup: _ensure-python-env ## Run platform configuration wizard (data-driven)
 	@cd $(REPO_ROOT) && ./platform setup
 
+setup-verbose: _ensure-python-env ## Run platform configuration wizard with verbose output
+	@cd $(REPO_ROOT) && ./platform setup --verbose
+
 setup-v2: ## Run streamlined platform setup wizard V2 (asks all questions upfront)
 	@./setup-scripts/platform-setup-wizard-v2.sh
 
@@ -281,6 +284,9 @@ clean: platform-stop ## Clean up all platform services (interactive - asks about
 
 clean-slate: _ensure-python-env ## Interactive cleanup (data-driven wizard)
 	@cd $(REPO_ROOT) && ./platform clean-slate
+
+clean-slate-verbose: _ensure-python-env ## Interactive cleanup with verbose output
+	@cd $(REPO_ROOT) && ./platform clean-slate --verbose
 
 clean-slate-legacy: ## Legacy cleanup script (deprecated - use clean-slate)
 	@./setup-scripts/clean-slate-LEGACY.sh
