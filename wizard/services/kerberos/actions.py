@@ -3,6 +3,7 @@
 from typing import Dict, Any
 from wizard.utils.diagnostics import DiagnosticCollector, ServiceDiagnostics, create_diagnostic_summary
 from wizard.services.kerberos.detection import KerberosDetector
+from wizard.services.kerberos.progressive_tests import KerberosProgressiveTester
 
 
 def detect_configuration(ctx: Dict[str, Any], runner) -> None:
@@ -15,7 +16,14 @@ def detect_configuration(ctx: Dict[str, Any], runner) -> None:
         ctx: Context dictionary to update with detected values
         runner: ActionRunner instance for side effects
     """
-    runner.display("\nDetecting Kerberos configuration...")
+    # Clear section header for Kerberos configuration
+    runner.display("\n" + "="*60)
+    runner.display("🔐 KERBEROS AUTHENTICATION CONFIGURATION")
+    runner.display("="*60)
+    runner.display("\nConfiguring secure authentication for SQL Server and other")
+    runner.display("corporate services using Kerberos/Active Directory.\n")
+
+    runner.display("🔍 Auto-detecting your Kerberos environment...")
 
     # Create detector with runner for command execution
     detector = KerberosDetector(runner)
@@ -418,3 +426,94 @@ def _run_kerberos_diagnostics(ctx: Dict[str, Any], runner, result, failure_phase
     runner.display("")
     runner.display(f"💾 Full diagnostics saved to: {log_file}")
     runner.display(f"   View with: cat {log_file}")
+
+
+def run_progressive_tests_conditional(ctx: Dict[str, Any], runner) -> None:
+    """Conditionally run progressive tests based on user choice.
+
+    Args:
+        ctx: Context dictionary with configuration
+        runner: ActionRunner instance
+    """
+    if ctx.get('services.kerberos.run_progressive_tests', True):
+        runner.display("\n" + "-"*60)
+        runner.display("🧪 Running Progressive Kerberos Tests")
+        runner.display("-"*60)
+
+        tester = KerberosProgressiveTester(runner)
+        results = tester.run_progressive_tests(ctx)
+
+        # Store results in context
+        ctx['services.kerberos.progressive_test_results'] = results
+        ctx['services.kerberos.highest_level'] = results['highest_level']
+    else:
+        runner.display("\n  ℹ️  Skipping progressive tests (you can run them later)")
+        runner.display("     Command: ./kerberos/diagnostics/diagnose-kerberos.sh")
+
+
+def complete_configuration(ctx: Dict[str, Any], runner) -> None:
+    """Complete the Kerberos configuration section with summary.
+
+    Args:
+        ctx: Context dictionary with all configuration
+        runner: ActionRunner instance
+    """
+    runner.display("\n" + "="*60)
+    runner.display("✅ KERBEROS CONFIGURATION COMPLETE")
+    runner.display("="*60)
+
+    # Summary of what was configured
+    runner.display("\n📋 Configuration Summary:")
+
+    domain = ctx.get('services.kerberos.domain', 'Not configured')
+    runner.display(f"  • Domain: {domain}")
+
+    if ctx.get('services.kerberos.principal'):
+        runner.display(f"  • Principal: {ctx['services.kerberos.principal']}")
+
+    if ctx.get('services.kerberos.ticket_dir'):
+        runner.display(f"  • Ticket Directory: {ctx['services.kerberos.ticket_dir']}")
+
+    image = ctx.get('services.kerberos.image', 'ubuntu:22.04')
+    runner.display(f"  • Container Image: {image}")
+
+    if ctx.get('services.kerberos.use_prebuilt'):
+        runner.display("  • Using prebuilt image with Kerberos packages")
+
+    # Test results summary
+    if ctx.get('services.kerberos.tests_passed'):
+        runner.display("\n✅ All validation tests passed")
+    elif ctx.get('services.kerberos.test_results'):
+        results = ctx['services.kerberos.test_results']
+        passed = sum(1 for _, r in results if r)
+        total = len(results)
+        runner.display(f"\n⚠️  {passed}/{total} validation tests passed")
+
+    # Progressive test results
+    if ctx.get('services.kerberos.highest_level'):
+        level = ctx['services.kerberos.highest_level']
+        runner.display(f"\n📊 Progressive Testing: Level {level}/5 achieved")
+
+        if level == 5:
+            runner.display("   🎉 Full SQL Server connectivity verified!")
+        elif level >= 3:
+            runner.display("   ✅ Docker integration working")
+        elif level >= 2:
+            runner.display("   ✅ Kerberos tickets valid")
+
+    # Next steps
+    runner.display("\n📚 Next Steps:")
+    runner.display("  1. View full diagnostics: ./kerberos/diagnostics/diagnose-kerberos.sh")
+    runner.display("  2. Test SQL connectivity: ./kerberos/diagnostics/test-sql-simple.sh SERVER DB")
+    runner.display("  3. Monitor sidecar: docker logs -f kerberos-sidecar-mock")
+
+    # Quick reference
+    runner.display("\n🔑 Quick Reference:")
+    runner.display("  • Refresh tickets: kdestroy && kinit")
+    runner.display("  • Check tickets: klist")
+    runner.display("  • Restart sidecar: docker restart kerberos-sidecar-mock")
+
+    runner.display("\n" + "-"*60)
+    runner.display("Kerberos setup complete. Moving to next service...")
+    runner.display("-"*60 + "\n")
+

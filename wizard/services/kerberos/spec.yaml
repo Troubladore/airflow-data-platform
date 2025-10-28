@@ -51,4 +51,21 @@ steps:
   - id: start_service_action
     type: action
     action: kerberos.start_service
+    next: run_progressive_tests_prompt
+
+  - id: run_progressive_tests_prompt
+    type: boolean
+    state_key: services.kerberos.run_progressive_tests
+    prompt: "Would you like to run progressive connectivity tests? (recommended for first-time setup)"
+    default_value: true
+    next: progressive_tests_action
+
+  - id: progressive_tests_action
+    type: action
+    action: kerberos.run_progressive_tests_conditional
+    next: complete_section
+
+  - id: complete_section
+    type: action
+    action: kerberos.complete_configuration
     next: finish
