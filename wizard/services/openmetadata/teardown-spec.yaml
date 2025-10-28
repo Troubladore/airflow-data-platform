@@ -4,16 +4,6 @@ description: "OpenMetadata teardown"
 requires: []
 
 steps:
-  - id: openmetadata_teardown_confirm
-    type: boolean
-    prompt: "Confirm OpenMetadata teardown?"
-    state_key: services.openmetadata.teardown.confirm
-    default_value: false
-    next:
-      when_value:
-        true: show_details_header
-        false: finish
-
   - id: show_details_header
     type: display
     prompt: |

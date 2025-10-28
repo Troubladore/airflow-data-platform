@@ -73,7 +73,7 @@ def discover_files(runner) -> List[str]:
         runner: ActionRunner for executing queries
 
     Returns:
-        List of file paths: ['/etc/security/keytabs/*.keytab', 'platform-bootstrap/.env', ...]
+        List of file paths: ['/etc/security/keytabs/*.keytab', ...]
     """
     files = []
 
@@ -89,8 +89,7 @@ def discover_files(runner) -> List[str]:
             if line:  # Skip empty lines
                 files.append(line)
 
-    # Check for platform-bootstrap/.env file
-    if runner.file_exists('platform-bootstrap/.env'):
-        files.append('platform-bootstrap/.env')
+    # Note: platform-bootstrap/.env is a shared platform file
+    # and should not be counted as a service-specific artifact
 
     return files

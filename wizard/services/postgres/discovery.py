@@ -84,16 +84,12 @@ def discover_files(runner) -> List[str]:
         runner: ActionRunner for executing queries
 
     Returns:
-        List of file paths: ['platform-config.yaml', ...]
+        List of file paths: [] (Postgres doesn't have service-specific config files)
     """
     files = []
 
-    # Check for platform-config.yaml
-    if runner.file_exists('platform-config.yaml'):
-        files.append('platform-config.yaml')
-
-    # Check for .env files
-    if runner.file_exists('platform-bootstrap/.env'):
-        files.append('platform-bootstrap/.env')
+    # Note: platform-config.yaml and platform-bootstrap/.env are shared platform files
+    # and should not be counted as service-specific artifacts
+    # Postgres configuration is stored in the shared platform files
 
     return files
