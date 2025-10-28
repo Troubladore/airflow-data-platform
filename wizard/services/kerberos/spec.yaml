@@ -23,6 +23,16 @@ steps:
     prompt: "Enter Docker image for Kerberos (e.g., ubuntu:22.04):"
     default_value: "ubuntu:22.04"
     validator: kerberos.validate_image_url
+    next:
+      when_changed: use_prebuilt_input
+      when_unchanged: test_kerberos_action
+
+  - id: use_prebuilt_input
+    type: boolean
+    state_key: services.kerberos.use_prebuilt
+    default_from: services.kerberos.use_prebuilt
+    prompt: "Is this a prebuilt image with Kerberos packages already installed?"
+    default_value: false
     next: test_kerberos_action
 
   - id: test_kerberos_action
