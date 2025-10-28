@@ -215,8 +215,13 @@ def _run_postgres_diagnostics(ctx: Dict[str, Any], runner, start_result) -> None
     collector = DiagnosticCollector()
     service_diag = ServiceDiagnostics(runner)
 
-    # Record the failure
+    # Record the failure with working directory context
     error_msg = start_result.get('stderr', '') or start_result.get('stdout', '') or 'Unknown error'
+
+    # Get current working directory for diagnostics
+    pwd_result = runner.run_shell(['pwd'])
+    current_dir = pwd_result.get('stdout', '').strip() if pwd_result else 'unknown'
+
     collector.record_failure(
         service="postgres",
         phase="docker_compose_up",
@@ -225,7 +230,9 @@ def _run_postgres_diagnostics(ctx: Dict[str, Any], runner, start_result) -> None
             "image": ctx.get('services.postgres.image', 'postgres:17.5-alpine'),
             "auth_method": ctx.get('services.postgres.auth_method', 'trust'),
             "port": ctx.get('services.postgres.port', 5432),
-            "command": "make -C platform-infrastructure start"
+            "command": "make -C platform-infrastructure start",
+            "working_directory": current_dir,
+            "attempted_path": "platform-infrastructure"
         }
     )
 
@@ -267,11 +274,21 @@ def _run_postgres_diagnostics(ctx: Dict[str, Any], runner, start_result) -> None
             runner.display(f"  • May need: docker login {image.split('/')[0]}")
 
     # Parse common error patterns
-    if 'pull access denied' in error_msg.lower():
+    if 'connection refused' in error_msg.lower() or 'dial tcp' in error_msg.lower():
+        runner.display("🔌 Cannot connect to Docker registry")
+        registry = image.split('/')[0] if '/' in image else 'registry'
+        runner.display(f"  • Registry unreachable: {registry}")
+        runner.display("  • Check network connectivity")
+        runner.display("  • Verify registry URL is correct")
+        if 'fake.registry' in image or 'test.registry' in image:
+            runner.display("  ⚠️  This appears to be a test/mock registry URL")
+            runner.display("  • Use a real image or create a mock with ./mock-corporate-image.py")
+
+    elif 'pull access denied' in error_msg.lower():
         runner.display("🔒 Registry authentication required")
         runner.display(f"  • Run: docker login {image.split('/')[0]}")
 
-    elif 'manifest unknown' in error_msg.lower():
+    elif 'manifest unknown' in error_msg.lower() or 'manifest for' in error_msg.lower():
         runner.display("❌ Image not found in registry")
         runner.display(f"  • Verify image exists: {image}")
 
@@ -293,6 +310,47 @@ def _run_postgres_diagnostics(ctx: Dict[str, Any], runner, start_result) -> None
     elif 'no space left' in error_msg.lower():
         runner.display("💾 Disk space issue")
         runner.display("  • Clean up: docker system prune -a")
+
+    elif 'no such file or directory' in error_msg.lower():
+        runner.display("📁 Missing file or directory")
+
+        # Show current working directory
+        pwd_check = runner.run_shell(['pwd'])
+        current_dir = pwd_check.get('stdout', '').strip() if pwd_check else 'unknown'
+        runner.display(f"  • Current directory: {current_dir}")
+
+        # The make command tries to change to platform-infrastructure
+        runner.display("  • Command tried: make -C platform-infrastructure start")
+        runner.display("  • This attempts to change to: platform-infrastructure/")
+
+        # Check what exists from current location
+        ls_result = runner.run_shell(['ls', '-la'])
+        if ls_result.get('returncode') == 0:
+            output_lines = ls_result.get('stdout', '').split('\n')
+            has_platform_infra = any('platform-infrastructure' in line for line in output_lines)
+
+            if not has_platform_infra:
+                runner.display("  ❌ platform-infrastructure not found in current directory!")
+                runner.display(f"  • Make sure you're running from the repo root")
+
+        # Check specific paths
+        checks = [
+            ('platform-infrastructure', "Main infrastructure directory"),
+            ('platform-infrastructure/Makefile', "Infrastructure Makefile"),
+            ('platform-infrastructure/docker-compose.yml', "Docker Compose file"),
+            ('platform-infrastructure/.env', "Infrastructure env file"),
+            ('platform-bootstrap/.env', "Bootstrap env file")
+        ]
+
+        for path, description in checks:
+            test_result = runner.run_shell(['test', '-e', path])
+            if test_result.get('returncode') != 0:
+                runner.display(f"  ❌ Missing: {path} ({description})")
+
+                # If it's a symlink, check if it's broken
+                link_check = runner.run_shell(['test', '-L', path])
+                if link_check.get('returncode') == 0:
+                    runner.display(f"     → It's a broken symlink!")
 
     # Check if no-password mode issue
     if ctx.get('services.postgres.auth_method') == 'trust':
