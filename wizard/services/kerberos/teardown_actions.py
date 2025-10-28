@@ -4,7 +4,7 @@ from typing import Dict, Any
 
 
 def stop_service(ctx: Dict[str, Any], runner) -> None:
-    """Stop and remove Kerberos container.
+    """Stop and remove Kerberos container and associated volumes.
 
     Args:
         ctx: Context dictionary (unused)
@@ -13,13 +13,22 @@ def stop_service(ctx: Dict[str, Any], runner) -> None:
     runner.display("\nRemoving Kerberos container...")
 
     # Try both mock and real container names (mock first since that's what setup creates)
+    container_removed = False
     for container in ['kerberos-sidecar-mock', 'kerberos-sidecar']:
         result = runner.run_shell(['docker', 'rm', '-f', container])
         if result.get('returncode') == 0:
             runner.display(f"✓ Removed {container}")
+            container_removed = True
             break
-    else:
+
+    if not container_removed:
         runner.display("⚠ Kerberos container not found (may already be removed)")
+
+    # Remove the mock Kerberos cache volume if it exists
+    volume_result = runner.run_shell(['docker', 'volume', 'rm', 'kerberos-mock-cache'])
+    if volume_result.get('returncode') == 0:
+        runner.display("✓ Removed kerberos-mock-cache volume")
+    # Don't display warning if volume doesn't exist - it's expected in non-mock environments
 
 
 def remove_keytabs(ctx: Dict[str, Any], runner) -> None:

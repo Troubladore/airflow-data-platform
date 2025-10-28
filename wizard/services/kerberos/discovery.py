@@ -54,16 +54,29 @@ def discover_images(runner) -> List[Dict[str, str]]:
 
 
 def discover_volumes(runner) -> List[Dict[str, str]]:
-    """Find kerberos volumes (none - uses host keytabs).
+    """Find kerberos-related Docker volumes.
 
     Args:
         runner: ActionRunner for executing queries
 
     Returns:
-        List of dicts: [] (Kerberos doesn't use Docker volumes)
+        List of dicts: [{'name': 'kerberos-mock-cache', 'driver': 'local'}, ...]
     """
-    # Kerberos uses host-mounted keytabs, not Docker volumes
-    return []
+    # Check for the mock Kerberos cache volume
+    result = runner.run_shell([
+        'docker', 'volume', 'ls',
+        '--filter', 'name=kerberos',
+        '--format', '{{.Name}}|{{.Driver}}'
+    ])
+
+    volumes = []
+    if result.get('stdout'):
+        for line in result['stdout'].strip().split('\n'):
+            if '|' in line:
+                name, driver = line.split('|', 1)
+                volumes.append({'name': name, 'driver': driver})
+
+    return volumes
 
 
 def discover_files(runner) -> List[str]:
