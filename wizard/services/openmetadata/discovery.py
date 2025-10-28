@@ -93,21 +93,16 @@ def discover_files(runner) -> List[str]:
         runner: ActionRunner for executing queries
 
     Returns:
-        List of file paths: ['platform-config.yaml', 'openmetadata/.env', ...]
+        List of file paths: ['openmetadata/.env', ...]
     """
     files = []
-
-    # Check for platform-config.yaml (master configuration)
-    if runner.file_exists('platform-config.yaml'):
-        files.append('platform-config.yaml')
-
-    # Check for platform-bootstrap/.env (master secrets)
-    if runner.file_exists('platform-bootstrap/.env'):
-        files.append('platform-bootstrap/.env')
 
     # Check for openmetadata/.env (service-specific runtime config)
     # Note: openmetadata directory itself is part of codebase, not an artifact
     if runner.file_exists('openmetadata/.env'):
         files.append('openmetadata/.env')
+
+    # Note: platform-config.yaml and platform-bootstrap/.env are shared platform files
+    # and should not be counted as service-specific artifacts
 
     return files

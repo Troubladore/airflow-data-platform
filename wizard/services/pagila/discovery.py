@@ -76,14 +76,16 @@ def discover_files(runner) -> List[str]:
         runner: ActionRunner for executing queries
 
     Returns:
-        List of file paths: ['platform-config.yaml', ...]
+        List of file paths: [] (Pagila doesn't have service-specific config files)
     """
     files = []
 
-    # Check for platform-config.yaml using runner for mockability
-    result = runner.run_shell(['test', '-f', 'platform-config.yaml'])
-    if result.get('returncode') == 0:
-        files.append('platform-config.yaml')
+    # Note: platform-config.yaml is a shared platform file
+    # and should not be counted as a service-specific artifact
+    # Pagila configuration is stored in the shared platform files
+
+    # Check for pagila-specific files (if any exist in the future)
+    # Currently, Pagila uses only the shared platform configuration
 
     return files
 
