@@ -411,6 +411,115 @@ def test_start_service_handles_powershell_not_available():
         f"Should create mock container when not in domain. Messages: {display_messages}"
 
 
+def test_start_service_should_verify_domain_matches_configured_domain():
+    """Should verify the detected domain matches what user configured.
+
+    Bug: User configures domain as "MYCORP.COM" but PowerShell might return
+    a different domain or format. We should at least warn if they don't match.
+    """
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.kerberos.domain': 'MYCORP.COM',
+        'services.kerberos.image': 'mykerberos-image:latest',
+        'services.kerberos.use_prebuilt': True
+    }
+
+    call_count = [0]
+    def mock_run_shell_handler(command, cwd=None):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            # First call: check USERDNSDOMAIN - empty in WSL2
+            return {'stdout': '', 'stderr': '', 'returncode': 0}
+        elif call_count[0] == 2:
+            # Second call: check if powershell.exe exists
+            if 'command -v powershell.exe' in ' '.join(command):
+                return {'stdout': '/mnt/c/.../powershell.exe', 'stderr': '', 'returncode': 0}
+        elif call_count[0] == 3:
+            # PowerShell returns the actual domain
+            if 'powershell.exe' in command:
+                return {'stdout': 'MYCORP.COM\n', 'stderr': '', 'returncode': 0}
+        # Subsequent calls for make commands
+        return {'stdout': '', 'stderr': '', 'returncode': 0}
+
+    original_run_shell = mock_runner.run_shell
+    def custom_run_shell(command, cwd=None):
+        result = mock_run_shell_handler(command, cwd)
+        original_run_shell(command, cwd)
+        return result
+
+    mock_runner.run_shell = custom_run_shell
+
+    start_service(ctx, mock_runner)
+
+    # Should detect domain environment
+    display_calls = [call for call in mock_runner.calls if call[0] == 'display']
+    display_messages = [call[1] for call in display_calls]
+
+    # Should recognize we're in a domain
+    assert any('Detected domain environment' in msg for msg in display_messages), \
+        f"Should detect domain when PowerShell returns MYCORP.COM. Messages: {display_messages}"
+
+    # Should NOT create mock container
+    assert not any('Mock Kerberos container' in msg for msg in display_messages), \
+        f"Should NOT create mock container when domain detected. Messages: {display_messages}"
+
+
+def test_start_service_detects_domain_when_powershell_returns_empty_with_success_code():
+    """PowerShell may return success (0) with empty stdout when not domain-joined.
+
+    Bug: Current code only checks returncode == 0, not whether stdout contains
+    a valid domain. This causes false positives where we think we're in a domain
+    when we're not.
+    """
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.kerberos.domain': 'MYCORP.COM',
+        'services.kerberos.image': 'ubuntu:22.04'
+    }
+
+    call_count = [0]
+    def mock_run_shell_handler(command, cwd=None):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            # First call: check USERDNSDOMAIN - empty
+            return {'stdout': '', 'stderr': '', 'returncode': 0}
+        elif call_count[0] == 2:
+            # Second call: check if powershell.exe exists
+            if 'command -v powershell.exe' in ' '.join(command):
+                return {'stdout': '/mnt/c/.../powershell.exe', 'stderr': '', 'returncode': 0}
+        elif call_count[0] == 3:
+            # Third call: PowerShell returns SUCCESS but EMPTY stdout (not on domain)
+            # This is the bug - returncode 0 but no domain in stdout
+            if 'powershell.exe' in command:
+                return {'stdout': '\n', 'stderr': '', 'returncode': 0}  # Empty/whitespace
+        # Subsequent calls for docker commands
+        return {'stdout': '', 'stderr': '', 'returncode': 0}
+
+    original_run_shell = mock_runner.run_shell
+    def custom_run_shell(command, cwd=None):
+        result = mock_run_shell_handler(command, cwd)
+        original_run_shell(command, cwd)
+        return result
+
+    mock_runner.run_shell = custom_run_shell
+
+    start_service(ctx, mock_runner)
+
+    # Should NOT detect domain (PowerShell returned empty)
+    display_calls = [call for call in mock_runner.calls if call[0] == 'display']
+    display_messages = [call[1] for call in display_calls]
+
+    # Should show NON-domain message since PowerShell returned empty
+    assert any('Detected non-domain environment' in msg for msg in display_messages), \
+        f"Should detect non-domain when PowerShell returns empty stdout. Messages: {display_messages}"
+    assert any('Mock Kerberos container' in msg for msg in display_messages), \
+        f"Should create mock container when PowerShell returns empty. Messages: {display_messages}"
+
+    # Should NOT think we're in a domain
+    assert not any('Detected domain environment' in msg for msg in display_messages), \
+        f"Should NOT detect domain when PowerShell returns empty stdout"
+
+
 def test_start_service_handles_powershell_domain_error():
     """start_service should handle PowerShell errors gracefully (not domain-joined).
 
