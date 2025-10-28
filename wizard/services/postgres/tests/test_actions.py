@@ -21,8 +21,9 @@ class TestSaveConfig:
         save_config(ctx, runner)
 
         # Verify runner.save_config was called
-        assert len(runner.calls) == 1
-        call = runner.calls[0]
+        save_config_calls = [c for c in runner.calls if c[0] == 'save_config']
+        assert len(save_config_calls) == 1
+        call = save_config_calls[0]
         assert call[0] == 'save_config'
 
         # Verify config structure
@@ -52,6 +53,49 @@ class TestSaveConfig:
         assert config['services']['postgres']['prebuilt'] is False
         assert config['services']['postgres']['auth_method'] == 'md5'
         assert config['services']['postgres']['password'] == 'changeme'
+
+    def test_save_config_creates_env_file(self):
+        """Should create platform-infrastructure/.env file with required variables."""
+        runner = MockActionRunner()
+        ctx = {
+            'services.postgres.image': 'postgres:17.5-alpine',
+            'services.postgres.prebuilt': False,
+            'services.postgres.auth_method': 'md5',
+            'services.postgres.password': 'secret_password'
+        }
+
+        save_config(ctx, runner)
+
+        # Verify write_file was called
+        write_calls = [c for c in runner.calls if c[0] == 'write_file']
+        assert len(write_calls) == 1, "Should call write_file exactly once"
+
+        call = write_calls[0]
+        assert call[1] == 'platform-infrastructure/.env', "Should write to platform-infrastructure/.env"
+
+        # Verify .env content
+        env_content = call[2]
+        assert 'PLATFORM_DB_PASSWORD=secret_password' in env_content, "Should set PLATFORM_DB_PASSWORD"
+        assert 'OPENMETADATA_DB_PASSWORD=' in env_content, "Should include OPENMETADATA_DB_PASSWORD"
+
+    def test_save_config_creates_env_file_with_trust_auth(self):
+        """Should create .env file even with trust authentication (no password)."""
+        runner = MockActionRunner()
+        ctx = {
+            'services.postgres.require_password': False,
+            'services.postgres.image': 'postgres:17.5-alpine'
+        }
+
+        save_config(ctx, runner)
+
+        # Verify write_file was called
+        write_calls = [c for c in runner.calls if c[0] == 'write_file']
+        assert len(write_calls) == 1
+
+        call = write_calls[0]
+        env_content = call[2]
+        # With trust auth, we still need .env but password can be empty or placeholder
+        assert 'PLATFORM_DB_PASSWORD=' in env_content, "Should include PLATFORM_DB_PASSWORD line"
 
 
 class TestStartService:
