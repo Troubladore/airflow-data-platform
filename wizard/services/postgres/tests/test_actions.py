@@ -61,7 +61,8 @@ class TestSaveConfig:
             'services.postgres.image': 'postgres:17.5-alpine',
             'services.postgres.prebuilt': False,
             'services.postgres.auth_method': 'md5',
-            'services.postgres.password': 'secret_password'
+            'services.postgres.password': 'secret_password',
+            'services.openmetadata.enabled': True  # Enable to test password inclusion
         }
 
         save_config(ctx, runner)
