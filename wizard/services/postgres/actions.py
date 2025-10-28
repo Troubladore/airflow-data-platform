@@ -267,11 +267,21 @@ def _run_postgres_diagnostics(ctx: Dict[str, Any], runner, start_result) -> None
             runner.display(f"  • May need: docker login {image.split('/')[0]}")
 
     # Parse common error patterns
-    if 'pull access denied' in error_msg.lower():
+    if 'connection refused' in error_msg.lower() or 'dial tcp' in error_msg.lower():
+        runner.display("🔌 Cannot connect to Docker registry")
+        registry = image.split('/')[0] if '/' in image else 'registry'
+        runner.display(f"  • Registry unreachable: {registry}")
+        runner.display("  • Check network connectivity")
+        runner.display("  • Verify registry URL is correct")
+        if 'fake.registry' in image or 'test.registry' in image:
+            runner.display("  ⚠️  This appears to be a test/mock registry URL")
+            runner.display("  • Use a real image or create a mock with ./mock-corporate-image.py")
+
+    elif 'pull access denied' in error_msg.lower():
         runner.display("🔒 Registry authentication required")
         runner.display(f"  • Run: docker login {image.split('/')[0]}")
 
-    elif 'manifest unknown' in error_msg.lower():
+    elif 'manifest unknown' in error_msg.lower() or 'manifest for' in error_msg.lower():
         runner.display("❌ Image not found in registry")
         runner.display(f"  • Verify image exists: {image}")
 
@@ -293,6 +303,19 @@ def _run_postgres_diagnostics(ctx: Dict[str, Any], runner, start_result) -> None
     elif 'no space left' in error_msg.lower():
         runner.display("💾 Disk space issue")
         runner.display("  • Clean up: docker system prune -a")
+
+    elif 'no such file or directory' in error_msg.lower():
+        runner.display("📁 Missing file or directory")
+        runner.display("  • Check if platform-infrastructure directory exists")
+        runner.display("  • Verify .env file is present: ls -la platform-bootstrap/.env")
+        runner.display("  • Ensure docker-compose.yml exists")
+
+        # Check for common missing files
+        if not runner.run_shell(['test', '-d', 'platform-infrastructure']).get('returncode') == 0:
+            runner.display("  ❌ platform-infrastructure directory is missing!")
+        elif not runner.run_shell(['test', '-f', 'platform-bootstrap/.env']).get('returncode') == 0:
+            runner.display("  ❌ platform-bootstrap/.env is missing!")
+            runner.display("  • Run: ./platform setup")
 
     # Check if no-password mode issue
     if ctx.get('services.postgres.auth_method') == 'trust':
