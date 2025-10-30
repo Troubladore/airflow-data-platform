@@ -62,6 +62,7 @@ platform-bootstrap/.env
 platform-bootstrap/kerberos-sidecar/.env
 layer1-base-image/.env
 .env
+platform-config.yaml
 
 # Corporate secrets
 platform-bootstrap/.secrets/
