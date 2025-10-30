@@ -1,6 +1,6 @@
 [tool.ruff]
 line-length = 100
-target-version = "py311"  # Match common WSL2 Ubuntu Python version
+target-version = "py312"  # Match pinned Python version
 
 [tool.ruff.lint]
 select = [
@@ -33,7 +33,7 @@ name = "workstation-setup"
 version = "1.0.0"
 description = "Comprehensive workstation setup for Astronomer Airflow data engineering platform"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = "==3.12.11"
 license = {text = "MIT"}
 authors = [
     {name = "Data Engineering Team"},
