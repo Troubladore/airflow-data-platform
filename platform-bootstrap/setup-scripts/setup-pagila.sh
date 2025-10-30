@@ -48,6 +48,34 @@ fi
 PAGILA_REPO_URL="${PAGILA_REPO_URL:-$PAGILA_REPO_URL_DEFAULT}"
 
 # ==========================================
+# Network Connectivity Check Function
+# ==========================================
+
+# Function to check if we can reach the git remote before attempting operations
+check_git_connectivity() {
+    local repo_url="$1"
+
+    # Extract hostname from URL
+    local hostname=$(echo "$repo_url" | sed -E 's|https?://([^/]+).*|\1|')
+
+    # Try to resolve the hostname
+    if command -v nslookup >/dev/null 2>&1; then
+        nslookup "$hostname" >/dev/null 2>&1
+    elif command -v host >/dev/null 2>&1; then
+        host "$hostname" >/dev/null 2>&1
+    elif command -v dig >/dev/null 2>&1; then
+        dig +short "$hostname" >/dev/null 2>&1
+    elif command -v getent >/dev/null 2>&1; then
+        getent hosts "$hostname" >/dev/null 2>&1
+    else
+        # Fallback: try git ls-remote with timeout
+        timeout 5 git ls-remote "$repo_url" >/dev/null 2>&1
+    fi
+
+    return $?
+}
+
+# ==========================================
 # Parse Arguments
 # ==========================================
 
@@ -238,47 +266,78 @@ print_info "Checking for pagila repository..."
 if [ -d "$PAGILA_DIR" ]; then
     print_check "PASS" "Pagila directory exists: $PAGILA_DIR"
 
-    if ask_yes_no "Update pagila repository?"; then
-        print_info "Updating pagila..."
-        cd "$PAGILA_DIR"
+    # Check if PAGILA_NO_UPDATE is set to skip updates
+    if [ "$PAGILA_NO_UPDATE" = "1" ] || [ "$PAGILA_NO_UPDATE" = "true" ]; then
+        print_info "PAGILA_NO_UPDATE is set - skipping repository update"
+    else
+        # Only proceed with update if we have network connectivity
+        if check_git_connectivity "$PAGILA_REPO_URL"; then
+            if ask_yes_no "Update pagila repository?"; then
+                print_info "Updating pagila..."
+                cd "$PAGILA_DIR"
 
-        # Check current branch
-        CURRENT_BRANCH=$(git branch --show-current)
-        print_info "Current branch: $CURRENT_BRANCH"
+                # Check current branch
+                CURRENT_BRANCH=$(git branch --show-current)
+                print_info "Current branch: $CURRENT_BRANCH"
 
-        # Only pull the current branch (no extra branches)
-        if git pull origin "$CURRENT_BRANCH"; then
-            print_success "Pagila updated (branch: $CURRENT_BRANCH)"
+                # Only pull the current branch (no extra branches)
+                if git pull origin "$CURRENT_BRANCH"; then
+                    print_success "Pagila updated (branch: $CURRENT_BRANCH)"
+                else
+                    print_warning "Failed to update - repository may have local changes"
+                fi
+
+                cd "$PLATFORM_DIR"
+            fi
         else
-            print_warning "Failed to update - repository may have local changes"
+            print_warning "No network connectivity - skipping repository update"
+            print_info "To force update, ensure network connectivity and run again"
         fi
-
-        cd "$PLATFORM_DIR"
     fi
 else
-    print_info "Cloning pagila from: $PAGILA_REPO_URL"
-    print_info "Destination: $PAGILA_DIR"
-
-    # Use branch if specified, otherwise default to develop
-    PAGILA_BRANCH="${PAGILA_BRANCH:-develop}"
-    print_info "Branch: $PAGILA_BRANCH (single-branch clone)"
-    echo ""
-
-    cd "$(dirname "$PAGILA_DIR")"
-    # Clone only the specified branch (--single-branch to avoid pulling all branches)
-    if git clone -b "$PAGILA_BRANCH" --single-branch --depth 10 "$PAGILA_REPO_URL" pagila; then
-        print_success "Pagila cloned successfully (branch: $PAGILA_BRANCH)"
-        print_info "Only the '$PAGILA_BRANCH' branch was cloned (no extra branches)"
-        cd "$PLATFORM_DIR"
+    # Check if PAGILA_NO_UPDATE is set to skip all git operations
+    if [ "$PAGILA_NO_UPDATE" = "1" ] || [ "$PAGILA_NO_UPDATE" = "true" ]; then
+        print_warning "PAGILA_NO_UPDATE is set but no local repository found at: $PAGILA_DIR"
+        print_info "Skipping repository clone as requested by PAGILA_NO_UPDATE flag"
+        print_info "To use Pagila, either:"
+        print_info "  1. Unset PAGILA_NO_UPDATE to allow normal operations, or"
+        print_info "  2. Manually clone the repository to: $PAGILA_DIR"
+        print_info "     (Only the 'develop' branch is required for normal operation)"
+        # We'll continue with the rest of the setup but warn the user that Pagila won't be available
+        print_warning "Pagila database will NOT be available due to PAGILA_NO_UPDATE flag"
     else
-        print_error "Failed to clone pagila branch: $PAGILA_BRANCH"
+        print_info "Cloning pagila from: $PAGILA_REPO_URL"
+        print_info "Destination: $PAGILA_DIR"
+
+        # Check network connectivity before attempting to clone
+        if ! check_git_connectivity "$PAGILA_REPO_URL"; then
+            print_error "No network connectivity - cannot clone repository"
+            print_info "Ensure you have internet access or manually clone the repository to:"
+            print_info "  $PAGILA_DIR"
+            exit 1
+        fi
+
+        # Use branch if specified, otherwise default to develop
+        PAGILA_BRANCH="${PAGILA_BRANCH:-develop}"
+        print_info "Branch: $PAGILA_BRANCH (single-branch clone)"
         echo ""
-        echo "Troubleshooting:"
-        echo "  1. Check if branch '$PAGILA_BRANCH' exists in repository"
-        echo "  2. Verify repository URL: $PAGILA_REPO_URL"
-        echo "  3. Check internet connectivity"
-        echo "  4. Check git is installed: git --version"
-        exit 1
+
+        cd "$(dirname "$PAGILA_DIR")"
+        # Clone only the specified branch (--single-branch to avoid pulling all branches)
+        if git clone -b "$PAGILA_BRANCH" --single-branch --depth 10 "$PAGILA_REPO_URL" pagila; then
+            print_success "Pagila cloned successfully (branch: $PAGILA_BRANCH)"
+            print_info "Only the '$PAGILA_BRANCH' branch was cloned (no extra branches)"
+            cd "$PLATFORM_DIR"
+        else
+            print_error "Failed to clone pagila branch: $PAGILA_BRANCH"
+            echo ""
+            echo "Troubleshooting:"
+            echo "  1. Check if branch '$PAGILA_BRANCH' exists in repository"
+            echo "  2. Verify repository URL: $PAGILA_REPO_URL"
+            echo "  3. Check internet connectivity"
+            echo "  4. Check git is installed: git --version"
+            exit 1
+        fi
     fi
 fi
 
