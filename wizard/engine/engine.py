@@ -53,8 +53,15 @@ class WizardEngine:
                     # Store in state using the same key as the spec expects
                     state['services.postgres.image'] = image
 
-        # 2. Load from platform-config.yaml if it exists
+        # 2. Load from platform-config.yaml (create from template if needed)
         config_file = 'platform-config.yaml'
+        config_example = 'platform-config.yaml.example'
+
+        # If local config doesn't exist but template does, create local copy
+        if not self.runner.file_exists(config_file) and self.runner.file_exists(config_example):
+            self.runner.run_shell(['cp', config_example, config_file])
+
+        # Now load from local config if it exists
         if self.runner.file_exists(config_file):
             try:
                 import yaml
