@@ -270,28 +270,27 @@ if [ -d "$PAGILA_DIR" ]; then
     if [ "$PAGILA_NO_UPDATE" = "1" ] || [ "$PAGILA_NO_UPDATE" = "true" ]; then
         print_info "PAGILA_NO_UPDATE is set - skipping repository update"
     else
-        # Only proceed with update if we have network connectivity
-        if check_git_connectivity "$PAGILA_REPO_URL"; then
-            if ask_yes_no "Update pagila repository?"; then
-                print_info "Updating pagila..."
-                cd "$PAGILA_DIR"
+        if ask_yes_no "Update pagila repository?"; then
+            print_info "Updating pagila..."
+            cd "$PAGILA_DIR"
 
-                # Check current branch
-                CURRENT_BRANCH=$(git branch --show-current)
-                print_info "Current branch: $CURRENT_BRANCH"
+            # Check current branch
+            CURRENT_BRANCH=$(git branch --show-current)
+            print_info "Current branch: $CURRENT_BRANCH"
 
-                # Only pull the current branch (no extra branches)
-                if git pull origin "$CURRENT_BRANCH"; then
-                    print_success "Pagila updated (branch: $CURRENT_BRANCH)"
-                else
-                    print_warning "Failed to update - repository may have local changes"
+            # Only pull the current branch (no extra branches)
+            if git pull origin "$CURRENT_BRANCH"; then
+                print_success "Pagila updated (branch: $CURRENT_BRANCH)"
+            else
+                print_warning "Failed to update - repository may have local changes or network issues"
+
+                # Run diagnostics after failure
+                if ! check_git_connectivity "$PAGILA_REPO_URL"; then
+                    print_info "Network connectivity check failed - this may be why the update failed"
                 fi
-
-                cd "$PLATFORM_DIR"
             fi
-        else
-            print_warning "No network connectivity - skipping repository update"
-            print_info "To force update, ensure network connectivity and run again"
+
+            cd "$PLATFORM_DIR"
         fi
     fi
 else
@@ -309,14 +308,6 @@ else
         print_info "Cloning pagila from: $PAGILA_REPO_URL"
         print_info "Destination: $PAGILA_DIR"
 
-        # Check network connectivity before attempting to clone
-        if ! check_git_connectivity "$PAGILA_REPO_URL"; then
-            print_error "No network connectivity - cannot clone repository"
-            print_info "Ensure you have internet access or manually clone the repository to:"
-            print_info "  $PAGILA_DIR"
-            exit 1
-        fi
-
         # Use branch if specified, otherwise default to develop
         PAGILA_BRANCH="${PAGILA_BRANCH:-develop}"
         print_info "Branch: $PAGILA_BRANCH (single-branch clone)"
@@ -331,11 +322,22 @@ else
         else
             print_error "Failed to clone pagila branch: $PAGILA_BRANCH"
             echo ""
+
+            # Run diagnostics after failure to help troubleshoot
+            print_info "Running diagnostics..."
+            if ! check_git_connectivity "$PAGILA_REPO_URL"; then
+                print_warning "Network connectivity check failed"
+                print_info "This may indicate a network issue, but could also be a false positive in corporate environments"
+            fi
+
+            echo ""
             echo "Troubleshooting:"
             echo "  1. Check if branch '$PAGILA_BRANCH' exists in repository"
             echo "  2. Verify repository URL: $PAGILA_REPO_URL"
-            echo "  3. Check internet connectivity"
+            echo "  3. Check internet/VPN connectivity"
             echo "  4. Check git is installed: git --version"
+            echo "  5. For corporate environments: verify proxy/VPN settings"
+            echo "  6. Manually clone to bypass check: git clone $PAGILA_REPO_URL $PAGILA_DIR"
             exit 1
         fi
     fi
