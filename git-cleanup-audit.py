@@ -213,6 +213,65 @@ def verify_entity(work_unit):
     return {"status": "clean", "type": entity_type, "name": name}
 
 
+def get_working_directory_state():
+    """Get a snapshot of the working directory state for verification
+
+    Returns a tuple of (HEAD sha, status hash) that uniquely identifies
+    the current working directory state
+    """
+    # Get current HEAD commit
+    success, head_sha, stderr, code = run_git_command(["git", "rev-parse", "HEAD"])
+    if not success:
+        return (None, None)
+
+    # Get working directory status (should be clean)
+    success, status, stderr, code = run_git_command(["git", "status", "--porcelain"])
+    if not success:
+        return (None, None)
+
+    # Create a hash of the status to detect any changes
+    import hashlib
+    status_hash = hashlib.sha256(status.encode()).hexdigest()
+
+    return (head_sha.strip(), status_hash)
+
+
+def verify_working_directory_unchanged(before_state):
+    """Verify that the working directory state hasn't changed
+
+    This is a critical sanity check to ensure cleanup only removed
+    references (branches/worktrees) and didn't modify any actual content.
+
+    Args:
+        before_state: Tuple of (HEAD sha, status hash) from before cleanup
+
+    Returns:
+        True if state is unchanged, False otherwise
+    """
+    after_state = get_working_directory_state()
+
+    if before_state[0] is None or after_state[0] is None:
+        # Couldn't get state, assume something went wrong
+        return False
+
+    # HEAD should be exactly the same
+    if before_state[0] != after_state[0]:
+        print(f"CRITICAL: HEAD changed during cleanup! Before: {before_state[0][:8]}, After: {after_state[0][:8]}")
+        return False
+
+    # Working directory status should be exactly the same
+    if before_state[1] != after_state[1]:
+        print("CRITICAL: Working directory state changed during cleanup!")
+        # Show what changed
+        success, status, stderr, code = run_git_command(["git", "status", "--short"])
+        if success and status.strip():
+            print("Changes detected:")
+            print(status)
+        return False
+
+    return True
+
+
 def verify_and_clean_entity(work_unit):
     """Verify entity is fully merged to main and clean if safe"""
     entity_type, name, ref = work_unit
@@ -285,6 +344,13 @@ def main():
         print("Stashes detected")
         return 2
 
+    # Capture state before any cleanup for sanity check
+    # This ensures we only removed references, not actual content
+    before_state = get_working_directory_state()
+    if before_state[0] is None:
+        print("Error: Cannot capture working directory state")
+        return 3
+
     # Fetch latest unless skipped
     if not args.skip_fetch:
         if args.verbose:
@@ -342,6 +408,24 @@ def main():
         for f in failures:
             print(f"{f['type'].capitalize()} {f['name']}: {len(f['commits'])} commit(s) not in main")
         return 1
+
+    # CRITICAL SANITY CHECK: Verify working directory is unchanged
+    # Cleanup should only remove references (branches/worktrees), never modify content
+    if not args.dry_run:
+        if not verify_working_directory_unchanged(before_state):
+            print("CRITICAL: Working directory state changed unexpectedly!")
+            print("This indicates a bug in the cleanup logic.")
+            print("Your repository may need manual inspection.")
+            return 3
+
+    # Final verification: no uncommitted changes should have appeared
+    if not args.dry_run and has_uncommitted_changes():
+        print("CRITICAL: Uncommitted changes appeared during cleanup!")
+        print("This should never happen. Please check your working directory.")
+        success, status, stderr, code = run_git_command(["git", "status", "--short"])
+        if success:
+            print(status)
+        return 3
 
     # Success - minimal output
     if not args.verbose:
