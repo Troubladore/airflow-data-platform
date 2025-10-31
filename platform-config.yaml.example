@@ -7,6 +7,6 @@ services:
   postgres:
     auth_method: trust
     enabled: true
-    image: fake.registry.corp.com/postgres/special:99.99
+    image: mycorp.jfrog.io/docker-mirror/mycorp-approved-images/postgres/17.5:2025.10.01
     password: null
     prebuilt: false
