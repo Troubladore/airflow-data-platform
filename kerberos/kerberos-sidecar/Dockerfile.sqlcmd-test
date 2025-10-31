@@ -3,6 +3,12 @@
 # Pre-built image with Microsoft ODBC Driver and sqlcmd for SQL Server testing
 # Build once, use many times - no runtime downloads needed
 #
+# EULA Acceptance:
+#   This image includes Microsoft ODBC Driver 18 for SQL Server (msodbcsql18)
+#   and Microsoft SQL Server Tools (mssql-tools18). By setting ACCEPT_EULA=Y,
+#   we accept the Microsoft ODBC Driver and SQL Server Tools license terms.
+#   See: https://aka.ms/odbc18-eula
+#
 # Build:
 #   docker build -f Dockerfile.sqlcmd-test \
 #     --build-arg IMAGE_ALPINE=${IMAGE_ALPINE} \
@@ -15,6 +21,11 @@
 
 ARG IMAGE_ALPINE
 FROM ${IMAGE_ALPINE:-alpine:3.19}
+
+# Accept Microsoft EULA for ODBC Driver 18 and SQL Server Tools 18
+# Required for installation of msodbcsql18 and mssql-tools18 packages
+# License: https://aka.ms/odbc18-eula
+ENV ACCEPT_EULA=Y
 
 # Install Kerberos and curl for downloads
 RUN apk add --no-cache krb5 curl

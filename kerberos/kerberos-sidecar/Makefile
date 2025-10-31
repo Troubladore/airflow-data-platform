@@ -23,19 +23,49 @@ help: ## Show this help
 check-requirements: ## Check build requirements before building
 	@./scripts/check-build-requirements.sh
 
-build: check-requirements ## Build sidecar image for local development
-	@echo "Building Kerberos sidecar image..."
+build: check-requirements ## Build minimal sidecar image (default)
+	@echo "Building minimal Kerberos sidecar image..."
 	@printf "Configuration:\n"
 	@printf "  Base image: %s (public default)\n" "${IMAGE_ALPINE:-alpine:3.19}"
-	@printf "  ODBC source: %s (public default)\n" "${ODBC_DRIVER_URL:-Microsoft download}"
+	@printf "  Type: MINIMAL (Kerberos only, ~50MB)\n"
 	docker build \
 		$(if $(IMAGE_ALPINE),--build-arg IMAGE_ALPINE=$(IMAGE_ALPINE),) \
-		$(if $(ODBC_DRIVER_URL),--build-arg ODBC_DRIVER_URL=$(ODBC_DRIVER_URL),) \
 		-t $(IMAGE_NAME):$(IMAGE_TAG) .
 	@echo "✓ Built: $(IMAGE_NAME):$(IMAGE_TAG)"
 	@echo ""
-	@echo "Image ready for local development"
+	@echo "Minimal sidecar ready for local development"
+	@echo "  - Size: ~50MB (vs 312MB legacy)"
+	@echo "  - Packages: 15-20 (vs 120+ legacy)"
+	@echo "  - Contains: Kerberos tools ONLY"
+	@echo ""
 	@echo "To use: docker compose -f ../docker-compose.yml up -d"
+	@echo ""
+	@echo "For legacy bloated image: make build-legacy"
+
+build-legacy: check-requirements ## Build legacy sidecar image (bloated, backwards compatibility)
+	@echo "Building LEGACY Kerberos sidecar image..."
+	@echo ""
+	@echo "⚠️  WARNING: Building legacy bloated image"
+	@echo "  - Size: ~312MB (use 'make build' for 50MB minimal)"
+	@echo "  - Packages: 120+ (vs 15-20 minimal)"
+	@echo "  - Contains: ODBC drivers, Python, build tools"
+	@echo ""
+	@printf "Configuration:\n"
+	@printf "  Base image: %s (public default)\n" "${IMAGE_ALPINE:-alpine:3.19}"
+	@printf "  ODBC source: %s (public default)\n" "${ODBC_DRIVER_URL:-Microsoft download}"
+	@printf "  Type: LEGACY (bloated)\n"
+	@echo ""
+	docker build \
+		-f Dockerfile.legacy \
+		$(if $(IMAGE_ALPINE),--build-arg IMAGE_ALPINE=$(IMAGE_ALPINE),) \
+		$(if $(ODBC_DRIVER_URL),--build-arg ODBC_DRIVER_URL=$(ODBC_DRIVER_URL),) \
+		-t $(IMAGE_NAME):legacy .
+	@echo "✓ Built: $(IMAGE_NAME):legacy"
+	@echo ""
+	@echo "Legacy image built for backwards compatibility"
+	@echo ""
+	@echo "Migration: Use platform/sqlcmd-test for SQL Server testing"
+	@echo "See: MIGRATION-GUIDE.md"
 
 build-sqlcmd-test: ## Build SQL Server test image with Microsoft sqlcmd pre-installed
 	@echo "Building SQL Server test image with Microsoft sqlcmd..."
