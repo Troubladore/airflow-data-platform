@@ -1,0 +1,54 @@
+# PostgreSQL Test Image with psql and Kerberos
+# ==============================================
+# Pre-built image with PostgreSQL client (with GSSAPI support) and Kerberos for testing
+# Build once, use many times - no runtime dependencies needed
+#
+# Purpose:
+#   Test PostgreSQL GSSAPI authentication using tickets from the minimal sidecar.
+#   This container is SEPARATE from the sidecar - it mounts the sidecar's ticket
+#   volume to connect to PostgreSQL using Kerberos authentication.
+#
+# Build:
+#   docker build -f Dockerfile.postgres-test \
+#     -t platform/postgres-client:test .
+#
+# Usage with Minimal Sidecar:
+#   1. Start minimal sidecar with shared volume:
+#      docker run -d --name kerberos-sidecar \
+#        -v ~/.krb5-cache:/host/tickets:ro \
+#        -v kerberos-tickets:/krb5/cache:rw \
+#        -e TICKET_MODE=copy \
+#        platform/kerberos-sidecar:minimal
+#
+#   2. Run psql client using sidecar's tickets:
+#      docker run --rm \
+#        --add-host "sqlpg.eruditis.lab:10.50.50.13" \
+#        -v kerberos-tickets:/krb5/cache:ro \
+#        -v /path/to/krb5.conf:/etc/krb5.conf:ro \
+#        -e KRB5CCNAME=/krb5/cache/krb5cc \
+#        -e PGHOST=sqlpg.eruditis.lab \
+#        -e PGDATABASE=pagila \
+#        -e PGUSER=emaynard \
+#        platform/postgres-client:test \
+#        -c "psql -c 'SELECT version();'"
+#
+# See test/postgres-gssapi-minimal.test.sh for complete examples
+#
+# Note: We use postgres:16-alpine as base because it includes PostgreSQL client
+#       compiled with GSSAPI support. Alpine's standalone postgresql-client package
+#       does not include GSSAPI support.
+
+FROM postgres:16-alpine
+
+# Install Kerberos client
+RUN apk add --no-cache \
+    krb5 \
+    krb5-libs \
+    ca-certificates \
+    && echo "✓ Kerberos installed successfully"
+
+# Verify installation
+RUN psql --version && klist -V
+
+# Default entrypoint for testing
+ENTRYPOINT ["/bin/sh"]
