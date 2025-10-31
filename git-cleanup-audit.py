@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 # git_cleanup_audit.py
-"""Git cleanup audit - agent-optimized for minimal token usage"""
+"""Git cleanup audit - agent-optimized for minimal token usage
+
+Two-phase cleanup process:
+1. Process and remove worktrees first (parallel)
+2. Process and remove remaining branches (parallel)
+
+This order prevents attempting to delete branches that are
+currently checked out in worktrees, which would fail."""
 import sys
 import subprocess
 import argparse
@@ -216,34 +223,35 @@ def verify_entity(work_unit):
 def get_working_directory_state():
     """Get a snapshot of the working directory state for verification
 
-    Returns a tuple of (HEAD sha, status hash) that uniquely identifies
-    the current working directory state
+    Returns a tuple of (HEAD sha, tracked files status) that uniquely identifies
+    the current working directory state for tracked files only
     """
     # Get current HEAD commit
     success, head_sha, stderr, code = run_git_command(["git", "rev-parse", "HEAD"])
     if not success:
         return (None, None)
 
-    # Get working directory status (should be clean)
-    success, status, stderr, code = run_git_command(["git", "status", "--porcelain"])
+    # Get status of tracked files only (ignore untracked)
+    # Using diff-index to check if any tracked files differ from HEAD
+    success, diff_output, stderr, code = run_git_command(["git", "diff-index", "HEAD"])
     if not success:
         return (None, None)
 
-    # Create a hash of the status to detect any changes
+    # Create a hash of tracked file changes
     import hashlib
-    status_hash = hashlib.sha256(status.encode()).hexdigest()
+    diff_hash = hashlib.sha256(diff_output.encode()).hexdigest()
 
-    return (head_sha.strip(), status_hash)
+    return (head_sha.strip(), diff_hash)
 
 
 def verify_working_directory_unchanged(before_state):
     """Verify that the working directory state hasn't changed
 
     This is a critical sanity check to ensure cleanup only removed
-    references (branches/worktrees) and didn't modify any actual content.
+    references (branches/worktrees) and didn't modify any tracked files.
 
     Args:
-        before_state: Tuple of (HEAD sha, status hash) from before cleanup
+        before_state: Tuple of (HEAD sha, tracked files hash) from before cleanup
 
     Returns:
         True if state is unchanged, False otherwise
@@ -259,14 +267,14 @@ def verify_working_directory_unchanged(before_state):
         print(f"CRITICAL: HEAD changed during cleanup! Before: {before_state[0][:8]}, After: {after_state[0][:8]}")
         return False
 
-    # Working directory status should be exactly the same
+    # Tracked files status should be exactly the same
     if before_state[1] != after_state[1]:
-        print("CRITICAL: Working directory state changed during cleanup!")
-        # Show what changed
-        success, status, stderr, code = run_git_command(["git", "status", "--short"])
-        if success and status.strip():
-            print("Changes detected:")
-            print(status)
+        print("CRITICAL: Tracked files were modified during cleanup!")
+        # Show what changed in tracked files
+        success, diff, stderr, code = run_git_command(["git", "diff", "--name-status", "HEAD"])
+        if success and diff.strip():
+            print("Modified tracked files:")
+            print(diff)
         return False
 
     return True
@@ -357,34 +365,71 @@ def main():
             print("Fetching latest from origin...")
         fetch_latest()
 
-    # Discovery - worktrees first, then branches
-    # This ensures worktrees are removed before their associated branches
-    entities = get_worktrees() + get_local_branches()
+    # Two-phase cleanup: Process worktrees first, then branches
+    # This ensures branches used by worktrees aren't attempted to be deleted
+    # before their worktrees are removed (which would fail)
 
-    if args.verbose:
-        for entity_type, name, _ in entities:
-            print(f"{entity_type}: {name}")
-        print(f"{len(entities)} entities")
-
-    if not entities:
-        if not args.verbose:
-            print("OK")
-        return 0
-
-    # Choose function based on dry-run
+    # Choose function based on dry-run mode
     if args.dry_run:
         func = verify_entity
     else:
         func = verify_and_clean_entity
 
-    # Use parallel processing only if beneficial
-    if len(entities) < 3:
-        # For small numbers, overhead isn't worth it
-        results = [func(e) for e in entities]
+    # Phase 1: Process all worktrees
+    worktrees = get_worktrees()
+    if args.verbose and worktrees:
+        print(f"Phase 1: Processing {len(worktrees)} worktree(s)...")
+        for entity_type, name, _ in worktrees:
+            print(f"  {entity_type}: {name}")
+
+    worktree_results = []
+    if worktrees:
+        # Use parallel processing if beneficial
+        if len(worktrees) < 3:
+            worktree_results = [func(e) for e in worktrees]
+        else:
+            with Pool(args.workers) as pool:
+                worktree_results = pool.map(func, worktrees)
+
+    # Check if any worktrees failed before proceeding to branches
+    worktree_has_errors = any(
+        r["status"] in ["error", "failed", "cleanup_failed"]
+        for r in worktree_results
+    )
+
+    if worktree_has_errors:
+        # Stop here if worktrees failed - don't attempt branches
+        results = worktree_results
+        if args.verbose:
+            print("Phase 2: Skipped (worktree processing failed)")
     else:
-        # Parallel verification/cleanup
-        with Pool(args.workers) as pool:
-            results = pool.map(func, entities)
+        # Phase 2: Process remaining branches (excludes those removed with worktrees)
+        branches = get_local_branches()
+        if args.verbose and branches:
+            print(f"Phase 2: Processing {len(branches)} branch(es)...")
+            for entity_type, name, _ in branches:
+                print(f"  {entity_type}: {name}")
+
+        branch_results = []
+        if branches:
+            # Use parallel processing if beneficial
+            if len(branches) < 3:
+                branch_results = [func(e) for e in branches]
+            else:
+                with Pool(args.workers) as pool:
+                    branch_results = pool.map(func, branches)
+
+        # Combine results from both phases
+        results = worktree_results + branch_results
+
+    if args.verbose:
+        print(f"Total entities processed: {len(results)}")
+
+    # If no entities at all
+    if not results:
+        if not args.verbose:
+            print("OK")
+        return 0
 
     # Check for different types of failures
     errors = [r for r in results if r["status"] == "error"]
