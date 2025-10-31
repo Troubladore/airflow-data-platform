@@ -535,12 +535,210 @@ make build IMAGE_TAG=v1.0.0
 docker tag platform/kerberos-sidecar:latest platform/kerberos-sidecar:v1.0.0
 ```
 
+## Build Specifications for Pre-Built Images
+
+Organizations can pre-build these images in their own registries using the exact specifications below. This ensures no drift between our dynamic builds and your pre-composed images.
+
+### Minimal Sidecar (platform/kerberos-sidecar:minimal)
+
+**Base Image:** `alpine:3.19` (or compatible: `cgr.dev/chainguard/wolfi-base:latest`)
+
+**Exact Package List:**
+```
+krb5
+krb5-libs
+bash
+curl
+ca-certificates
+```
+
+**Build Commands:**
+```dockerfile
+# Install packages
+RUN apk add --no-cache \
+    krb5 \
+    krb5-libs \
+    bash \
+    curl \
+    ca-certificates
+
+# Create directories
+RUN mkdir -p /krb5/conf /krb5/cache /krb5/keytabs /scripts
+
+# Copy scripts (from repository)
+COPY scripts/kerberos-ticket-manager.sh /scripts/
+COPY scripts/health-check.sh /scripts/
+RUN chmod +x /scripts/kerberos-ticket-manager.sh /scripts/health-check.sh
+
+# Environment
+ENV KRB5_CONFIG=/krb5/conf/krb5.conf \
+    KRB5CCNAME=/krb5/cache/krb5cc \
+    KRB5_TRACE=/dev/stdout
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD klist -s || exit 1
+
+# Command
+CMD ["/scripts/kerberos-ticket-manager.sh"]
+```
+
+**Expected Size:** ~15.91 MB
+**Expected Package Count:** 35 packages (including dependencies)
+
+**Verification:**
+```bash
+# After building, verify package count
+docker run --rm platform/kerberos-sidecar:minimal apk info | wc -l
+# Should output: ~35
+
+# Verify image size
+docker images platform/kerberos-sidecar:minimal --format "{{.Size}}"
+# Should output: ~15.91 MB
+
+# Verify Kerberos tools present
+docker run --rm platform/kerberos-sidecar:minimal klist -V
+# Should output: Kerberos 5 release 1.x
+```
+
+### PostgreSQL Test Container (platform/postgres-test)
+
+**Base Image:** `postgres:16-alpine` (required for GSSAPI support in psql)
+
+**Exact Package List:**
+```
+krb5
+krb5-libs
+ca-certificates
+```
+
+**Build Commands:**
+```dockerfile
+FROM postgres:16-alpine
+
+RUN apk add --no-cache \
+    krb5 \
+    krb5-libs \
+    ca-certificates
+
+RUN psql --version && klist -V
+
+ENTRYPOINT ["/bin/sh"]
+```
+
+**Expected Size:** ~50 MB
+**Purpose:** PostgreSQL GSSAPI authentication testing (separate from sidecar)
+
+### SQL Server Test Container (platform/sqlcmd-test)
+
+**Base Image:** `alpine:3.19` (or compatible)
+
+**Exact Package List:**
+```
+krb5
+curl
+msodbcsql18 (downloaded from Microsoft)
+mssql-tools18 (downloaded from Microsoft)
+```
+
+**Build Commands:**
+```dockerfile
+FROM alpine:3.19
+
+# Accept Microsoft EULA
+ENV ACCEPT_EULA=Y
+
+# Install Kerberos and curl
+RUN apk add --no-cache krb5 curl
+
+# Download and install Microsoft packages
+RUN --mount=type=secret,id=netrc,target=/root/.netrc \
+    case $(uname -m) in \
+        x86_64) ARCH="amd64" ;; \
+        aarch64|arm64) ARCH="arm64" ;; \
+    esac && \
+    BASE_URL="https://download.microsoft.com/download/7/6/d/76de322a-d860-4894-9945-f0cc5d6a45f8" && \
+    cd /tmp && \
+    curl -fsSL -o msodbcsql18.apk "${BASE_URL}/msodbcsql18_18.4.1.1-1_${ARCH}.apk" && \
+    curl -fsSL -o mssql-tools18.apk "${BASE_URL}/mssql-tools18_18.4.1.1-1_${ARCH}.apk" && \
+    apk add --allow-untrusted msodbcsql18.apk mssql-tools18.apk && \
+    rm -f *.apk
+
+ENV PATH="/opt/mssql-tools18/bin:${PATH}"
+ENTRYPOINT ["/bin/sh"]
+```
+
+**Expected Size:** ~100 MB
+**Purpose:** SQL Server connectivity testing (separate from sidecar)
+**Note:** Requires `ACCEPT_EULA=Y` for Microsoft ODBC Driver 18 and SQL Server Tools 18
+
+### Corporate Pre-Build Example
+
+**Complete workflow for pre-building all images in corporate registry:**
+
+```bash
+#!/bin/bash
+# Corporate pre-build script for Kerberos sidecar images
+
+REGISTRY="artifactory.company.com/docker-local"
+VERSION="1.0.0"
+
+# Login to corporate registry
+docker login ${REGISTRY}
+
+# Build minimal sidecar with corporate base
+docker build -f Dockerfile \
+  --build-arg IMAGE_ALPINE=${REGISTRY}/alpine:3.19 \
+  -t ${REGISTRY}/kerberos-sidecar:${VERSION} \
+  -t ${REGISTRY}/kerberos-sidecar:latest .
+
+# Build PostgreSQL test container
+docker build -f Dockerfile.postgres-test \
+  -t ${REGISTRY}/postgres-test:${VERSION} \
+  -t ${REGISTRY}/postgres-test:latest .
+
+# Build SQL Server test container
+docker build -f Dockerfile.sqlcmd-test \
+  --build-arg IMAGE_ALPINE=${REGISTRY}/alpine:3.19 \
+  -t ${REGISTRY}/sqlcmd-test:${VERSION} \
+  -t ${REGISTRY}/sqlcmd-test:latest .
+
+# Push all images
+docker push ${REGISTRY}/kerberos-sidecar:${VERSION}
+docker push ${REGISTRY}/kerberos-sidecar:latest
+docker push ${REGISTRY}/postgres-test:${VERSION}
+docker push ${REGISTRY}/postgres-test:latest
+docker push ${REGISTRY}/sqlcmd-test:${VERSION}
+docker push ${REGISTRY}/sqlcmd-test:latest
+
+# Verify package counts match spec
+docker run --rm ${REGISTRY}/kerberos-sidecar:latest apk info | wc -l
+# Should output: ~35 packages
+```
+
+**Key Points for Pre-Built Images:**
+- Package lists are **exact and minimal** - no additional packages should be added
+- Scripts must be copied from this repository (kerberos-ticket-manager.sh, health-check.sh)
+- Environment variables must match exactly
+- Health check configuration must be identical
+- Microsoft EULA acceptance (`ACCEPT_EULA=Y`) is required for sqlcmd-test
+- Test containers are **separate** from the sidecar - never combine them
+
+**Preventing Drift:**
+1. Use the exact package lists above
+2. Copy scripts from this repository (don't recreate them)
+3. Run verification commands after building
+4. Test with the included test suite: `cd test && ./minimal-sidecar.test.sh`
+5. Compare package count: should be ~35 for minimal sidecar
+6. Compare image size: should be ~15.91 MB for minimal sidecar
+
 ## Security Considerations
 
 - **Keytab files:** Mode 0600, never commit to git
 - **Passwords:** Use Docker secrets, not environment variables in git
 - **Ticket cache:** Shared volume, read-only for Airflow containers
 - **Health checks:** Ensure tickets are valid, restart if not
+- **Pre-built images:** Scan for CVEs regularly, rebuild when base images update
 
 ## Links
 
