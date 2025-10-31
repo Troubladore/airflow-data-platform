@@ -46,6 +46,66 @@ git checkout fix/accidental-work
 - Tracks all changes through PR history
 - Allows CI/CD validation before merge
 
+## 🧹 Git Cleanup Automation
+
+### When to Use `git-cleanup-audit.py`
+
+**Use this utility after merging PRs to clean up local branches and worktrees automatically.**
+
+**Trigger Scenarios:**
+1. User just merged a PR and asks to "clean up" or "tidy up"
+2. User asks to "remove old branches" or "clean up worktrees"
+3. After completing a feature and merging to main
+4. User mentions too many local branches cluttering their workspace
+
+**How to Use:**
+```bash
+# First, ensure on main and up to date
+git checkout main
+git pull
+
+# Run the cleanup utility
+./git-cleanup-audit.py
+
+# Expected output on success: "OK"
+```
+
+**What It Does:**
+- Verifies you're on main branch with no uncommitted changes
+- Fetches latest from origin
+- Finds all local branches and worktrees
+- Verifies each is fully merged to main
+- Deletes merged branches and worktrees
+- Reports any unmerged work for manual review
+
+**Exit Codes:**
+- `0`: Success - everything cleaned up
+- `1`: Unmerged work detected - review required
+- `2`: Pre-flight check failed (not on main, uncommitted changes, etc.)
+- `3`: Execution error (git command failed)
+
+**Common Usage Patterns:**
+
+```bash
+# See what would be cleaned without deleting
+./git-cleanup-audit.py --dry-run --verbose
+
+# Clean up in offline mode (skip fetch)
+./git-cleanup-audit.py --skip-fetch
+
+# Verbose output to see progress
+./git-cleanup-audit.py --verbose
+```
+
+**Safety Features:**
+- Will NOT run if uncommitted changes exist
+- Will NOT run if stashes exist
+- Will NOT run if not on main branch
+- Will NOT delete branches with unmerged commits
+- Fetches latest from origin to ensure accuracy
+
+**Documentation:** See `docs/git-cleanup-audit.md` for full details.
+
 ## 🏗️ Repository Architecture Evolution
 
 ### Platform Separation (Major Learning)
