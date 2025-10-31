@@ -75,8 +75,9 @@ def test_two_phase_cleanup():
         assert success, f"Failed to create worktree: {stderr}"
 
         # Run the cleanup utility in verbose mode to see what's happening
+        # Use --skip-fetch since this is a local test repo with no origin
         success, stdout, stderr = run_command(
-            ["python3", str(test_script), "--verbose"],
+            ["python3", str(test_script), "--verbose", "--skip-fetch"],
             cwd=repo_path
         )
 
