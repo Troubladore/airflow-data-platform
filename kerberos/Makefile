@@ -15,7 +15,7 @@
 export
 
 DOCKER_COMPOSE := docker compose
-IMAGE_NAME := platform/kerberos-sidecar:latest
+IMAGE_NAME := platform/kerberos-sidecar
 
 help: ## Show this help message
 	@echo "Kerberos Sidecar Service"
@@ -38,7 +38,7 @@ setup: ## Run interactive Kerberos setup wizard (11 validation steps)
 build: ## Build the Kerberos sidecar image
 	@echo "Building Kerberos sidecar image..."
 	@cd kerberos-sidecar && $(MAKE) build
-	@echo "✓ Kerberos sidecar image built: $(IMAGE_NAME)"
+	@echo "✓ Kerberos sidecar image built: $(IMAGE_NAME):latest"
 
 start: ## Start Kerberos service
 	@echo "Starting Kerberos sidecar..."
@@ -49,7 +49,7 @@ start: ## Start Kerberos service
 		echo "Then customize COMPANY_DOMAIN and other settings"; \
 		exit 1; \
 	fi
-	@if ! docker images $(IMAGE_NAME) --format "{{.Repository}}" | grep -q "platform/kerberos-sidecar"; then \
+	@if ! docker images $(IMAGE_NAME):latest --format "{{.Repository}}" | grep -q "platform/kerberos-sidecar"; then \
 		echo "⚠️  Kerberos sidecar image not found"; \
 		echo "Building image..."; \
 		$(MAKE) build; \
