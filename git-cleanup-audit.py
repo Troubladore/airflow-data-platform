@@ -11,6 +11,7 @@ currently checked out in worktrees, which would fail."""
 import sys
 import subprocess
 import argparse
+import os
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
 
@@ -59,8 +60,51 @@ def validate_git_repository():
     return True
 
 
+def change_to_repo_root():
+    """Change to repository root directory"""
+    success, stdout, stderr, code = run_git_command(["git", "rev-parse", "--show-toplevel"])
+    if not success:
+        print(f"Error: Cannot determine repository root: {stderr.strip()}")
+        sys.exit(2)
+
+    repo_root = stdout.strip()
+    try:
+        os.chdir(repo_root)
+        return True
+    except Exception as e:
+        print(f"Error: Cannot change to repository root {repo_root}: {e}")
+        sys.exit(2)
+
+
+def switch_to_main_branch():
+    """Switch to main branch if not already on it"""
+    success, stdout, stderr, code = run_git_command(["git", "branch", "--show-current"])
+    if not success:
+        print(f"Error: Cannot determine current branch: {stderr.strip()}")
+        sys.exit(2)
+
+    current = stdout.strip()
+    if current != "main":
+        # Try to switch to main
+        success, stdout, stderr, code = run_git_command(["git", "checkout", "main"])
+        if not success:
+            print(f"Error: Cannot switch to main branch: {stderr.strip()}")
+            print(f"(was on branch: {current})")
+            sys.exit(2)
+    return True
+
+
+def pull_latest_from_origin():
+    """Pull latest changes from origin/main"""
+    success, stdout, stderr, code = run_git_command(["git", "pull", "origin", "main"])
+    if not success:
+        print(f"Error: Cannot pull from origin/main: {stderr.strip()}")
+        sys.exit(2)
+    return True
+
+
 def ensure_on_main_branch():
-    """Ensure we're on the main branch"""
+    """Ensure we're on the main branch (legacy check, now redundant with switch_to_main_branch)"""
     success, stdout, stderr, code = run_git_command(["git", "branch", "--show-current"])
     if not success:
         print(f"Error: Cannot determine current branch: {stderr.strip()}")
@@ -340,9 +384,18 @@ def main():
     # Validate we're in a git repository
     validate_git_repository()
 
-    # Ensure we're on main branch
-    ensure_on_main_branch()
+    # NEW PREFLIGHT CHECKS (before existing checks):
+    # 1. Change to repository root (in case we're in a subdirectory)
+    change_to_repo_root()
 
+    # 2. Switch to main branch (if not already on it)
+    switch_to_main_branch()
+
+    # 3. Pull latest from origin/main (unless skipped)
+    if not args.skip_fetch:
+        pull_latest_from_origin()
+
+    # EXISTING PREFLIGHT CHECKS:
     # Pre-flight checks
     if has_uncommitted_changes():
         print("Uncommitted changes detected")
