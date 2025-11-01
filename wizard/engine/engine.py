@@ -254,6 +254,12 @@ class WizardEngine:
             self.runner.run_shell(['docker', 'image', 'prune', '-f'])
             # Remove orphaned volumes (not used by any container)
             self.runner.run_shell(['docker', 'volume', 'prune', '-f'])
+            # Remove platform network if it exists and has no connected containers
+            # Ignore errors since network might not exist or might have containers attached
+            try:
+                self.runner.run_shell(['docker', 'network', 'rm', 'platform_network'])
+            except Exception:
+                pass  # Network might not exist, that's OK
             return None
 
         # Interactive steps (string, boolean, integer, enum)
