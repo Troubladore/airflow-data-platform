@@ -5,13 +5,45 @@
 #
 # This service is the foundation - always starts before other services
 
-.PHONY: help start stop restart status logs clean
+.PHONY: help start stop restart status logs clean build-postgres-test build-sqlcmd-test build-test-containers
 
 # Load configuration from central platform-bootstrap/.env
 -include ../platform-bootstrap/.env
 export
 
 DOCKER_COMPOSE := docker compose
+
+build-postgres-test: ## Build postgres-test container (supports prebuilt and build-from-base modes)
+	@source ../platform-bootstrap/.env 2>/dev/null || true && \
+	if [ "$${POSTGRES_TEST_PREBUILT}" = "true" ]; then \
+		echo "Pulling prebuilt postgres-test image: $${IMAGE_POSTGRES_TEST}" && \
+		docker pull $${IMAGE_POSTGRES_TEST} && \
+		docker tag $${IMAGE_POSTGRES_TEST} platform/postgres-test:latest; \
+	else \
+		echo "Building postgres-test from base: $${IMAGE_POSTGRES_TEST:-alpine:latest}" && \
+		docker build \
+		  -f test-containers/postgres-test/Dockerfile \
+		  --build-arg BASE_IMAGE=$${IMAGE_POSTGRES_TEST:-alpine:latest} \
+		  -t platform/postgres-test:latest \
+		  test-containers/postgres-test/; \
+	fi
+
+build-sqlcmd-test: ## Build sqlcmd-test container (supports prebuilt and build-from-base modes)
+	@source ../platform-bootstrap/.env 2>/dev/null || true && \
+	if [ "$${SQLCMD_TEST_PREBUILT}" = "true" ]; then \
+		echo "Pulling prebuilt sqlcmd-test image: $${IMAGE_SQLCMD_TEST}" && \
+		docker pull $${IMAGE_SQLCMD_TEST} && \
+		docker tag $${IMAGE_SQLCMD_TEST} platform/sqlcmd-test:latest; \
+	else \
+		echo "Building sqlcmd-test from base: $${IMAGE_SQLCMD_TEST:-alpine:latest}" && \
+		docker build \
+		  -f test-containers/sqlcmd-test/Dockerfile \
+		  --build-arg BASE_IMAGE=$${IMAGE_SQLCMD_TEST:-alpine:latest} \
+		  -t platform/sqlcmd-test:latest \
+		  test-containers/sqlcmd-test/; \
+	fi
+
+build-test-containers: build-postgres-test build-sqlcmd-test ## Build all test containers
 
 help: ## Show this help message
 	@echo "Platform Shared Infrastructure"
