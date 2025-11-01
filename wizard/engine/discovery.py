@@ -15,7 +15,7 @@ class DiscoveryEngine:
         """Dynamically import service discovery modules."""
         self.service_modules = {}
 
-        services = ['postgres', 'openmetadata', 'kerberos', 'pagila']
+        services = ['base_platform', 'openmetadata', 'kerberos', 'pagila']
 
         for service_name in services:
             try:

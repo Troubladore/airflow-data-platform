@@ -278,7 +278,7 @@ mock_runner.responses['run_shell'] = {
 }
 
 # Test discovery
-from wizard.services.postgres import discovery
+from wizard.services.base_platform import discovery
 containers = discovery.discover_containers(mock_runner)
 assert len(containers) == 1
 assert containers[0]['name'] == 'postgres'

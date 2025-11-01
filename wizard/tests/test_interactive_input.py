@@ -72,7 +72,7 @@ class TestInputCollection:
         engine.execute_flow('setup')
 
         # State should contain user's response
-        assert engine.state.get('services.postgres.image') == 'custom:image'
+        assert engine.state.get('services.base_platform.postgres.image') == 'custom:image'
 
 
 class TestValidationLoop:
@@ -98,9 +98,12 @@ class TestValidationLoop:
         """Should display error message when validation fails."""
         runner = MockActionRunner()
         runner.input_queue = [
-            'n', 'n', 'n',
-            '999999',      # Invalid port
-            '5432'         # Valid port
+            'n', 'n', 'n',  # Service selections
+            'postgres:17.5', # Valid image
+            'n',            # prebuilt
+            'n',            # require password
+            '999999',       # Invalid port (too high)
+            '5432'          # Valid port
         ]
 
         engine = WizardEngine(runner=runner, base_path='wizard')

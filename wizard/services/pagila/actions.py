@@ -9,7 +9,7 @@ def save_config(ctx: dict, runner) -> None:
     # Get postgres_image - default to platform postgres image if not explicitly set
     postgres_image = ctx.get('services.pagila.postgres_image')
     if not postgres_image:
-        postgres_image = ctx.get('services.postgres.image', 'postgres:17.5-alpine')
+        postgres_image = ctx.get('services.base_platform.postgres.image', 'postgres:17.5-alpine')
 
     # Get branch if specified
     branch = ctx.get('services.pagila.branch', '')
@@ -62,11 +62,11 @@ def install_pagila(ctx: dict, runner) -> None:
 def check_postgres_dependency(ctx: dict, runner) -> bool:
     """Check if PostgreSQL is available."""
     # Check if postgres is enabled in context
-    if not ctx.get('services.postgres.enabled'):
+    if not ctx.get('services.base_platform.postgres.enabled'):
         return False
 
     # Check if postgres config exists
-    if 'services.postgres.port' not in ctx:
+    if 'services.base_platform.postgres.port' not in ctx:
         return False
 
     # Try to verify postgres is actually running

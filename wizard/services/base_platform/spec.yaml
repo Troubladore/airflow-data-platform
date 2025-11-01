@@ -1,4 +1,4 @@
-service: postgres
+service: base_platform
 version: 1.0
 description: "PostgreSQL database configuration"
 requires: []
@@ -6,19 +6,32 @@ provides:
   - db.postgres
 
 steps:
+  - id: migrate_legacy_config
+    type: action
+    action: base_platform.migrate_legacy_postgres_config
+    next: postgres_image
+
   - id: postgres_image
     type: string
     prompt: "PostgreSQL Docker image (used by all services)"
-    state_key: services.postgres.image
-    default_from: services.postgres.image
+    state_key: services.base_platform.postgres.image
+    default_from: services.base_platform.postgres.image
     default_value: postgres:17.5-alpine
-    validator: postgres.validate_image_url
+    validator: base_platform.validate_image_url
+    next: postgres_prebuilt
+
+  - id: postgres_prebuilt
+    type: boolean
+    prompt: "Use prebuilt PostgreSQL image?"
+    state_key: services.base_platform.postgres.prebuilt
+    default_from: services.base_platform.postgres.prebuilt
+    default_value: false
     next: postgres_auth
 
   - id: postgres_auth
     type: boolean
     prompt: "Require password for PostgreSQL database?"
-    state_key: services.postgres.require_password
+    state_key: services.base_platform.postgres.require_password
     default_value: true
     next:
       when_value:
@@ -28,29 +41,29 @@ steps:
   - id: postgres_password
     type: string
     prompt: "PostgreSQL password:"
-    state_key: services.postgres.password
+    state_key: services.base_platform.postgres.password
     default_value: changeme
     next: postgres_port
 
   - id: postgres_port
     type: integer
     prompt: "PostgreSQL port"
-    state_key: services.postgres.port
+    state_key: services.base_platform.postgres.port
     default_value: 5432
-    validator: postgres.validate_port
+    validator: base_platform.validate_port
     next: postgres_save
 
   - id: postgres_save
     type: action
-    action: postgres.save_config
+    action: base_platform.save_config
     next: postgres_pull_image
 
   - id: postgres_pull_image
     type: action
-    action: postgres.pull_image
+    action: base_platform.pull_image
     next: postgres_start
 
   - id: postgres_start
     type: action
-    action: postgres.start_service
+    action: base_platform.start_service
     next: finish

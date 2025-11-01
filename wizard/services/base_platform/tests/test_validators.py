@@ -1,7 +1,7 @@
 """Tests for PostgreSQL validator functions - RED phase."""
 
 import pytest
-from wizard.services.postgres.validators import validate_image_url, validate_port
+from wizard.services.base_platform.validators import validate_image_url, validate_port
 
 
 class TestValidateImageUrl:

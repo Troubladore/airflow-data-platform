@@ -60,7 +60,7 @@ class TestBooleanServiceSelection:
         engine.execute_flow('setup')
 
         # Only postgres should be enabled
-        assert engine.state.get('services.postgres.enabled') == True
+        assert engine.state.get('services.base_platform.postgres.enabled') == True
         assert engine.state.get('services.openmetadata.enabled') == False
         assert engine.state.get('services.kerberos.enabled') == False
         assert engine.state.get('services.pagila.enabled') == False

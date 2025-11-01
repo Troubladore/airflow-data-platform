@@ -122,7 +122,7 @@ class TestServiceDiagnostics:
         }
 
         result = diagnostics.diagnose_postgres_failure({
-            'services.postgres.image': 'postgres:17'
+            'services.base_platform.postgres.image': 'postgres:17'
         })
 
         assert result['container_exists'] is False
@@ -146,13 +146,20 @@ class TestServiceDiagnostics:
 
     def test_pagila_diagnostics_check_git_clone(self):
         """Should check if Pagila repo clone succeeded."""
-        runner = MockRunner()
-        diagnostics = ServiceDiagnostics(runner)
+        # Create a custom mock runner that can match test commands dynamically
+        class TestAwareMockRunner(MockRunner):
+            def run_shell(self, cmd, **kwargs):
+                self.commands.append(cmd)
+                cmd_str = ' '.join(cmd) if isinstance(cmd, list) else cmd
+                # Match any 'test -d' command to simulate directory doesn't exist
+                if cmd_str.startswith('test -d'):
+                    return {'returncode': 1, 'stdout': '', 'stderr': ''}
+                if cmd_str in self.mock_responses:
+                    return self.mock_responses[cmd_str]
+                return {'returncode': 0, 'stdout': '', 'stderr': ''}
 
-        # Mock that pagila directory doesn't exist
-        runner.mock_responses['test -d ../pagila'] = {
-            'returncode': 1  # Directory doesn't exist
-        }
+        runner = TestAwareMockRunner()
+        diagnostics = ServiceDiagnostics(runner)
 
         result = diagnostics.diagnose_pagila_failure({
             'services.pagila.repo_url': 'https://github.com/devrimgunduz/pagila.git'

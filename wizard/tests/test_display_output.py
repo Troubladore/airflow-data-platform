@@ -46,14 +46,14 @@ class TestMessageInterpolation:
         assert result == "Found {missing_key} items"
 
     def test_interpolate_handles_nested_keys(self):
-        """Should handle dot-notation keys like services.postgres.enabled."""
+        """Should handle dot-notation keys like services.base_platform.postgres.enabled."""
         runner = MockActionRunner()
         engine = WizardEngine(runner=runner, base_path='wizard')
 
-        engine.state['services.postgres.enabled'] = True
+        engine.state['services.base_platform.postgres.enabled'] = True
 
         result = engine._interpolate_prompt(
-            "Postgres enabled: {services.postgres.enabled}",
+            "Postgres enabled: {services.base_platform.postgres.enabled}",
             engine.state
         )
 

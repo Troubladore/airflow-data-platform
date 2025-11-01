@@ -4,6 +4,9 @@ import subprocess
 
 def test_prompts_shown_once_not_twice():
     """Each prompt should appear exactly once in output."""
+    import os
+    # Use project root (2 levels up from wizard/tests/acceptance)
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
     # Run actual command
     result = subprocess.run(
         ['./platform', 'setup'],
@@ -11,7 +14,7 @@ def test_prompts_shown_once_not_twice():
         capture_output=True,
         text=True,
         timeout=15,
-        cwd='/home/troubladore/repos/airflow-data-platform/.worktrees/data-driven-wizard'
+        cwd=project_root
     )
 
     output = result.stdout
@@ -21,5 +24,5 @@ def test_prompts_shown_once_not_twice():
         f"'Install OpenMetadata?' appears {output.count('Install OpenMetadata?')} times"
     assert output.count('Install Kerberos?') == 1, \
         f"'Install Kerberos?' appears multiple times"
-    assert output.count('PostgreSQL image') == 1, \
-        f"'PostgreSQL image' appears multiple times"
+    assert output.count('PostgreSQL Docker image') == 1, \
+        f"'PostgreSQL Docker image' appears multiple times"

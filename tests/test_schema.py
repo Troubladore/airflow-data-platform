@@ -29,16 +29,16 @@ def test_step_with_all_fields():
         id='postgres_image',
         type='string',
         prompt='Image URL:',
-        state_key='services.postgres.image',
+        state_key='services.base_platform.postgres.image',
         default_value='postgres:17.5',
-        default_from='services.postgres.image',
+        default_from='services.base_platform.postgres.image',
         validator='postgres.validate_image_url',
         action='postgres.save_config',
         next='next_step'
     )
 
     assert step.default_value == 'postgres:17.5'
-    assert step.default_from == 'services.postgres.image'
+    assert step.default_from == 'services.base_platform.postgres.image'
     assert step.validator == 'postgres.validate_image_url'
     assert step.action == 'postgres.save_config'
     assert step.next == 'next_step'

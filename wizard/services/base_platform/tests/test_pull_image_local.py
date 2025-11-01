@@ -1,7 +1,7 @@
 """Test that pull_image handles local corporate images correctly."""
 
 import pytest
-from wizard.services.postgres.actions import pull_image
+from wizard.services.base_platform.actions import pull_image
 
 
 class MockRunner:
@@ -40,8 +40,8 @@ class TestPullImageLocal:
         """Should skip pull when corporate image exists locally."""
         # Given: A corporate image that exists locally
         ctx = {
-            'services.postgres.image': 'mycorp.jfrog.io/docker-mirror/postgres/17.5:2025.10.01',
-            'services.postgres.prebuilt': False
+            'services.base_platform.postgres.image': 'mycorp.jfrog.io/docker-mirror/postgres/17.5:2025.10.01',
+            'services.base_platform.postgres.prebuilt': False
         }
         runner = MockRunner()
         # Mock that image exists locally
@@ -64,8 +64,8 @@ class TestPullImageLocal:
         """Should attempt pull when corporate image doesn't exist locally."""
         # Given: A corporate image that doesn't exist locally
         ctx = {
-            'services.postgres.image': 'mycorp.jfrog.io/docker-mirror/postgres/17.5:2025.10.01',
-            'services.postgres.prebuilt': False
+            'services.base_platform.postgres.image': 'mycorp.jfrog.io/docker-mirror/postgres/17.5:2025.10.01',
+            'services.base_platform.postgres.prebuilt': False
         }
         runner = MockRunner()
         # Mock that image doesn't exist locally
@@ -90,8 +90,8 @@ class TestPullImageLocal:
         """Should always pull Docker Hub images to get latest."""
         # Given: A Docker Hub image
         ctx = {
-            'services.postgres.image': 'postgres:17.5-alpine',
-            'services.postgres.prebuilt': False
+            'services.base_platform.postgres.image': 'postgres:17.5-alpine',
+            'services.base_platform.postgres.prebuilt': False
         }
         runner = MockRunner()
 
@@ -106,11 +106,10 @@ class TestPullImageLocal:
         assert len(pull_commands) == 1, "Should always pull Docker Hub images"
 
     def test_prebuilt_local_image_shows_correct_message(self):
-        """Should show prebuilt message when using local prebuilt image."""
-        # Given: A prebuilt corporate image that exists locally
+        """Should show message when using local corporate image."""
+        # Given: A corporate image that exists locally
         ctx = {
-            'services.postgres.image': 'mycorp.jfrog.io/docker-mirror/postgres/17.5:2025.10.01',
-            'services.postgres.prebuilt': True
+            'services.base_platform.postgres.image': 'mycorp.jfrog.io/docker-mirror/postgres/17.5:2025.10.01'
         }
         runner = MockRunner()
         runner.mock_responses['docker image inspect mycorp.jfrog.io/docker-mirror/postgres/17.5:2025.10.01'] = {
@@ -120,6 +119,6 @@ class TestPullImageLocal:
         # When: Pulling the image
         pull_image(ctx, runner)
 
-        # Then: Should show prebuilt message
-        assert "Prebuilt image already exists locally" in ' '.join(runner.displays)
+        # Then: Should show that image already exists locally
+        assert "Image already exists locally" in ' '.join(runner.displays)
         assert len([cmd for cmd in runner.commands if 'pull' in cmd]) == 0

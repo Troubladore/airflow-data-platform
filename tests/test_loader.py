@@ -32,13 +32,13 @@ steps:
   - id: postgres_image
     type: string
     prompt: "PostgreSQL image:"
-    state_key: services.postgres.image
+    state_key: services.base_platform.postgres.image
     default_value: postgres:17.5-alpine
     next: postgres_auth
   - id: postgres_auth
     type: enum
     prompt: "Authentication mode:"
-    state_key: services.postgres.auth_method
+    state_key: services.base_platform.postgres.auth_method
     options:
       - value: trust
         label: "Passwordless"
@@ -68,7 +68,7 @@ service_selection:
   - id: select_postgres
     type: boolean
     prompt: "Enable PostgreSQL?"
-    state_key: services.postgres.enabled
+    state_key: services.base_platform.postgres.enabled
     next: configure_services
 targets:
   - service: postgres

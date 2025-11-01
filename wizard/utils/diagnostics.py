@@ -114,7 +114,7 @@ class ServiceDiagnostics:
             result['container_exists'] = False
             result['diagnosis'] = 'Container never created - Docker Compose failed'
 
-            image = ctx.get('services.postgres.image', 'postgres:17.5-alpine')
+            image = ctx.get('services.base_platform.postgres.image', 'postgres:17.5-alpine')
             if '/' in image.split(':')[0]:
                 result['suggestions'].append(f'Try: docker pull {image}')
                 result['suggestions'].append(f'May need: docker login {image.split("/")[0]}')

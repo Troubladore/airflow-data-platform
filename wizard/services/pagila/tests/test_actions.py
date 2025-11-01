@@ -124,8 +124,8 @@ def test_check_postgres_dependency_success():
     """check_postgres_dependency should return True if postgres is available"""
     mock_runner = MockActionRunner()
     ctx = {
-        'services.postgres.enabled': True,
-        'services.postgres.port': 5432
+        'services.base_platform.postgres.enabled': True,
+        'services.base_platform.postgres.port': 5432
     }
 
     result = check_postgres_dependency(ctx, mock_runner)
@@ -137,7 +137,7 @@ def test_check_postgres_dependency_failure_not_enabled():
     """check_postgres_dependency should return False if postgres not enabled"""
     mock_runner = MockActionRunner()
     ctx = {
-        'services.postgres.enabled': False
+        'services.base_platform.postgres.enabled': False
     }
 
     result = check_postgres_dependency(ctx, mock_runner)
@@ -164,8 +164,8 @@ def test_check_postgres_dependency_checks_connection():
         'returncode': 0
     }
     ctx = {
-        'services.postgres.enabled': True,
-        'services.postgres.port': 5432
+        'services.base_platform.postgres.enabled': True,
+        'services.base_platform.postgres.port': 5432
     }
 
     result = check_postgres_dependency(ctx, mock_runner)
@@ -227,7 +227,7 @@ def test_save_config_postgres_image_defaults_to_platform():
     ctx = {
         'services.pagila.repo_url': 'https://github.com/Troubladore/pagila.git',
         'services.pagila.enabled': True,
-        'services.postgres.image': 'artifactory.company.com/postgres:17.5',
+        'services.base_platform.postgres.image': 'artifactory.company.com/postgres:17.5',
         # Note: services.pagila.postgres_image not set - should default to platform
     }
 

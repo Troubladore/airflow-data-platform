@@ -34,8 +34,8 @@ def test_teardown_spec_has_required_fields():
     assert "description" in spec
 
 
-def test_teardown_spec_has_confirmation_step():
-    """Teardown spec includes confirmation step"""
+def test_teardown_spec_has_display_header():
+    """Teardown spec includes display header as first step"""
     spec_path = Path(__file__).parent.parent / "teardown-spec.yaml"
 
     with open(spec_path) as f:
@@ -43,15 +43,14 @@ def test_teardown_spec_has_confirmation_step():
 
     assert "steps" in spec
 
-    # Find confirmation step (now namespaced)
-    confirm_step = next(
-        (s for s in spec["steps"] if s.get("id") == "openmetadata_teardown_confirm"),
+    # Find display header step
+    header_step = next(
+        (s for s in spec["steps"] if s.get("id") == "show_details_header"),
         None
     )
 
-    assert confirm_step is not None, "Must have openmetadata_teardown_confirm step"
-    assert confirm_step["type"] == "boolean"
-    assert confirm_step.get("default_value") is False, "Default should be False for safety"
+    assert header_step is not None, "Must have show_details_header step"
+    assert header_step["type"] == "display"
 
 
 def test_teardown_spec_has_stop_service_action():

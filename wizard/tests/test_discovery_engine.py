@@ -30,7 +30,7 @@ class TestDiscoverAllServices:
         results = engine.discover_all()
 
         assert isinstance(results, dict)
-        assert 'postgres' in results
+        assert 'base_platform' in results
         assert 'openmetadata' in results
         assert 'kerberos' in results
         assert 'pagila' in results
@@ -87,7 +87,7 @@ class TestServiceDiscoveryIntegration:
     """Test integration with service discovery modules."""
 
     def test_discover_all_calls_postgres_discovery(self):
-        """Should import and call postgres discovery functions."""
+        """Should import and call base_platform discovery functions."""
         runner = MockActionRunner()
         runner.responses['run_shell'] = {
             'stdout': 'postgres|Up\n',
@@ -98,9 +98,9 @@ class TestServiceDiscoveryIntegration:
         engine = DiscoveryEngine(runner=runner)
         results = engine.discover_all()
 
-        # Should have postgres results
-        assert 'postgres' in results
-        assert 'containers' in results['postgres']
+        # Should have base_platform results
+        assert 'base_platform' in results
+        assert 'containers' in results['base_platform']
 
     def test_discover_all_handles_missing_service_module(self):
         """Should handle gracefully if service discovery module missing."""

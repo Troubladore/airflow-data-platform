@@ -98,7 +98,7 @@ class TestSetupWizardUX:
         prompts_to_check = [
             'Install OpenMetadata?',
             'Install Kerberos?',
-            'PostgreSQL image'
+            'PostgreSQL Docker image'
         ]
 
         for prompt in prompts_to_check:
