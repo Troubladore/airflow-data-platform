@@ -35,7 +35,7 @@ print(f"  Kerberos image in inputs: {headless_inputs.get('image_input')}")
 try:
     engine.execute_flow('setup', headless_inputs=headless_inputs)
     print("✅ SUCCESS: Wizard accepted corporate images!")
-    print(f"PostgreSQL image: {engine.state.get('services.postgres.image')}")
+    print(f"PostgreSQL image: {engine.state.get('services.base_platform.postgres.image')}")
     print(f"Kerberos image: {engine.state.get('services.kerberos.image')}")
     print(f"Kerberos use_prebuilt: {engine.state.get('services.kerberos.use_prebuilt')}")
 except Exception as e:

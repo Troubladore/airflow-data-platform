@@ -48,8 +48,8 @@ def test_teardown_spec_has_required_fields():
     assert 'steps' in spec
 
 
-def test_teardown_spec_has_confirmation_step():
-    """teardown-spec.yaml includes confirmation step"""
+def test_teardown_spec_has_stop_service_step():
+    """teardown-spec.yaml includes stop_service step as first action"""
     spec_path = Path(__file__).parent.parent / 'teardown-spec.yaml'
 
     with open(spec_path, 'r') as f:
@@ -58,15 +58,15 @@ def test_teardown_spec_has_confirmation_step():
     steps = spec.get('steps', [])
     assert len(steps) > 0
 
-    # Find confirmation step (now namespaced)
-    confirm_step = None
+    # Find stop service step
+    stop_step = None
     for step in steps:
-        if step.get('id') == 'kerberos_teardown_confirm':
-            confirm_step = step
+        if step.get('id') == 'stop_service':
+            stop_step = step
             break
 
-    assert confirm_step is not None, "No kerberos_teardown_confirm step found"
-    assert confirm_step.get('type') == 'boolean'
+    assert stop_step is not None, "No stop_service step found"
+    assert stop_step.get('type') == 'action'
 
 
 def test_teardown_spec_has_stop_service_action():

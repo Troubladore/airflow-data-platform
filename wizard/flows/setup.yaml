@@ -25,16 +25,16 @@ service_selection:
     default_value: false
     next: null
 
-# Services to orchestrate (postgres always enabled)
+# Services to orchestrate (base_platform always enabled)
 targets:
-  - service: postgres
+  - service: base_platform
     enabled: true
     depends_on: []
 
   - service: openmetadata
     enabled: false
     depends_on:
-      - postgres
+      - base_platform
 
   - service: kerberos
     enabled: false
@@ -43,7 +43,7 @@ targets:
   - service: pagila
     enabled: false
     depends_on:
-      - postgres
+      - base_platform
 
 # Execution policy
 policy:

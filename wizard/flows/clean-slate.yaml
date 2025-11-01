@@ -41,7 +41,7 @@ service_selection:
   # PostgreSQL selection
   - id: check_postgres_artifacts
     type: conditional
-    condition: "has_artifacts('postgres')"
+    condition: "has_artifacts('base_platform')"
     next:
       when_true: select_postgres_teardown
       when_false: check_openmetadata_artifacts
@@ -49,7 +49,7 @@ service_selection:
   - id: select_postgres_teardown
     type: boolean
     prompt: "Tear down PostgreSQL?"
-    state_key: services.postgres.teardown.enabled
+    state_key: services.base_platform.postgres.teardown.enabled
     default_value: false
     next: check_openmetadata_artifacts
 
@@ -105,23 +105,23 @@ targets:
     teardown: true
     enabled: false
     depends_on:
-      - postgres  # Pagila depends on postgres, so tears down BEFORE it
+      - base_platform  # Pagila depends on base_platform, so tears down BEFORE it
 
   - service: openmetadata
     teardown: true
     enabled: false
     depends_on:
-      - postgres  # OpenMetadata depends on postgres, so tears down BEFORE it
+      - base_platform  # OpenMetadata depends on base_platform, so tears down BEFORE it
 
   - service: kerberos
     teardown: true
     enabled: false
     depends_on: []
 
-  - service: postgres
+  - service: base_platform
     teardown: true
     enabled: false
-    depends_on: []  # Postgres torn down LAST (no dependencies in teardown)
+    depends_on: []  # base_platform torn down LAST (no dependencies in teardown)
 
 # Final cleanup - runs AFTER all services are torn down
 final_cleanup:

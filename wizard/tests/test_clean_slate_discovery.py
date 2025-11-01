@@ -158,7 +158,7 @@ class TestEmptyStateHandling:
             f"Should NOT prompt user for input when 0 artifacts found (got {empty_runner.input_call_count} prompts)"
 
         # All teardown.enabled flags should remain False (their default)
-        assert engine.state.get('services.postgres.teardown.enabled', False) == False, \
+        assert engine.state.get('services.base_platform.postgres.teardown.enabled', False) == False, \
             "Should NOT enable postgres teardown when 0 artifacts"
         assert engine.state.get('services.openmetadata.teardown.enabled', False) == False, \
             "Should NOT enable openmetadata teardown when 0 artifacts"
@@ -227,10 +227,10 @@ class TestDiscoveryResultsDisplay:
             "Should store discovery results in state"
 
         results = engine.state['discovery_results']
-        # Check postgres results
-        assert 'postgres' in results, "Should have postgres in discovery results"
-        assert len(results['postgres']['containers']) == 2, \
-            "Should find 2 postgres containers"
+        # Check base_platform results
+        assert 'base_platform' in results, "Should have base_platform in discovery results"
+        assert len(results['base_platform']['containers']) == 2, \
+            "Should find 2 base_platform containers"
 
     def test_shows_image_counts(self, engine, runner_with_artifacts):
         """Should display number of images found per service."""
@@ -242,8 +242,8 @@ class TestDiscoveryResultsDisplay:
         })
 
         results = engine.state.get('discovery_results', {})
-        assert len(results['postgres']['images']) == 2, \
-            "Should find 2 postgres images"
+        assert len(results['base_platform']['images']) == 2, \
+            "Should find 2 base_platform images"
         assert len(results['openmetadata']['images']) == 1, \
             "Should find 1 openmetadata image"
 
@@ -257,8 +257,8 @@ class TestDiscoveryResultsDisplay:
         })
 
         results = engine.state.get('discovery_results', {})
-        assert len(results['postgres']['volumes']) == 2, \
-            "Should find 2 postgres volumes"
+        assert len(results['base_platform']['volumes']) == 2, \
+            "Should find 2 base_platform volumes"
         assert len(results['openmetadata']['volumes']) == 1, \
             "Should find 1 openmetadata volume"
 
@@ -332,7 +332,7 @@ class TestServiceSelectionAfterDiscovery:
             "Discovery should run before selection"
 
         # Selection should reflect discovery results
-        assert engine.state.get('services.postgres.teardown.enabled') is True
+        assert engine.state.get('services.base_platform.postgres.teardown.enabled') is True
 
 
 class TestGranularCleanupQuestions:
@@ -389,8 +389,8 @@ class TestGranularCleanupQuestions:
         })
 
         results = engine.state.get('discovery_results', {})
-        postgres_containers = results.get('postgres', {}).get('containers', [])
-        assert len(postgres_containers) == 2, \
+        base_platform_containers = results.get('base_platform', {}).get('containers', [])
+        assert len(base_platform_containers) == 2, \
             "Should show user that 2 containers exist"
 
     def test_shows_actual_image_count_in_prompts(self, engine, runner):
@@ -406,8 +406,8 @@ class TestGranularCleanupQuestions:
         })
 
         results = engine.state.get('discovery_results', {})
-        postgres_images = results.get('postgres', {}).get('images', [])
-        assert len(postgres_images) == 3, \
+        base_platform_images = results.get('base_platform', {}).get('images', [])
+        assert len(base_platform_images) == 3, \
             "Should show user that 3 images exist"
 
     def test_shows_actual_volume_count_in_prompts(self, engine, runner):
@@ -423,8 +423,8 @@ class TestGranularCleanupQuestions:
         })
 
         results = engine.state.get('discovery_results', {})
-        postgres_volumes = results.get('postgres', {}).get('volumes', [])
-        assert len(postgres_volumes) == 2, \
+        base_platform_volumes = results.get('base_platform', {}).get('volumes', [])
+        assert len(base_platform_volumes) == 2, \
             "Should show user that 2 volumes exist"
 
     def test_zero_artifacts_shown_when_none_found(self, engine):

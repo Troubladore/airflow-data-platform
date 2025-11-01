@@ -419,7 +419,7 @@ Create `wizard/services/postgres/tests/test_discovery.py`:
 """Tests for PostgreSQL discovery functions."""
 
 import pytest
-from wizard.services.postgres import discovery
+from wizard.services.base_platform import discovery
 from wizard.engine.runner import MockActionRunner
 
 
@@ -509,7 +509,7 @@ class TestDiscoverFiles:
 
 Run: `uv run pytest wizard/services/postgres/tests/test_discovery.py -v`
 
-Expected: FAIL with "No module named 'wizard.services.postgres.discovery'"
+Expected: FAIL with "No module named 'wizard.services.base_platform.discovery'"
 
 **Step 3: Write minimal implementation**
 

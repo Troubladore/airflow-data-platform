@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from wizard.utils.diagnostics import DiagnosticCollector, ServiceDiagnostics, create_diagnostic_summary
-from wizard.services.postgres import actions as postgres_actions
+from wizard.services.base_platform import actions as postgres_actions
 from wizard.services.kerberos import actions as kerberos_actions
 from wizard.services.pagila import actions as pagila_actions
 
@@ -83,10 +83,10 @@ def test_postgres_diagnostics():
 
     runner = TestRunner(failure_mode='postgres_pull_denied')
     ctx = {
-        'services.postgres.enabled': True,
-        'services.postgres.port': 5432,
-        'services.postgres.image': 'corp.registry/postgres:17',
-        'services.postgres.no_password_mode': True
+        'services.base_platform.postgres.enabled': True,
+        'services.base_platform.postgres.port': 5432,
+        'services.base_platform.postgres.image': 'corp.registry/postgres:17',
+        'services.base_platform.postgres.no_password_mode': True
     }
 
     # This should trigger diagnostics
@@ -137,8 +137,8 @@ def test_pagila_diagnostics():
         'services.pagila.enabled': True,
         'services.pagila.repo_url': 'https://github.com/devrimgunduz/pagila.git',
         'services.pagila.postgres_image': 'postgres:17.5-alpine',
-        'services.postgres.enabled': True,
-        'services.postgres.port': 5432
+        'services.base_platform.postgres.enabled': True,
+        'services.base_platform.postgres.port': 5432
     }
 
     # This should trigger diagnostics

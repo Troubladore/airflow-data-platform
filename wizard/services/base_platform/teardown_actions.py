@@ -64,7 +64,7 @@ def remove_images(ctx: Dict[str, Any], runner: ActionRunner) -> None:
 
     # Fall back to context or default if not found in .env
     if not image:
-        image = ctx.get('services.postgres.image', 'postgres:17.5-alpine')
+        image = ctx.get('services.base_platform.postgres.image', 'postgres:17.5-alpine')
 
     # Build command to remove image
     command = ['docker', 'rmi', image, '--force']
@@ -87,8 +87,8 @@ def clean_config(ctx: Dict[str, Any], runner: ActionRunner) -> None:
         'services': {
             'postgres': {
                 'enabled': False,
-                'image': ctx.get('services.postgres.image', 'postgres:17.5-alpine'),
-                'port': ctx.get('services.postgres.port', 5432)
+                'image': ctx.get('services.base_platform.postgres.image', 'postgres:17.5-alpine'),
+                'port': ctx.get('services.base_platform.postgres.port', 5432)
             }
         }
     }
