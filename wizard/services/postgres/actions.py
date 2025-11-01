@@ -10,6 +10,47 @@ from typing import Dict, Any
 from wizard.utils.diagnostics import DiagnosticCollector, ServiceDiagnostics, create_diagnostic_summary
 
 
+def migrate_legacy_postgres_config(ctx: Dict[str, Any], runner) -> None:
+    """Migrate legacy services.postgres.* keys to services.base_platform.postgres.*.
+
+    This migration:
+    1. Detects if old services.postgres.* keys exist
+    2. Copies all values to services.base_platform.postgres.*
+    3. Deletes all old services.postgres.* keys
+    4. Saves updated configuration
+
+    Args:
+        ctx: Context dictionary
+        runner: ActionRunner instance
+    """
+    # Check if migration is needed
+    old_keys = [key for key in ctx.keys() if key.startswith('services.postgres.')]
+
+    if not old_keys:
+        # No migration needed
+        return
+
+    # Migrate each key
+    migrated_config = {'services': {'base_platform': {'postgres': {}}}}
+
+    for old_key in old_keys:
+        # Extract the field name (e.g., 'enabled' from 'services.postgres.enabled')
+        field = old_key.replace('services.postgres.', '')
+
+        # Copy value to new location in context
+        new_key = f'services.base_platform.postgres.{field}'
+        ctx[new_key] = ctx[old_key]
+
+        # Add to config to save
+        migrated_config['services']['base_platform']['postgres'][field] = ctx[old_key]
+
+        # Delete old key from context
+        del ctx[old_key]
+
+    # Save migrated configuration
+    runner.save_config(migrated_config, 'platform-config.yaml')
+
+
 def save_config(ctx: Dict[str, Any], runner) -> None:
     """Save PostgreSQL configuration to platform-config.yaml and create .env file.
 
