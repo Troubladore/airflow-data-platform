@@ -1,7 +1,7 @@
 """Tests for PostgreSQL discovery functions."""
 
 import pytest
-from wizard.services.postgres import discovery
+from wizard.services.base_platform import discovery
 from wizard.engine.runner import MockActionRunner
 
 

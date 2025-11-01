@@ -88,14 +88,24 @@ def save_config(ctx: Dict[str, Any], runner) -> None:
     Args:
         ctx: Context dictionary with service configuration
         runner: ActionRunner instance for side effects
+
+    Raises:
+        ValueError: If use_prebuilt is True but no image is provided
     """
     # Support both 'domain' and 'realm' keys for backward compatibility
     domain = ctx.get('services.kerberos.domain') or ctx.get('services.kerberos.realm')
+
+    # Check if prebuilt mode is enabled
+    use_prebuilt = ctx.get('services.kerberos.use_prebuilt', False)
 
     # Get image with fallback if empty
     image = ctx.get('services.kerberos.image') or 'ubuntu:22.04'
     if not image or image.strip() == '':
         image = 'ubuntu:22.04'
+
+    # Validate: prebuilt mode requires a custom image
+    if use_prebuilt and (not ctx.get('services.kerberos.image') or ctx.get('services.kerberos.image', '').strip() == ''):
+        raise ValueError("Prebuilt mode requires a Docker image to be specified")
 
     # Build config dictionary
     config = {
@@ -104,7 +114,7 @@ def save_config(ctx: Dict[str, Any], runner) -> None:
                 'enabled': True,
                 'domain': domain,
                 'image': image,
-                'use_prebuilt': ctx.get('services.kerberos.use_prebuilt', False)
+                'use_prebuilt': use_prebuilt
             }
         }
     }

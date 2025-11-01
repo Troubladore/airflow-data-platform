@@ -87,13 +87,15 @@ class TestServiceSelectionStep:
 
     def _register_services(self, engine):
         """Register all service modules with engine."""
-        from wizard.services import postgres, openmetadata, kerberos, pagila
+        from wizard.services import base_platform, openmetadata, kerberos, pagila
 
-        # Register postgres
-        engine.validators['postgres.validate_image_url'] = postgres.validate_image_url
-        engine.validators['postgres.validate_port'] = postgres.validate_port
-        engine.actions['postgres.save_config'] = postgres.save_config
-        engine.actions['postgres.start_service'] = postgres.start_service
+        # Register base_platform
+        engine.validators['base_platform.validate_image_url'] = base_platform.validate_image_url
+        engine.validators['base_platform.validate_port'] = base_platform.validate_port
+        engine.actions['base_platform.save_config'] = base_platform.save_config
+        engine.actions['base_platform.start_service'] = base_platform.start_service
+        engine.actions['base_platform.migrate_legacy_postgres_config'] = base_platform.migrate_legacy_postgres_config
+        engine.actions['base_platform.pull_image'] = base_platform.pull_image
 
         # Register openmetadata
         engine.validators['openmetadata.validate_image_url'] = openmetadata.validate_image_url
@@ -143,8 +145,8 @@ class TestServiceSelectionStep:
         engine.execute_flow('setup', headless_inputs=headless_inputs)
 
         # Postgres should be enabled even if not explicitly selected
-        assert 'services.postgres.enabled' in engine.state
-        assert engine.state['services.postgres.enabled'] is True
+        assert 'services.base_platform.postgres.enabled' in engine.state
+        assert engine.state['services.base_platform.postgres.enabled'] is True
 
 
 class TestServiceExecutionOrdering:
@@ -166,7 +168,6 @@ class TestServiceExecutionOrdering:
             'select_pagila': False,
             # Postgres inputs
             'postgres_image': 'postgres:17.5-alpine',
-            'postgres_prebuilt': False,
             'postgres_auth': True,  # Boolean: require password
             'postgres_password': 'changeme',
             'postgres_port': 5432,
@@ -201,7 +202,6 @@ class TestServiceExecutionOrdering:
             'select_pagila': True,
             # Postgres inputs
             'postgres_image': 'postgres:17.5-alpine',
-            'postgres_prebuilt': False,
             'postgres_auth': True,  # Boolean: require password
             'postgres_password': 'changeme',
             'postgres_port': 5432,
@@ -234,7 +234,6 @@ class TestServiceExecutionOrdering:
             'select_pagila': False,
             # Postgres inputs (always executed)
             'postgres_image': 'postgres:17.5-alpine',
-            'postgres_prebuilt': False,
             'postgres_auth': False,  # Boolean: no password (trust auth)
             'postgres_port': 5432,
             # Kerberos inputs
@@ -259,7 +258,40 @@ class TestIntegrationScenarioAllDefaults:
         runner = MockActionRunner()
         base_path = Path(__file__).parent.parent
         engine = WizardEngine(runner=runner, base_path=base_path)
+
+        # Register service validators and actions
+        self._register_services(engine)
+
         return engine
+
+    def _register_services(self, engine):
+        """Register all service modules with engine."""
+        from wizard.services import base_platform, openmetadata, kerberos, pagila
+
+        # Register base_platform
+        engine.validators['base_platform.validate_image_url'] = base_platform.validate_image_url
+        engine.validators['base_platform.validate_port'] = base_platform.validate_port
+        engine.actions['base_platform.save_config'] = base_platform.save_config
+        engine.actions['base_platform.start_service'] = base_platform.start_service
+        engine.actions['base_platform.migrate_legacy_postgres_config'] = base_platform.migrate_legacy_postgres_config
+        engine.actions['base_platform.pull_image'] = base_platform.pull_image
+
+        # Register openmetadata
+        engine.validators['openmetadata.validate_image_url'] = openmetadata.validate_image_url
+        engine.validators['openmetadata.validate_port'] = openmetadata.validate_port
+        engine.actions['openmetadata.save_config'] = openmetadata.save_config
+        engine.actions['openmetadata.start_service'] = openmetadata.start_service
+
+        # Register kerberos
+        engine.validators['kerberos.validate_domain'] = kerberos.validate_domain
+        engine.validators['kerberos.validate_image_url'] = kerberos.validate_image_url
+        engine.actions['kerberos.test_kerberos'] = kerberos.test_kerberos
+        engine.actions['kerberos.save_config'] = kerberos.save_config
+
+        # Register pagila
+        engine.validators['pagila.validate_git_url'] = pagila.validate_git_url
+        engine.actions['pagila.save_config'] = pagila.save_config
+        engine.actions['pagila.install_pagila'] = pagila.install_pagila
 
     def test_all_defaults_scenario(self, engine):
         """Should handle all default values (empty inputs)."""
@@ -277,10 +309,9 @@ class TestIntegrationScenarioAllDefaults:
         engine.execute_flow('setup', headless_inputs=headless_inputs)
 
         # Verify default values were used
-        assert engine.state.get('services.postgres.image') == 'postgres:17.5-alpine'
-        assert engine.state.get('services.postgres.auth_method') == 'md5'
-        assert engine.state.get('services.postgres.port') == 5432
-        assert engine.state.get('services.postgres.prebuilt') is False
+        assert engine.state.get('services.base_platform.postgres.image') == 'postgres:17.5-alpine'
+        assert engine.state.get('services.base_platform.postgres.require_password') is True
+        assert engine.state.get('services.base_platform.postgres.port') == 5432
 
     def test_all_defaults_calls_postgres_actions(self, engine):
         """Should call postgres save, init, and start actions."""
@@ -313,7 +344,29 @@ class TestIntegrationScenarioHybrid:
         runner = MockActionRunner()
         base_path = Path(__file__).parent.parent
         engine = WizardEngine(runner=runner, base_path=base_path)
+        self._register_services(engine)
         return engine
+
+    def _register_services(self, engine):
+        """Register all service modules with engine."""
+        from wizard.services import base_platform, openmetadata, kerberos, pagila
+        engine.validators['base_platform.validate_image_url'] = base_platform.validate_image_url
+        engine.validators['base_platform.validate_port'] = base_platform.validate_port
+        engine.actions['base_platform.save_config'] = base_platform.save_config
+        engine.actions['base_platform.start_service'] = base_platform.start_service
+        engine.actions['base_platform.migrate_legacy_postgres_config'] = base_platform.migrate_legacy_postgres_config
+        engine.actions['base_platform.pull_image'] = base_platform.pull_image
+        engine.validators['openmetadata.validate_image_url'] = openmetadata.validate_image_url
+        engine.validators['openmetadata.validate_port'] = openmetadata.validate_port
+        engine.actions['openmetadata.save_config'] = openmetadata.save_config
+        engine.actions['openmetadata.start_service'] = openmetadata.start_service
+        engine.validators['kerberos.validate_domain'] = kerberos.validate_domain
+        engine.validators['kerberos.validate_image_url'] = kerberos.validate_image_url
+        engine.actions['kerberos.test_kerberos'] = kerberos.test_kerberos
+        engine.actions['kerberos.save_config'] = kerberos.save_config
+        engine.validators['pagila.validate_git_url'] = pagila.validate_git_url
+        engine.actions['pagila.save_config'] = pagila.save_config
+        engine.actions['pagila.install_pagila'] = pagila.install_pagila
 
     def test_hybrid_default_and_custom_images(self, engine):
         """Should handle mix of default and custom Docker images."""
@@ -323,7 +376,6 @@ class TestIntegrationScenarioHybrid:
             'select_pagila': False,
             # Postgres: use default image
             'postgres_image': '',  # Default
-            'postgres_prebuilt': True,
             'postgres_auth': True,  # Boolean: require password
             'postgres_password': 'secret123',
             'postgres_port': 5432,
@@ -337,8 +389,8 @@ class TestIntegrationScenarioHybrid:
         engine.execute_flow('setup', headless_inputs=headless_inputs)
 
         # Verify postgres used default
-        assert engine.state.get('services.postgres.image') == 'postgres:17.5-alpine'
-        assert engine.state.get('services.postgres.prebuilt') is True
+        assert engine.state.get('services.base_platform.postgres.image') == 'postgres:17.5-alpine'
+        # Prebuilt concept removed - now all images use same postgres:17.5-alpine default
 
         # Verify openmetadata used custom
         assert 'myregistry.company.com' in engine.state.get('services.openmetadata.server_image', '')
@@ -354,7 +406,29 @@ class TestIntegrationScenarioAllCustom:
         runner = MockActionRunner()
         base_path = Path(__file__).parent.parent
         engine = WizardEngine(runner=runner, base_path=base_path)
+        self._register_services(engine)
         return engine
+
+    def _register_services(self, engine):
+        """Register all service modules with engine."""
+        from wizard.services import base_platform, openmetadata, kerberos, pagila
+        engine.validators['base_platform.validate_image_url'] = base_platform.validate_image_url
+        engine.validators['base_platform.validate_port'] = base_platform.validate_port
+        engine.actions['base_platform.save_config'] = base_platform.save_config
+        engine.actions['base_platform.start_service'] = base_platform.start_service
+        engine.actions['base_platform.migrate_legacy_postgres_config'] = base_platform.migrate_legacy_postgres_config
+        engine.actions['base_platform.pull_image'] = base_platform.pull_image
+        engine.validators['openmetadata.validate_image_url'] = openmetadata.validate_image_url
+        engine.validators['openmetadata.validate_port'] = openmetadata.validate_port
+        engine.actions['openmetadata.save_config'] = openmetadata.save_config
+        engine.actions['openmetadata.start_service'] = openmetadata.start_service
+        engine.validators['kerberos.validate_domain'] = kerberos.validate_domain
+        engine.validators['kerberos.validate_image_url'] = kerberos.validate_image_url
+        engine.actions['kerberos.test_kerberos'] = kerberos.test_kerberos
+        engine.actions['kerberos.save_config'] = kerberos.save_config
+        engine.validators['pagila.validate_git_url'] = pagila.validate_git_url
+        engine.actions['pagila.save_config'] = pagila.save_config
+        engine.actions['pagila.install_pagila'] = pagila.install_pagila
 
     def test_all_custom_images(self, engine):
         """Should handle all custom Docker images from corporate registry."""
@@ -364,7 +438,6 @@ class TestIntegrationScenarioAllCustom:
             'select_pagila': False,
             # All custom images from corporate registry
             'postgres_image': 'artifactory.company.com/postgres:17.5-alpine',
-            'postgres_prebuilt': False,
             'postgres_auth': True,  # Boolean: require password (any auth method)
             'postgres_password': 'verysecure',
             'postgres_port': 5433,
@@ -379,7 +452,7 @@ class TestIntegrationScenarioAllCustom:
         engine.execute_flow('setup', headless_inputs=headless_inputs)
 
         # Verify all images come from corporate registry
-        assert 'artifactory.company.com' in engine.state.get('services.postgres.image', '')
+        assert 'artifactory.company.com' in engine.state.get('services.base_platform.postgres.image', '')
         assert 'artifactory.company.com' in engine.state.get('services.openmetadata.server_image', '')
         assert 'artifactory.company.com' in engine.state.get('services.kerberos.image', '')
 
@@ -397,7 +470,29 @@ class TestIntegrationScenarioAllBuilt:
         runner = MockActionRunner()
         base_path = Path(__file__).parent.parent
         engine = WizardEngine(runner=runner, base_path=base_path)
+        self._register_services(engine)
         return engine
+
+    def _register_services(self, engine):
+        """Register all service modules with engine."""
+        from wizard.services import base_platform, openmetadata, kerberos, pagila
+        engine.validators['base_platform.validate_image_url'] = base_platform.validate_image_url
+        engine.validators['base_platform.validate_port'] = base_platform.validate_port
+        engine.actions['base_platform.save_config'] = base_platform.save_config
+        engine.actions['base_platform.start_service'] = base_platform.start_service
+        engine.actions['base_platform.migrate_legacy_postgres_config'] = base_platform.migrate_legacy_postgres_config
+        engine.actions['base_platform.pull_image'] = base_platform.pull_image
+        engine.validators['openmetadata.validate_image_url'] = openmetadata.validate_image_url
+        engine.validators['openmetadata.validate_port'] = openmetadata.validate_port
+        engine.actions['openmetadata.save_config'] = openmetadata.save_config
+        engine.actions['openmetadata.start_service'] = openmetadata.start_service
+        engine.validators['kerberos.validate_domain'] = kerberos.validate_domain
+        engine.validators['kerberos.validate_image_url'] = kerberos.validate_image_url
+        engine.actions['kerberos.test_kerberos'] = kerberos.test_kerberos
+        engine.actions['kerberos.save_config'] = kerberos.save_config
+        engine.validators['pagila.validate_git_url'] = pagila.validate_git_url
+        engine.actions['pagila.save_config'] = pagila.save_config
+        engine.actions['pagila.install_pagila'] = pagila.install_pagila
 
     def test_all_built_layering_approach(self, engine):
         """Should handle all services using build-from-source approach."""
@@ -423,7 +518,7 @@ class TestIntegrationScenarioAllBuilt:
         engine.execute_flow('setup', headless_inputs=headless_inputs)
 
         # Verify all services set to build (not prebuilt)
-        assert engine.state.get('services.postgres.prebuilt') is False
+        # Prebuilt concept removed - now all images use same postgres:17.5-alpine default
         assert engine.state.get('services.openmetadata.use_prebuilt') is False
 
         # Verify all services enabled
@@ -441,7 +536,29 @@ class TestIntegrationScenarioMixBuiltPrebuilt:
         runner = MockActionRunner()
         base_path = Path(__file__).parent.parent
         engine = WizardEngine(runner=runner, base_path=base_path)
+        self._register_services(engine)
         return engine
+
+    def _register_services(self, engine):
+        """Register all service modules with engine."""
+        from wizard.services import base_platform, openmetadata, kerberos, pagila
+        engine.validators['base_platform.validate_image_url'] = base_platform.validate_image_url
+        engine.validators['base_platform.validate_port'] = base_platform.validate_port
+        engine.actions['base_platform.save_config'] = base_platform.save_config
+        engine.actions['base_platform.start_service'] = base_platform.start_service
+        engine.actions['base_platform.migrate_legacy_postgres_config'] = base_platform.migrate_legacy_postgres_config
+        engine.actions['base_platform.pull_image'] = base_platform.pull_image
+        engine.validators['openmetadata.validate_image_url'] = openmetadata.validate_image_url
+        engine.validators['openmetadata.validate_port'] = openmetadata.validate_port
+        engine.actions['openmetadata.save_config'] = openmetadata.save_config
+        engine.actions['openmetadata.start_service'] = openmetadata.start_service
+        engine.validators['kerberos.validate_domain'] = kerberos.validate_domain
+        engine.validators['kerberos.validate_image_url'] = kerberos.validate_image_url
+        engine.actions['kerberos.test_kerberos'] = kerberos.test_kerberos
+        engine.actions['kerberos.save_config'] = kerberos.save_config
+        engine.validators['pagila.validate_git_url'] = pagila.validate_git_url
+        engine.actions['pagila.save_config'] = pagila.save_config
+        engine.actions['pagila.install_pagila'] = pagila.install_pagila
 
     def test_mix_of_built_and_prebuilt(self, engine):
         """Should handle some services prebuilt, others built."""
@@ -451,7 +568,6 @@ class TestIntegrationScenarioMixBuiltPrebuilt:
             'select_pagila': True,
             # Postgres: prebuilt
             'postgres_image': 'postgres:17.5-alpine',
-            'postgres_prebuilt': True,
             'postgres_auth': True,  # Boolean: require password
             'postgres_password': 'changeme',
             'postgres_port': 5432,
@@ -467,7 +583,7 @@ class TestIntegrationScenarioMixBuiltPrebuilt:
         engine.execute_flow('setup', headless_inputs=headless_inputs)
 
         # Verify mixed approach
-        assert engine.state.get('services.postgres.prebuilt') is True
+        # Prebuilt concept removed - now all images use same postgres:17.5-alpine default
         assert engine.state.get('services.openmetadata.use_prebuilt') is False
 
         # Verify both services enabled
@@ -484,7 +600,29 @@ class TestIntegrationScenarioAllPrebuilt:
         runner = MockActionRunner()
         base_path = Path(__file__).parent.parent
         engine = WizardEngine(runner=runner, base_path=base_path)
+        self._register_services(engine)
         return engine
+
+    def _register_services(self, engine):
+        """Register all service modules with engine."""
+        from wizard.services import base_platform, openmetadata, kerberos, pagila
+        engine.validators['base_platform.validate_image_url'] = base_platform.validate_image_url
+        engine.validators['base_platform.validate_port'] = base_platform.validate_port
+        engine.actions['base_platform.save_config'] = base_platform.save_config
+        engine.actions['base_platform.start_service'] = base_platform.start_service
+        engine.actions['base_platform.migrate_legacy_postgres_config'] = base_platform.migrate_legacy_postgres_config
+        engine.actions['base_platform.pull_image'] = base_platform.pull_image
+        engine.validators['openmetadata.validate_image_url'] = openmetadata.validate_image_url
+        engine.validators['openmetadata.validate_port'] = openmetadata.validate_port
+        engine.actions['openmetadata.save_config'] = openmetadata.save_config
+        engine.actions['openmetadata.start_service'] = openmetadata.start_service
+        engine.validators['kerberos.validate_domain'] = kerberos.validate_domain
+        engine.validators['kerberos.validate_image_url'] = kerberos.validate_image_url
+        engine.actions['kerberos.test_kerberos'] = kerberos.test_kerberos
+        engine.actions['kerberos.save_config'] = kerberos.save_config
+        engine.validators['pagila.validate_git_url'] = pagila.validate_git_url
+        engine.actions['pagila.save_config'] = pagila.save_config
+        engine.actions['pagila.install_pagila'] = pagila.install_pagila
 
     def test_all_prebuilt_out_of_box(self, engine):
         """Should handle all services using prebuilt images (fastest setup)."""
@@ -494,7 +632,6 @@ class TestIntegrationScenarioAllPrebuilt:
             'select_pagila': False,
             # All services: prebuilt ready-to-use images
             'postgres_image': 'postgres:17.5-alpine',
-            'postgres_prebuilt': True,
             'postgres_auth': False,  # Boolean: no password (trust auth)
             'postgres_port': 5432,
             'server_image': 'docker.getcollate.io/openmetadata/server:1.5.0',
@@ -506,11 +643,11 @@ class TestIntegrationScenarioAllPrebuilt:
         engine.execute_flow('setup', headless_inputs=headless_inputs)
 
         # Verify all services use prebuilt
-        assert engine.state.get('services.postgres.prebuilt') is True
+        # Prebuilt concept removed - now all images use same postgres:17.5-alpine default
         assert engine.state.get('services.openmetadata.use_prebuilt') is True
 
         # Verify trust auth (no password needed)
-        assert engine.state.get('services.postgres.auth_method') == 'trust'
+        assert engine.state.get('services.base_platform.postgres.require_password') is False
 
     def test_all_prebuilt_minimal_prompts(self, engine):
         """Prebuilt scenario should skip build-related questions."""
@@ -531,7 +668,7 @@ class TestIntegrationScenarioAllPrebuilt:
         assert len(runner.calls) > 0, "Should execute actions"
 
         # Verify prebuilt mode
-        assert engine.state.get('services.postgres.prebuilt') is True
+        # Prebuilt concept removed - now all images use same postgres:17.5-alpine default
 
 
 class TestConditionalServiceInclusion:
@@ -552,7 +689,6 @@ class TestConditionalServiceInclusion:
             'select_kerberos': False,
             'select_pagila': False,  # Only postgres (always enabled)
             'postgres_image': 'postgres:17.5-alpine',
-            'postgres_prebuilt': True,
             'postgres_auth': False,  # Boolean: no password (trust auth)
             'postgres_port': 5432
         }
@@ -578,7 +714,6 @@ class TestConditionalServiceInclusion:
             'select_kerberos': True,
             'select_pagila': False,
             'postgres_image': 'postgres:17.5-alpine',
-            'postgres_prebuilt': True,
             'postgres_auth': False,  # Boolean: no password (trust auth)
             'postgres_port': 5432,
             'domain_input': 'EXAMPLE.COM',
@@ -616,7 +751,6 @@ class TestFlowStateManagement:
             'select_kerberos': False,
             'select_pagila': False,
             'postgres_image': 'postgres:17.5-alpine',
-            'postgres_prebuilt': False,
             'postgres_auth': True,  # Boolean: require password
             'postgres_password': 'secret',
             'postgres_port': 5432,
@@ -629,11 +763,11 @@ class TestFlowStateManagement:
         engine.execute_flow('setup', headless_inputs=headless_inputs)
 
         # Verify both postgres and openmetadata state exists
-        assert 'services.postgres.image' in engine.state
+        assert 'services.base_platform.postgres.image' in engine.state
         assert 'services.openmetadata.server_image' in engine.state
 
         # State from postgres should still be available when openmetadata runs
-        assert engine.state['services.postgres.password'] == 'secret'
+        assert engine.state['services.base_platform.postgres.password'] == 'secret'
 
     def test_state_namespaced_by_service(self, engine):
         """Each service's state should be namespaced correctly."""
@@ -642,7 +776,6 @@ class TestFlowStateManagement:
             'select_kerberos': True,
             'select_pagila': False,
             'postgres_image': 'postgres:17.5-alpine',
-            'postgres_prebuilt': True,
             'postgres_auth': False,  # Boolean: no password (trust auth)
             'postgres_port': 5432,
             'domain_input': 'CORP.LOCAL',
@@ -652,11 +785,11 @@ class TestFlowStateManagement:
         engine.execute_flow('setup', headless_inputs=headless_inputs)
 
         # Verify namespace separation
-        assert 'services.postgres.image' in engine.state
+        assert 'services.base_platform.postgres.image' in engine.state
         assert 'services.kerberos.domain' in engine.state
 
         # Verify no namespace collision
-        assert engine.state['services.postgres.image'] == 'postgres:17.5-alpine'
+        assert engine.state['services.base_platform.postgres.image'] == 'postgres:17.5-alpine'
         assert engine.state['services.kerberos.image'] == 'ubuntu:22.04'
 
 
@@ -669,7 +802,29 @@ class TestActionRunnerIntegration:
         runner = MockActionRunner()
         base_path = Path(__file__).parent.parent
         engine = WizardEngine(runner=runner, base_path=base_path)
+        self._register_services(engine)
         return engine
+
+    def _register_services(self, engine):
+        """Register all service modules with engine."""
+        from wizard.services import base_platform, openmetadata, kerberos, pagila
+        engine.validators['base_platform.validate_image_url'] = base_platform.validate_image_url
+        engine.validators['base_platform.validate_port'] = base_platform.validate_port
+        engine.actions['base_platform.save_config'] = base_platform.save_config
+        engine.actions['base_platform.start_service'] = base_platform.start_service
+        engine.actions['base_platform.migrate_legacy_postgres_config'] = base_platform.migrate_legacy_postgres_config
+        engine.actions['base_platform.pull_image'] = base_platform.pull_image
+        engine.validators['openmetadata.validate_image_url'] = openmetadata.validate_image_url
+        engine.validators['openmetadata.validate_port'] = openmetadata.validate_port
+        engine.actions['openmetadata.save_config'] = openmetadata.save_config
+        engine.actions['openmetadata.start_service'] = openmetadata.start_service
+        engine.validators['kerberos.validate_domain'] = kerberos.validate_domain
+        engine.validators['kerberos.validate_image_url'] = kerberos.validate_image_url
+        engine.actions['kerberos.test_kerberos'] = kerberos.test_kerberos
+        engine.actions['kerberos.save_config'] = kerberos.save_config
+        engine.validators['pagila.validate_git_url'] = pagila.validate_git_url
+        engine.actions['pagila.save_config'] = pagila.save_config
+        engine.actions['pagila.install_pagila'] = pagila.install_pagila
 
     def test_runner_records_all_save_config_calls(self, engine):
         """Should record all save_config calls to runner."""
@@ -678,7 +833,6 @@ class TestActionRunnerIntegration:
             'select_kerberos': False,
             'select_pagila': False,
             'postgres_image': 'postgres:17.5-alpine',
-            'postgres_prebuilt': True,
             'postgres_auth': False,  # Boolean: no password (trust auth)
             'postgres_port': 5432,
             'server_image': 'docker.getcollate.io/openmetadata/server:1.5.0',
@@ -702,7 +856,6 @@ class TestActionRunnerIntegration:
             'select_kerberos': False,
             'select_pagila': False,
             'postgres_image': 'postgres:17.5-alpine',
-            'postgres_prebuilt': False,
             'postgres_auth': True,  # Boolean: require password
             'postgres_password': 'changeme',
             'postgres_port': 5432

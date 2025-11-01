@@ -51,7 +51,7 @@ class WizardEngine:
                 if '=' in line:
                     image = line.split('=', 1)[1].strip()
                     # Store in state using the same key as the spec expects
-                    state['services.postgres.image'] = image
+                    state['services.base_platform.postgres.image'] = image
 
         # 2. Load from platform-config.yaml (create from template if needed)
         config_file = 'platform-config.yaml'
@@ -77,7 +77,7 @@ class WizardEngine:
                                     if key != 'enabled':
                                         state_key = f'services.{service_name}.{key}'
                                         # Don't override PostgreSQL image from .env
-                                        if state_key == 'services.postgres.image' and state_key in state:
+                                        if state_key == 'services.base_platform.postgres.image' and state_key in state:
                                             continue
                                         state[state_key] = value
             except Exception:
@@ -539,7 +539,7 @@ class WizardEngine:
 
         # Postgres is always enabled for setup flows
         if not is_teardown_flow:
-            self.state['services.postgres.enabled'] = True
+            self.state['services.base_platform.postgres.enabled'] = True
 
         # Auto-register service validators and actions
         self._auto_register_services(is_teardown_flow)
@@ -658,14 +658,22 @@ class WizardEngine:
             return  # Already registered
 
         try:
-            from wizard.services import postgres, openmetadata, kerberos, pagila
+            from wizard.services import base_platform, openmetadata, kerberos, pagila
 
-            # Register postgres
-            self.validators['postgres.validate_image_url'] = postgres.validate_image_url
-            self.validators['postgres.validate_port'] = postgres.validate_port
-            self.actions['postgres.save_config'] = postgres.save_config
-            self.actions['postgres.pull_image'] = postgres.pull_image
-            self.actions['postgres.start_service'] = postgres.start_service
+            # Register base_platform (provides postgres and infrastructure)
+            self.validators['base_platform.validate_image_url'] = base_platform.validate_image_url
+            self.validators['base_platform.validate_port'] = base_platform.validate_port
+            self.actions['base_platform.save_config'] = base_platform.save_config
+            self.actions['base_platform.pull_image'] = base_platform.pull_image
+            self.actions['base_platform.start_service'] = base_platform.start_service
+            self.actions['base_platform.migrate_legacy_postgres_config'] = base_platform.migrate_legacy_postgres_config
+
+            # Register postgres aliases for backward compatibility
+            self.validators['postgres.validate_image_url'] = base_platform.validate_image_url
+            self.validators['postgres.validate_port'] = base_platform.validate_port
+            self.actions['postgres.save_config'] = base_platform.save_config
+            self.actions['postgres.pull_image'] = base_platform.pull_image
+            self.actions['postgres.start_service'] = base_platform.start_service
 
             # Register openmetadata
             self.validators['openmetadata.validate_image_url'] = openmetadata.validate_image_url
@@ -687,12 +695,18 @@ class WizardEngine:
 
             # Register teardown actions if this is a teardown flow
             if is_teardown_flow:
-                from wizard.services.postgres import teardown_actions as postgres_teardown
+                from wizard.services.base_platform import teardown_actions as postgres_teardown
                 from wizard.services.openmetadata import teardown_actions as openmetadata_teardown
                 from wizard.services.kerberos import teardown_actions as kerberos_teardown
                 from wizard.services.pagila import teardown_actions as pagila_teardown
 
-                # Register postgres teardown (uses teardown. prefix in spec)
+                # Register base_platform teardown (new location)
+                self.actions['base_platform.teardown.stop_service'] = postgres_teardown.stop_service
+                self.actions['base_platform.teardown.remove_volumes'] = postgres_teardown.remove_volumes
+                self.actions['base_platform.teardown.remove_images'] = postgres_teardown.remove_images
+                self.actions['base_platform.teardown.clean_config'] = postgres_teardown.clean_config
+
+                # Register postgres teardown (legacy - uses teardown. prefix in spec)
                 self.actions['postgres.teardown.stop_service'] = postgres_teardown.stop_service
                 self.actions['postgres.teardown.remove_volumes'] = postgres_teardown.remove_volumes
                 self.actions['postgres.teardown.remove_images'] = postgres_teardown.remove_images

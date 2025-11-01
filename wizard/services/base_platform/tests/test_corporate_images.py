@@ -1,7 +1,7 @@
 """Test corporate registry image paths - RED phase for TDD."""
 
 import pytest
-from wizard.services.postgres.validators import validate_image_url
+from wizard.services.base_platform.validators import validate_image_url
 
 
 class TestCorporateImagePaths:

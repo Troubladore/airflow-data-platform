@@ -1,4 +1,4 @@
-service: postgres
+service: base_platform
 version: 1.0
 description: "PostgreSQL database teardown"
 requires: []
@@ -22,7 +22,7 @@ steps:
   - id: postgres_remove_images
     type: boolean
     prompt: "Remove PostgreSQL Docker images?"
-    state_key: services.postgres.teardown.remove_images
+    state_key: services.base_platform.postgres.teardown.remove_images
     default_value: false
     next:
       when_value:
@@ -37,7 +37,7 @@ steps:
   - id: postgres_remove_volumes
     type: boolean
     prompt: "Remove PostgreSQL data volumes (data will be lost)?"
-    state_key: services.postgres.teardown.remove_volumes
+    state_key: services.base_platform.postgres.teardown.remove_volumes
     default_value: false
     next:
       when_value:
@@ -52,7 +52,7 @@ steps:
   - id: remove_config_question
     type: boolean
     prompt: "Remove from platform configuration (custom settings will be forgotten)?"
-    state_key: services.postgres.teardown.remove_config
+    state_key: services.base_platform.postgres.teardown.remove_config
     default_value: false
     next:
       when_value:

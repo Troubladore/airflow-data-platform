@@ -27,11 +27,11 @@ class TestSetupHappyPath:
         engine.execute_flow('setup')
 
         # Verify defaults were used
-        assert engine.state['services.postgres.image'] == 'postgres:17.5-alpine'
-        assert engine.state['services.postgres.prebuilt'] == False
-        assert engine.state['services.postgres.require_password'] == True
-        assert engine.state['services.postgres.password'] == 'changeme'
-        assert engine.state['services.postgres.port'] == 5432
+        assert engine.state['services.base_platform.postgres.image'] == 'postgres:17.5-alpine'
+        assert engine.state['services.base_platform.postgres.prebuilt'] == False
+        assert engine.state['services.base_platform.postgres.require_password'] == True
+        assert engine.state['services.base_platform.postgres.password'] == 'changeme'
+        assert engine.state['services.base_platform.postgres.port'] == 5432
 
     def test_custom_values_are_actually_used(self):
         """Custom user inputs should override defaults."""
@@ -50,10 +50,10 @@ class TestSetupHappyPath:
         engine.execute_flow('setup')
 
         # Verify custom values were stored
-        assert engine.state['services.postgres.image'] == 'postgres:16'
-        assert engine.state['services.postgres.prebuilt'] == True
-        assert engine.state['services.postgres.require_password'] == False
-        assert engine.state['services.postgres.port'] == 5433
+        assert engine.state['services.base_platform.postgres.image'] == 'postgres:16'
+        assert engine.state['services.base_platform.postgres.prebuilt'] == True
+        assert engine.state['services.base_platform.postgres.require_password'] == False
+        assert engine.state['services.base_platform.postgres.port'] == 5433
 
     def test_each_prompt_only_asked_once(self):
         """Each question should only be asked once (no duplicate prompts)."""
@@ -102,4 +102,4 @@ class TestSetupHappyPath:
         assert len(error_displays) >= 1, "Should show validation error"
 
         # Should store valid port
-        assert engine.state['services.postgres.port'] == 5433
+        assert engine.state['services.base_platform.postgres.port'] == 5433

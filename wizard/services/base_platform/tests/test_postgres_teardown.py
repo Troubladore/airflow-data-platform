@@ -22,7 +22,7 @@ class TestTeardownSpec:
 
         assert spec is not None
         assert 'service' in spec
-        assert spec['service'] == 'postgres'
+        assert spec['service'] == 'base_platform'
         assert 'steps' in spec
         assert isinstance(spec['steps'], list)
 
@@ -34,8 +34,8 @@ class TestTeardownSpec:
 
         step_ids = [step['id'] for step in spec['steps']]
 
-        # Required steps for teardown (now with namespaced IDs)
-        assert 'postgres_teardown_confirm' in step_ids
+        # Required steps for teardown
+        assert 'show_postgres_details_header' in step_ids
         assert 'stop_service' in step_ids
         assert 'postgres_remove_volumes' in step_ids
         assert 'remove_volumes_action' in step_ids
@@ -49,9 +49,10 @@ class TestTeardownSpec:
         with open(spec_path) as f:
             spec = yaml.safe_load(f)
 
-        confirm_step = next(s for s in spec['steps'] if s['id'] == 'postgres_teardown_confirm')
-        assert confirm_step['type'] == 'boolean'
-        assert 'prompt' in confirm_step
+        # Check that remove volumes step is boolean type
+        remove_volumes_step = next(s for s in spec['steps'] if s['id'] == 'postgres_remove_volumes')
+        assert remove_volumes_step['type'] == 'boolean'
+        assert 'prompt' in remove_volumes_step
 
     def test_stop_service_is_action(self):
         """Stop service step should be action type."""
@@ -79,7 +80,7 @@ class TestStopService:
 
     def test_stop_service_calls_docker_compose_stop(self):
         """Should call docker container remove command."""
-        from wizard.services.postgres.teardown_actions import stop_service
+        from wizard.services.base_platform.teardown_actions import stop_service
 
         runner = MockActionRunner()
         ctx = {}
@@ -99,7 +100,7 @@ class TestStopService:
 
     def test_stop_service_no_context_required(self):
         """Should work with empty context."""
-        from wizard.services.postgres.teardown_actions import stop_service
+        from wizard.services.base_platform.teardown_actions import stop_service
 
         runner = MockActionRunner()
         ctx = {}
@@ -115,7 +116,7 @@ class TestRemoveVolumes:
 
     def test_remove_volumes_calls_docker_volume_rm(self):
         """Should call docker volume rm command."""
-        from wizard.services.postgres.teardown_actions import remove_volumes
+        from wizard.services.base_platform.teardown_actions import remove_volumes
 
         runner = MockActionRunner()
         ctx = {}
@@ -135,7 +136,7 @@ class TestRemoveVolumes:
 
     def test_remove_volumes_targets_postgres_volume(self):
         """Should target postgres data volume."""
-        from wizard.services.postgres.teardown_actions import remove_volumes
+        from wizard.services.base_platform.teardown_actions import remove_volumes
 
         runner = MockActionRunner()
         ctx = {}
@@ -150,7 +151,7 @@ class TestRemoveVolumes:
 
     def test_remove_volumes_uses_correct_volume_name(self):
         """Should use platform_postgres_data as volume name (not postgres_data)."""
-        from wizard.services.postgres.teardown_actions import remove_volumes
+        from wizard.services.base_platform.teardown_actions import remove_volumes
 
         runner = MockActionRunner()
         ctx = {}
@@ -169,51 +170,57 @@ class TestRemoveImages:
 
     def test_remove_images_calls_docker_rmi(self):
         """Should call docker rmi command."""
-        from wizard.services.postgres.teardown_actions import remove_images
+        from wizard.services.base_platform.teardown_actions import remove_images
 
         runner = MockActionRunner()
         ctx = {
-            'services.postgres.image': 'postgres:17.5-alpine'
+            'services.base_platform.postgres.image': 'postgres:17.5-alpine'
         }
 
         remove_images(ctx, runner)
 
-        # Verify runner.run_shell was called
-        assert len(runner.calls) == 1
-        call = runner.calls[0]
-        assert call[0] == 'run_shell'
-
-        # Verify command includes docker rmi
-        command = call[1]
+        # Verify runner.run_shell was called (may also call file_exists first)
+        shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
+        assert len(shell_calls) >= 1
+        # Find the docker rmi call
+        rmi_call = [c for c in shell_calls if 'rmi' in c[1]]
+        assert len(rmi_call) == 1
+        command = rmi_call[0][1]
         assert 'docker' in command
         assert 'rmi' in command
 
     def test_remove_images_uses_context_image(self):
         """Should use image from context."""
-        from wizard.services.postgres.teardown_actions import remove_images
+        from wizard.services.base_platform.teardown_actions import remove_images
 
         runner = MockActionRunner()
         ctx = {
-            'services.postgres.image': 'postgres:17.5-alpine'
+            'services.base_platform.postgres.image': 'postgres:17.5-alpine'
         }
 
         remove_images(ctx, runner)
 
-        call = runner.calls[0]
-        command = call[1]
+        # Find the docker rmi call (not file_exists)
+        shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
+        rmi_call = [c for c in shell_calls if 'rmi' in c[1]]
+        assert len(rmi_call) == 1
+        command = rmi_call[0][1]
         assert 'postgres:17.5-alpine' in command
 
     def test_remove_images_handles_missing_image(self):
         """Should use default image if context doesn't have one."""
-        from wizard.services.postgres.teardown_actions import remove_images
+        from wizard.services.base_platform.teardown_actions import remove_images
 
         runner = MockActionRunner()
         ctx = {}
 
         remove_images(ctx, runner)
 
-        call = runner.calls[0]
-        command = call[1]
+        # Find the docker rmi call (not file_exists)
+        shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
+        rmi_call = [c for c in shell_calls if 'rmi' in c[1]]
+        assert len(rmi_call) == 1
+        command = rmi_call[0][1]
         # Should have some postgres image
         command_str = ' '.join(command)
         assert 'postgres' in command_str.lower()
@@ -224,7 +231,7 @@ class TestCleanConfig:
 
     def test_clean_config_calls_runner_save_config(self):
         """Should call runner.save_config to disable postgres."""
-        from wizard.services.postgres.teardown_actions import clean_config
+        from wizard.services.base_platform.teardown_actions import clean_config
 
         runner = MockActionRunner()
         ctx = {}
@@ -244,12 +251,12 @@ class TestCleanConfig:
 
     def test_clean_config_preserves_other_settings(self):
         """Should only change enabled flag."""
-        from wizard.services.postgres.teardown_actions import clean_config
+        from wizard.services.base_platform.teardown_actions import clean_config
 
         runner = MockActionRunner()
         ctx = {
-            'services.postgres.image': 'postgres:17.5-alpine',
-            'services.postgres.port': 5432
+            'services.base_platform.postgres.image': 'postgres:17.5-alpine',
+            'services.base_platform.postgres.port': 5432
         }
 
         clean_config(ctx, runner)
@@ -267,7 +274,7 @@ class TestActionSignatures:
 
     def test_all_actions_have_correct_signature(self):
         """All action functions should accept (ctx, runner)."""
-        from wizard.services.postgres import teardown_actions
+        from wizard.services.base_platform import teardown_actions
         import inspect
 
         actions = ['stop_service', 'remove_volumes', 'remove_images', 'clean_config']
@@ -283,7 +290,7 @@ class TestActionSignatures:
 
     def test_all_actions_have_type_hints(self):
         """All action functions should have type hints."""
-        from wizard.services.postgres import teardown_actions
+        from wizard.services.base_platform import teardown_actions
         import inspect
 
         actions = ['stop_service', 'remove_volumes', 'remove_images', 'clean_config']

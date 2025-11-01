@@ -11,12 +11,12 @@ from wizard.utils.diagnostics import DiagnosticCollector, ServiceDiagnostics, cr
 
 
 def migrate_legacy_postgres_config(ctx: Dict[str, Any], runner) -> None:
-    """Migrate legacy services.postgres.* keys to services.base_platform.postgres.*.
+    """Migrate legacy services.base_platform.postgres.* keys to services.base_platform.postgres.*.
 
     This migration:
-    1. Detects if old services.postgres.* keys exist
+    1. Detects if old services.base_platform.postgres.* keys exist
     2. Copies all values to services.base_platform.postgres.*
-    3. Deletes all old services.postgres.* keys
+    3. Deletes all old services.base_platform.postgres.* keys
     4. Saves updated configuration
 
     Args:
@@ -63,22 +63,24 @@ def save_config(ctx: Dict[str, Any], runner) -> None:
     """
     # Build config dictionary
     # Map require_password boolean to auth_method
-    require_password = ctx.get('services.postgres.require_password', True)
+    require_password = ctx.get('services.base_platform.postgres.require_password', True)
     auth_method = 'md5' if require_password else 'trust'
-    password = ctx.get('services.postgres.password', 'changeme') if require_password else None
+    password = ctx.get('services.base_platform.postgres.password', 'changeme') if require_password else None
 
     # Store derived values back into state for later access
-    ctx['services.postgres.auth_method'] = auth_method
+    ctx['services.base_platform.postgres.auth_method'] = auth_method
     if password is not None:
-        ctx['services.postgres.password'] = password
+        ctx['services.base_platform.postgres.password'] = password
 
     config = {
         'services': {
-            'postgres': {
-                'enabled': True,
-                'image': ctx.get('services.postgres.image', 'postgres:17.5-alpine'),
-                'auth_method': auth_method,
-                'password': password
+            'base_platform': {
+                'postgres': {
+                    'enabled': True,
+                    'image': ctx.get('services.base_platform.postgres.image', 'postgres:17.5-alpine'),
+                    'auth_method': auth_method,
+                    'password': password
+                }
             }
         }
     }
@@ -90,7 +92,7 @@ def save_config(ctx: Dict[str, Any], runner) -> None:
     # This file is loaded by both Makefile and docker-compose.yml
     env_content = _build_env_file_content(
         platform_password=password or '',
-        image=ctx.get('services.postgres.image', 'postgres:17.5-alpine'),
+        image=ctx.get('services.base_platform.postgres.image', 'postgres:17.5-alpine'),
         openmetadata_enabled=ctx.get('services.openmetadata.enabled', False),
         kerberos_enabled=ctx.get('services.kerberos.enabled', False),
         pagila_enabled=ctx.get('services.pagila.enabled', False)
@@ -161,7 +163,7 @@ def pull_image(ctx: Dict[str, Any], runner) -> None:
         ctx: Context dictionary with image URL
         runner: ActionRunner instance for side effects
     """
-    image = ctx.get('services.postgres.image', 'postgres:17.5-alpine')
+    image = ctx.get('services.base_platform.postgres.image', 'postgres:17.5-alpine')
 
     # Check if this looks like a corporate registry image (has registry path)
     is_corporate_image = '/' in image.split(':')[0]  # Has registry/path before tag
@@ -196,8 +198,8 @@ def start_service(ctx: Dict[str, Any], runner) -> None:
     runner.display("Starting PostgreSQL service...")
 
     # Show configuration being used
-    image = ctx.get('services.postgres.image', 'postgres:17.5-alpine')
-    auth_method = ctx.get('services.postgres.auth_method', 'trust')
+    image = ctx.get('services.base_platform.postgres.image', 'postgres:17.5-alpine')
+    auth_method = ctx.get('services.base_platform.postgres.auth_method', 'trust')
 
     runner.display(f"  Image: {image}")
     runner.display(f"  Auth: {auth_method} {'(no password)' if auth_method == 'trust' else '(password required)'}")
@@ -247,9 +249,9 @@ def _run_postgres_diagnostics(ctx: Dict[str, Any], runner, start_result) -> None
         phase="docker_compose_up",
         error=error_msg[:200],  # Truncate long errors
         context={
-            "image": ctx.get('services.postgres.image', 'postgres:17.5-alpine'),
-            "auth_method": ctx.get('services.postgres.auth_method', 'trust'),
-            "port": ctx.get('services.postgres.port', 5432),
+            "image": ctx.get('services.base_platform.postgres.image', 'postgres:17.5-alpine'),
+            "auth_method": ctx.get('services.base_platform.postgres.auth_method', 'trust'),
+            "port": ctx.get('services.base_platform.postgres.port', 5432),
             "command": "make -C platform-infrastructure start",
             "working_directory": current_dir,
             "attempted_path": "platform-infrastructure"
@@ -281,7 +283,7 @@ def _run_postgres_diagnostics(ctx: Dict[str, Any], runner, start_result) -> None
                     runner.display(f"    {line}")
 
     # Check image status
-    image = ctx.get('services.postgres.image', 'postgres:17.5-alpine')
+    image = ctx.get('services.base_platform.postgres.image', 'postgres:17.5-alpine')
     image_check = runner.run_shell(['docker', 'image', 'inspect', image])
 
     if image_check.get('returncode') != 0:
@@ -373,7 +375,7 @@ def _run_postgres_diagnostics(ctx: Dict[str, Any], runner, start_result) -> None
                     runner.display(f"     → It's a broken symlink!")
 
     # Check if no-password mode issue
-    if ctx.get('services.postgres.auth_method') == 'trust':
+    if ctx.get('services.base_platform.postgres.auth_method') == 'trust':
         runner.display("ℹ️ Using no-password mode (trust authentication)")
         if 'PLATFORM_DB_PASSWORD' in error_msg:
             runner.display("  • Config mismatch: password env var set but trust mode enabled")

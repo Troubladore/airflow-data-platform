@@ -99,7 +99,7 @@ services.postgres.passwordless      → services.base_platform.postgres.password
 - `wizard/flows/setup.yaml` - Reference base_platform service
 - `wizard/flows/clean-slate.yaml` - Reference base_platform service
 - All test files referencing postgres service
-- All imports: `from wizard.services.postgres` → `from wizard.services.base_platform`
+- All imports: ~~`from wizard.services.postgres`~~ → `from wizard.services.base_platform` ✅ COMPLETED
 
 #### 5. Spec File Changes
 

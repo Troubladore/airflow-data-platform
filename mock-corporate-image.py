@@ -35,7 +35,7 @@ class Colors:
 def get_default_postgres_image():
     """Get the default PostgreSQL image from the platform configuration."""
     # First, try to get from postgres spec
-    spec_file = Path('wizard/services/postgres/spec.yaml')
+    spec_file = Path('wizard/services/base_platform/spec.yaml')
     if spec_file.exists():
         try:
             with open(spec_file, 'r') as f:

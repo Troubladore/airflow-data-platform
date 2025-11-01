@@ -33,7 +33,7 @@ class TestSpecRequiredFields:
     def test_spec_has_service_field(self, spec):
         """Should have 'service' field."""
         assert 'service' in spec, "spec.yaml must have 'service' field"
-        assert spec['service'] == 'postgres', "service should be 'postgres'"
+        assert spec['service'] == 'base_platform', "service should be 'base_platform'"
 
     def test_spec_has_version_field(self, spec):
         """Should have 'version' field."""
@@ -87,9 +87,9 @@ class TestSpecStepsValid:
         step = steps['postgres_image']
         assert step['type'] == 'string', "postgres_image should be type 'string'"
         assert 'state_key' in step, "postgres_image should have state_key"
-        assert step['state_key'] == 'services.postgres.image', "state_key should be services.postgres.image"
+        assert step['state_key'] == 'services.base_platform.postgres.image', "state_key should be services.base_platform.postgres.image"
         assert 'validator' in step, "postgres_image should have validator"
-        assert step['validator'] == 'postgres.validate_image_url', "should use postgres.validate_image_url"
+        assert step['validator'] == 'base_platform.validate_image_url', "should use base_platform.validate_image_url"
 
     def test_spec_has_postgres_auth_step(self, spec):
         """Should have postgres_auth step."""
@@ -99,7 +99,7 @@ class TestSpecStepsValid:
         step = steps['postgres_auth']
         assert step['type'] == 'boolean', "postgres_auth should be type 'boolean'"
         assert 'prompt' in step, "postgres_auth should have a prompt"
-        assert step['state_key'] == 'services.postgres.require_password', "should store to require_password state key"
+        assert step['state_key'] == 'services.base_platform.postgres.require_password', "should store to require_password state key"
 
     def test_spec_has_postgres_save_action(self, spec):
         """Should have postgres_save action step."""
@@ -109,7 +109,7 @@ class TestSpecStepsValid:
         step = steps['postgres_save']
         assert step['type'] == 'action', "postgres_save should be type 'action'"
         assert 'action' in step, "postgres_save should have action field"
-        assert step['action'] == 'postgres.save_config', "should use postgres.save_config action"
+        assert step['action'] == 'base_platform.save_config', "should use base_platform.save_config action"
 
     def test_spec_step_ids_are_unique(self, spec):
         """All step IDs should be unique."""

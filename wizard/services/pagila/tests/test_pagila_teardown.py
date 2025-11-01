@@ -71,8 +71,8 @@ def test_teardown_spec_has_steps():
     assert len(spec['steps']) > 0
 
 
-def test_teardown_spec_has_confirmation_step():
-    """teardown-spec.yaml should have a confirmation step"""
+def test_teardown_spec_has_display_header():
+    """teardown-spec.yaml should have a display header as first step"""
     spec_path = Path(__file__).parent.parent / "teardown-spec.yaml"
 
     with open(spec_path, 'r') as f:
@@ -80,13 +80,14 @@ def test_teardown_spec_has_confirmation_step():
 
     steps = spec.get('steps', [])
 
-    # Should have a confirmation step (typically yes/no)
-    confirm_steps = [s for s in steps if 'confirm' in s.get('id', '').lower()]
-    assert len(confirm_steps) > 0, "No confirmation step found"
+    # Should have a display header step
+    header_steps = [s for s in steps if s.get('id') == 'show_details_header']
+    assert len(header_steps) > 0, "No display header step found"
+    assert header_steps[0].get('type') == 'display'
 
 
-def test_teardown_spec_has_drop_database_action():
-    """teardown-spec.yaml should have an action to drop the database"""
+def test_teardown_spec_has_remove_database_action():
+    """teardown-spec.yaml should have an action to remove database volumes"""
     spec_path = Path(__file__).parent.parent / "teardown-spec.yaml"
 
     with open(spec_path, 'r') as f:
@@ -94,10 +95,11 @@ def test_teardown_spec_has_drop_database_action():
 
     steps = spec.get('steps', [])
 
-    # Should have action step for dropping database
+    # Should have action step for removing database volumes
     action_steps = [s for s in steps if s.get('type') == 'action']
-    drop_steps = [s for s in action_steps if 'drop' in s.get('action', '').lower()]
-    assert len(drop_steps) > 0, "No database drop action found"
+    remove_db_steps = [s for s in action_steps if s.get('id') == 'pagila_remove_database_action']
+    assert len(remove_db_steps) > 0, "No database removal action found"
+    assert remove_db_steps[0].get('action') == 'pagila.teardown.remove_volumes'
 
 
 def test_teardown_spec_has_remove_repo_action():
@@ -147,9 +149,8 @@ def test_teardown_spec_step_ids_are_namespaced():
         assert step_id.startswith('pagila_'), \
             f"Boolean step ID '{step_id}' should be namespaced with 'pagila_' prefix"
 
-    # Verify we have the expected namespaced boolean steps
+    # Verify we have the expected namespaced boolean steps (no teardown_confirm anymore)
     boolean_step_ids = [s.get('id') for s in boolean_steps]
-    assert 'pagila_teardown_confirm' in boolean_step_ids
     assert 'pagila_remove_images_question' in boolean_step_ids
     assert 'pagila_remove_repo_question' in boolean_step_ids
     assert 'pagila_remove_database_data_question' in boolean_step_ids
