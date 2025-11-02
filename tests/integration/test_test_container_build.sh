@@ -285,13 +285,18 @@ fi
 
 run_test "Prebuilt mode for postgres-test"
 
-# Tag the current image as a prebuilt image
-PREBUILT_TAG="test-registry.example.com/postgres-test:prebuilt-v1"
-print_info "Tagging current image as prebuilt: $PREBUILT_TAG"
+# For prebuilt mode testing, we simulate having a prebuilt image available locally
+# In a real scenario, this would be pulled from a corporate registry
+# We use the already-built image and just verify the Makefile logic works
+
+# Keep the current built image as our "prebuilt" image
+PREBUILT_TAG="platform/postgres-test:prebuilt-test"
+print_info "Simulating prebuilt image: $PREBUILT_TAG"
 docker tag platform/postgres-test:latest "$PREBUILT_TAG"
 CLEANUP_IMAGES+=("$PREBUILT_TAG")
 
 # Update .env to use prebuilt mode
+# Note: Using the local tag since we can't actually pull from test-registry.example.com
 cat > platform-bootstrap/.env <<EOF
 # Test environment - prebuilt mode
 IMAGE_POSTGRES_TEST=$PREBUILT_TAG
@@ -300,10 +305,10 @@ IMAGE_SQLCMD_TEST=alpine:latest
 SQLCMD_TEST_PREBUILT=false
 EOF
 
-# Remove the existing built image to ensure we're pulling/tagging
+# Remove the existing platform/postgres-test:latest to verify it gets recreated from prebuilt
 docker rmi platform/postgres-test:latest 2>/dev/null || true
 
-# Build should now pull and tag the prebuilt image
+# Build should now pull (which succeeds because image exists locally) and tag
 print_info "Running build-postgres-test in prebuilt mode..."
 cd platform-infrastructure
 if make build-postgres-test > /tmp/postgres-test-prebuilt.log 2>&1; then
@@ -321,6 +326,13 @@ else
     fail_test "Prebuilt mode did not use pull path" "Expected 'Pulling prebuilt' message in logs"
 fi
 
+# Verify it did NOT use the build path
+if grep -q "Building postgres-test from base" /tmp/postgres-test-prebuilt.log; then
+    fail_test "Prebuilt mode incorrectly used build path" "Should have pulled, not built"
+else
+    pass_test "Prebuilt mode correctly skipped build-from-base"
+fi
+
 # Verify the resulting image works
 if docker run --rm platform/postgres-test:latest psql --version > /dev/null 2>&1; then
     pass_test "Prebuilt postgres-test image is functional"
@@ -334,9 +346,12 @@ fi
 
 run_test "Prebuilt mode for sqlcmd-test"
 
-# Tag the current image as a prebuilt image
-PREBUILT_TAG_SQL="test-registry.example.com/sqlcmd-test:prebuilt-v1"
-print_info "Tagging current image as prebuilt: $PREBUILT_TAG_SQL"
+# For prebuilt mode testing, we simulate having a prebuilt image available locally
+# In a real scenario, this would be pulled from a corporate registry
+
+# Keep the current built image as our "prebuilt" image
+PREBUILT_TAG_SQL="platform/sqlcmd-test:prebuilt-test"
+print_info "Simulating prebuilt image: $PREBUILT_TAG_SQL"
 docker tag platform/sqlcmd-test:latest "$PREBUILT_TAG_SQL"
 CLEANUP_IMAGES+=("$PREBUILT_TAG_SQL")
 
@@ -349,10 +364,10 @@ IMAGE_SQLCMD_TEST=$PREBUILT_TAG_SQL
 SQLCMD_TEST_PREBUILT=true
 EOF
 
-# Remove the existing built image to ensure we're pulling/tagging
+# Remove the existing platform/sqlcmd-test:latest to verify it gets recreated from prebuilt
 docker rmi platform/sqlcmd-test:latest 2>/dev/null || true
 
-# Build should now pull and tag the prebuilt image
+# Build should now pull (which succeeds because image exists locally) and tag
 print_info "Running build-sqlcmd-test in prebuilt mode..."
 cd platform-infrastructure
 if make build-sqlcmd-test > /tmp/sqlcmd-test-prebuilt.log 2>&1; then
@@ -368,6 +383,13 @@ if grep -q "Pulling prebuilt sqlcmd-test image" /tmp/sqlcmd-test-prebuilt.log; t
     pass_test "Prebuilt mode used pull path (not build from base)"
 else
     fail_test "Prebuilt mode did not use pull path" "Expected 'Pulling prebuilt' message in logs"
+fi
+
+# Verify it did NOT use the build path
+if grep -q "Building sqlcmd-test from base" /tmp/sqlcmd-test-prebuilt.log; then
+    fail_test "Prebuilt mode incorrectly used build path" "Should have pulled, not built"
+else
+    pass_test "Prebuilt mode correctly skipped build-from-base"
 fi
 
 # Verify the resulting image works

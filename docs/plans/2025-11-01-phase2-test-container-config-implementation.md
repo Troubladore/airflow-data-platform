@@ -1,6 +1,6 @@
 # Phase 2: Test Container Configuration - Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development for parallel TDD execution.
 
 **Goal:** Add wizard configuration for PostgreSQL and SQL Server test containers, supporting both build-from-base and prebuilt image modes for corporate environments.
 
@@ -8,9 +8,19 @@
 
 **Tech Stack:** Python (wizard), YAML (specs), Bash/Make (build), Docker (containers), pytest (testing)
 
+**Execution Model:** Each task has Red/Green/Review sub-phases executed in parallel worktrees inheriting from master PR branch `feature/test-container-config`.
+
 ---
 
-## Task 1: Create Test Container Directory Structure
+## Task 1: Create Test Container Dockerfiles
+
+**Worktrees:**
+- `.worktrees/task-1-dockerfiles` (inherits from `feature/test-container-config`)
+
+**Sub-phases:**
+- Task 1a (Red): Verify old Dockerfiles exist, plan migration
+- Task 1b (Green): Create new Dockerfiles with refactoring
+- Task 1c (Review): Code review + verify builds work
 
 **Files:**
 - Create: `platform-infrastructure/test-containers/postgres-test/Dockerfile`
