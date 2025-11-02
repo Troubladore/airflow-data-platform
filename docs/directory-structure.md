@@ -101,7 +101,6 @@ platform-bootstrap/
 ```
 platform-infrastructure/
 ├── docker-compose.yml          # Base platform services orchestration
-├── .env.example               # Environment configuration template
 ├── Makefile                   # Build and deployment targets
 ├── README.md                  # Infrastructure documentation
 ├── postgres/                  # PostgreSQL service configuration
@@ -267,6 +266,7 @@ docs/
 ## 🎯 Key Files at Root
 
 - `README.md` - Main entry point
+- `platform-config.yaml.example` - Template for platform configuration (used by `./platform setup`)
 - `pyproject.toml` - Repository-level Python configuration
 - `.gitignore` - Git ignore rules
 - `.pre-commit-config.yaml` - Code quality automation

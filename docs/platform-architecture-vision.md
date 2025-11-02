@@ -51,7 +51,6 @@ airflow-data-platform/
 │
 ├── layer1-base-image/              # Buildable Layer 1 artifact
 │   ├── Dockerfile                  # Extends Astronomer + adds platform
-│   ├── .env.example                # Corporate image paths (NO SECRETS)
 │   ├── requirements.txt            # Common Python dependencies
 │   ├── packages.txt                # OS packages (krb5-user, etc.)
 │   ├── config/
@@ -67,7 +66,6 @@ airflow-data-platform/
 │
 ├── platform-bootstrap/             # Runtime services
 │   ├── docker-compose.yml          # Kerberos ticket sharer
-│   ├── .env.example                # Runtime configuration
 │   ├── Makefile                    # Service management
 │   └── README.md
 │
@@ -95,6 +93,8 @@ airflow-data-platform/
 ## Credential Management (Secure Patterns)
 
 **Critical Rule:** NO credentials in `.env` files or git repositories.
+
+**Configuration Approach:** The platform uses a wizard-based setup (`./platform setup`) that creates `platform-config.yaml` for version-controlled configuration (paths only, no secrets) and auto-generates `.env` files locally. The `.env` files are git-ignored and should never be committed.
 
 ### APT Package Repositories (Dockerfile RUN apt-get)
 ```bash
@@ -143,12 +143,17 @@ docker login artifactory.company.com
 # Credentials stored in ~/.docker/config.json (secure)
 ```
 
-`.env` file specifies paths only (no secrets):
-```bash
-# .env - safe to commit to fork
-IMAGE_ASTRONOMER=artifactory.company.com/docker-remote/astronomer/ap-airflow:11.10.0
-IMAGE_PYTHON=artifactory.company.com/docker-remote/library/python:3.11-slim
+`platform-config.yaml` specifies paths only (no secrets):
+```yaml
+# platform-config.yaml - safe to commit to fork
+services:
+  astronomer:
+    image: artifactory.company.com/docker-remote/astronomer/ap-airflow:11.10.0
+  python:
+    image: artifactory.company.com/docker-remote/library/python:3.11-slim
 ```
+
+The wizard auto-generates `.env` files from this configuration.
 
 Dockerfile pulls authenticated:
 ```dockerfile
@@ -173,12 +178,13 @@ cd airflow-data-platform-fork
 # - Configure ~/.config/uv/uv.toml for UV
 # - Run: docker login artifactory.company.com
 
-# 3. Configure Layer 1 image paths (safe to commit)
-cd layer1-base-image
-cp .env.example .env
-# Edit .env:
-#   IMAGE_ASTRONOMER=artifactory.company.com/docker-remote/astronomer/ap-airflow:11.10.0
-#   IMAGE_PYTHON=artifactory.company.com/docker-remote/library/python:3.11-slim
+# 3. Run platform setup wizard to configure paths and services
+./platform setup
+# Wizard prompts for:
+#   - Corporate Artifactory URLs
+#   - Image paths (Astronomer, Python, PostgreSQL, etc.)
+#   - Service configurations
+# Creates platform-config.yaml and auto-generates .env files
 
 # 4. Configure corporate Kerberos
 cp config/krb5.conf.example config/krb5.conf
@@ -189,7 +195,7 @@ make build
 # Creates: layer1-airflow:latest (in local Docker cache)
 
 # 6. Commit configuration to fork (paths only, no secrets)
-git add .env config/krb5.conf
+git add platform-config.yaml config/krb5.conf
 git commit -m "Configure for MyCompany infrastructure"
 git push origin main
 
@@ -214,17 +220,20 @@ git push origin main
 git clone https://github.com/MyCompany/airflow-data-platform-fork.git
 cd airflow-data-platform-fork
 
-# 3. Build Layer 1 base image (uses company's Artifactory config)
+# 3. Run platform setup (uses company's platform-config.yaml from fork)
+./platform setup
+# Auto-generates .env files from committed configuration
+# Result: All platform services configured
+
+# 4. Build Layer 1 base image (uses company's Artifactory config)
 cd layer1-base-image
 make build
 # Fast: pulls from corporate Artifactory
 # Result: layer1-airflow:latest in Docker cache
 
-# 4. Start runtime services
-cd ../platform-bootstrap
-cp .env.example .env
+# 5. Start runtime services
 make platform-start
-# Result: Kerberos ticket sharer running
+# Result: Kerberos ticket sharer and platform services running
 
 
 # CREATING NEW DATAKIT
@@ -467,7 +476,7 @@ This refactor is broken into GitHub issues for incremental implementation:
 ### Stage 3: Layer 1 Foundation (Issue #17)
 - Create `layer1-base-image/` directory
 - Dockerfile extending Astronomer
-- .env.example for corporate paths
+- platform-config.yaml for corporate paths
 - Makefile for building
 - Integration with sqlmodel-framework
 - Corporate setup documentation
@@ -534,8 +543,8 @@ This refactor is broken into GitHub issues for incremental implementation:
 
 ### Why Secure Credential Management?
 **Risk:** Secrets in .env files → accidentally committed to git
-**Solution:** Use standard tools (netrc, docker login, uv.toml + env vars)
-**Benefit:** Industry best practices, tooling support, secure by design
+**Solution:** Wizard-based setup with platform-config.yaml (version-controlled, no secrets) + auto-generated .env files (git-ignored) + standard tools (netrc, docker login, uv.toml + env vars)
+**Benefit:** Industry best practices, tooling support, secure by design, consistent configuration across team
 
 ### Why Kerberos Ticket Sharing (Not Sidecar)?
 **Complexity:** Full sidecar adds Init container, coordination, lifecycle management

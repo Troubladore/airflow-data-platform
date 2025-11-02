@@ -426,12 +426,12 @@ def save_test_container_config(ctx: Dict[str, Any], runner) -> None:
     # Get test container config from state with defaults
     postgres_test_config = {
         'image': ctx.get('services.base_platform.test_containers.postgres_test.image', 'alpine:latest'),
-        'prebuilt': ctx.get('services.base_platform.test_containers.postgres_test.prebuilt', False)
+        'prebuilt': ctx.get('services.base_platform.test_containers.postgres_test.use_prebuilt', False)
     }
 
     sqlcmd_test_config = {
         'image': ctx.get('services.base_platform.test_containers.sqlcmd_test.image', 'alpine:latest'),
-        'prebuilt': ctx.get('services.base_platform.test_containers.sqlcmd_test.prebuilt', False)
+        'prebuilt': ctx.get('services.base_platform.test_containers.sqlcmd_test.use_prebuilt', False)
     }
 
     # Build config dictionary

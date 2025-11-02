@@ -1,5 +1,7 @@
 # Phase 2: Test Container Configuration - Implementation Plan
 
+NOTE: This plan references .env.example which has since been removed. The platform now uses ./platform setup wizard and platform-config.yaml instead.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development for parallel TDD execution.
 
 **Goal:** Add wizard configuration for PostgreSQL and SQL Server test containers, supporting both build-from-base and prebuilt image modes for corporate environments.
