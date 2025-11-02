@@ -1,98 +1,16 @@
-"""Tests for test container actions - RED phase.
+"""Tests for test container actions.
 
-This file contains failing tests for actions that don't exist yet:
-1. invoke_test_container_spec - loads and executes the test-containers sub-spec
-2. save_test_container_config - saves test container config to platform-config.yaml and .env
+Tests for save_test_container_config which saves test container config
+to platform-config.yaml and .env.
+
+Note: invoke_test_container_spec was removed as test container steps
+are now inline in the main spec.yaml instead of a separate sub-spec.
 """
 
 import pytest
 import yaml
 from pathlib import Path
 from wizard.engine.runner import MockActionRunner
-
-
-def test_invoke_test_container_spec_exists():
-    """invoke_test_container_spec function must exist and be callable."""
-    # This will fail until the function is implemented
-    from wizard.services.base_platform.actions import invoke_test_container_spec
-
-    # Should be callable with (ctx, runner) signature
-    assert callable(invoke_test_container_spec)
-
-
-def test_invoke_test_container_spec_loads_sub_spec():
-    """invoke_test_container_spec should load sub-spec from correct path."""
-    from wizard.services.base_platform.actions import invoke_test_container_spec
-
-    mock_runner = MockActionRunner()
-    ctx = {}
-
-    # This will fail until the function is implemented
-    invoke_test_container_spec(ctx, mock_runner)
-
-    # Should check for test-containers-spec.yaml file existence
-    file_exists_calls = [call for call in mock_runner.calls if call[0] == 'file_exists']
-    assert len(file_exists_calls) > 0, "Should check if test-containers-spec.yaml exists"
-
-    # Should check the correct path
-    found_correct_path = False
-    for call in file_exists_calls:
-        if 'test-containers-spec.yaml' in str(call[1]):
-            found_correct_path = True
-            break
-
-    assert found_correct_path, "Should check for test-containers-spec.yaml in correct location"
-
-
-def test_invoke_test_container_spec_executes_sub_spec_via_spec_runner():
-    """invoke_test_container_spec should execute sub-spec via SpecRunner."""
-    from wizard.services.base_platform.actions import invoke_test_container_spec
-
-    mock_runner = MockActionRunner()
-    ctx = {}
-
-    # This will fail until the function is implemented
-    invoke_test_container_spec(ctx, mock_runner)
-
-    # Should show that SpecRunner or similar mechanism would be called
-    # Since we can't easily mock SpecRunner directly, we check for indication of execution
-    assert len(mock_runner.calls) > 0, "Should make some runner calls when executing sub-spec"
-
-
-def test_invoke_test_container_spec_returns_false_if_sub_spec_not_found():
-    """invoke_test_container_spec should return False if sub-spec not found."""
-    from wizard.services.base_platform.actions import invoke_test_container_spec
-
-    mock_runner = MockActionRunner()
-    ctx = {}
-
-    # Mock file_exists to return False
-    mock_runner.responses['file_exists'] = {
-        'wizard/services/base_platform/test-containers-spec.yaml': False
-    }
-
-    # This will fail until the function is implemented
-    result = invoke_test_container_spec(ctx, mock_runner)
-
-    assert result is False, "Should return False when sub-spec not found"
-
-
-def test_invoke_test_container_spec_returns_true_on_successful_execution():
-    """invoke_test_container_spec should return True on successful execution."""
-    from wizard.services.base_platform.actions import invoke_test_container_spec
-
-    mock_runner = MockActionRunner()
-    ctx = {}
-
-    # Mock file_exists to return True
-    mock_runner.responses['file_exists'] = {
-        'wizard/services/base_platform/test-containers-spec.yaml': True
-    }
-
-    # This will fail until the function is implemented
-    result = invoke_test_container_spec(ctx, mock_runner)
-
-    assert result is True, "Should return True when sub-spec executed successfully"
 
 
 def test_save_test_container_config_exists():

@@ -136,36 +136,25 @@ class TestSpecStepsValid:
                             assert target in step_ids or target in valid_terminals, \
                                 f"step {step['id']} {key}='{target}' must reference valid step or terminal"
 
-    def test_spec_has_configure_test_containers_step(self, spec):
-        """Should have configure_test_containers action step after postgres_start."""
+    def test_spec_has_test_container_flow_after_postgres_start(self, spec):
+        """Test container configuration should follow postgres_start in the flow."""
         steps = {s['id']: s for s in spec['steps']}
         step_ids = [s['id'] for s in spec['steps']]
 
-        # Step should exist
-        assert 'configure_test_containers' in steps, "should have configure_test_containers step"
-
-        # Should be an action step
-        step = steps['configure_test_containers']
-        assert step['type'] == 'action', "configure_test_containers should be type 'action'"
-
-        # Should call correct action
-        assert 'action' in step, "configure_test_containers should have action field"
-        assert step['action'] == 'base_platform.invoke_test_container_spec', \
-            "should use base_platform.invoke_test_container_spec action"
-
-        # Should come after postgres_start step
-        postgres_start_idx = step_ids.index('postgres_start')
-        configure_test_idx = step_ids.index('configure_test_containers')
-        assert configure_test_idx > postgres_start_idx, \
-            "configure_test_containers should come after postgres_start"
-
-        # Should point to finish
-        assert step['next'] == 'finish', "configure_test_containers should point to finish"
-
-        # postgres_start should point to configure_test_containers instead of finish
+        # postgres_start should point to first test container step
         postgres_start_step = steps['postgres_start']
-        assert postgres_start_step['next'] == 'configure_test_containers', \
-            "postgres_start should point to configure_test_containers"
+        assert postgres_start_step['next'] == 'postgres_test_prebuilt', \
+            "postgres_start should point to postgres_test_prebuilt (test container config)"
+
+        # Test container steps should come after postgres_start
+        postgres_start_idx = step_ids.index('postgres_start')
+        postgres_test_prebuilt_idx = step_ids.index('postgres_test_prebuilt')
+        assert postgres_test_prebuilt_idx > postgres_start_idx, \
+            "postgres_test_prebuilt should come after postgres_start"
+
+        # save_test_config should point to finish
+        save_test_config_step = steps['save_test_config']
+        assert save_test_config_step['next'] == 'finish', "save_test_config should point to finish"
 
     def test_spec_has_postgres_use_prebuilt_step(self, spec):
         """Should have postgres_prebuilt step using state_key 'use_prebuilt' for consistency with other services."""
@@ -178,3 +167,17 @@ class TestSpecStepsValid:
         assert step['state_key'] == 'services.base_platform.postgres.use_prebuilt', \
             "state_key should be services.base_platform.postgres.use_prebuilt (not .prebuilt) for consistency with kerberos and openmetadata"
         assert 'default_value' in step, "postgres_prebuilt should have default_value"
+
+    def test_spec_has_test_container_steps_in_main_spec(self, spec):
+        """Test container configuration should be in main spec.yaml, not a separate file."""
+        steps = {s['id']: s for s in spec['steps']}
+
+        # Should have test container steps directly in main spec
+        assert 'postgres_test_prebuilt' in steps, "should have postgres_test_prebuilt in main spec (not separate file)"
+        assert 'postgres_test_image' in steps, "should have postgres_test_image in main spec"
+        assert 'sqlcmd_test_prebuilt' in steps, "should have sqlcmd_test_prebuilt in main spec"
+        assert 'sqlcmd_test_image' in steps, "should have sqlcmd_test_image in main spec"
+
+        # Should NOT have invoke_test_container_spec action (that's the old pattern)
+        assert 'configure_test_containers' not in steps, \
+            "should not have configure_test_containers step (test container config should be inline)"
