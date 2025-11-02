@@ -110,7 +110,7 @@ def test_save_test_container_config_saves_postgres_test_config():
 
     mock_runner = MockActionRunner()
     ctx = {
-        'services.base_platform.test_containers.postgres_test.prebuilt': True,
+        'services.base_platform.test_containers.postgres_test.use_prebuilt': True,
         'services.base_platform.test_containers.postgres_test.image': 'mycompany/postgres-test:latest'
     }
 
@@ -145,7 +145,7 @@ def test_save_test_container_config_saves_sqlcmd_test_config():
 
     mock_runner = MockActionRunner()
     ctx = {
-        'services.base_platform.test_containers.sqlcmd_test.prebuilt': False,
+        'services.base_platform.test_containers.sqlcmd_test.use_prebuilt': False,
         'services.base_platform.test_containers.sqlcmd_test.image': 'alpine:latest'
     }
 
@@ -173,9 +173,9 @@ def test_save_test_container_config_saves_image_vars_to_env():
 
     mock_runner = MockActionRunner()
     ctx = {
-        'services.base_platform.test_containers.postgres_test.prebuilt': True,
+        'services.base_platform.test_containers.postgres_test.use_prebuilt': True,
         'services.base_platform.test_containers.postgres_test.image': 'mycompany/postgres-test:latest',
-        'services.base_platform.test_containers.sqlcmd_test.prebuilt': False,
+        'services.base_platform.test_containers.sqlcmd_test.use_prebuilt': False,
         'services.base_platform.test_containers.sqlcmd_test.image': 'alpine:latest'
     }
 

@@ -166,3 +166,15 @@ class TestSpecStepsValid:
         postgres_start_step = steps['postgres_start']
         assert postgres_start_step['next'] == 'configure_test_containers', \
             "postgres_start should point to configure_test_containers"
+
+    def test_spec_has_postgres_use_prebuilt_step(self, spec):
+        """Should have postgres_prebuilt step using state_key 'use_prebuilt' for consistency with other services."""
+        steps = {s['id']: s for s in spec['steps']}
+        assert 'postgres_prebuilt' in steps, "should have postgres_prebuilt step"
+
+        step = steps['postgres_prebuilt']
+        assert step['type'] == 'boolean', "postgres_prebuilt should be type 'boolean'"
+        assert 'state_key' in step, "postgres_prebuilt should have state_key"
+        assert step['state_key'] == 'services.base_platform.postgres.use_prebuilt', \
+            "state_key should be services.base_platform.postgres.use_prebuilt (not .prebuilt) for consistency with kerberos and openmetadata"
+        assert 'default_value' in step, "postgres_prebuilt should have default_value"

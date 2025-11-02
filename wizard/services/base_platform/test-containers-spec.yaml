@@ -5,7 +5,7 @@ description: "Test container configuration for PostgreSQL and SQL Server connect
 steps:
   - id: postgres_test_prebuilt
     type: boolean
-    state_key: services.base_platform.test_containers.postgres_test.prebuilt
+    state_key: services.base_platform.test_containers.postgres_test.use_prebuilt
     prompt: "Will you use a prebuilt postgres-test image with packages already installed?"
     default_value: false
     next: postgres_test_image
@@ -20,7 +20,7 @@ steps:
 
   - id: sqlcmd_test_prebuilt
     type: boolean
-    state_key: services.base_platform.test_containers.sqlcmd_test.prebuilt
+    state_key: services.base_platform.test_containers.sqlcmd_test.use_prebuilt
     prompt: "Will you use a prebuilt sqlcmd-test image with packages already installed?"
     default_value: false
     next: sqlcmd_test_image

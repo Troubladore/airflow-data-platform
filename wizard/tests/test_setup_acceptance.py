@@ -28,7 +28,7 @@ class TestSetupHappyPath:
 
         # Verify defaults were used
         assert engine.state['services.base_platform.postgres.image'] == 'postgres:17.5-alpine'
-        assert engine.state['services.base_platform.postgres.prebuilt'] == False
+        assert engine.state['services.base_platform.postgres.use_prebuilt'] == False
         assert engine.state['services.base_platform.postgres.require_password'] == True
         assert engine.state['services.base_platform.postgres.password'] == 'changeme'
         assert engine.state['services.base_platform.postgres.port'] == 5432
@@ -51,7 +51,7 @@ class TestSetupHappyPath:
 
         # Verify custom values were stored
         assert engine.state['services.base_platform.postgres.image'] == 'postgres:16'
-        assert engine.state['services.base_platform.postgres.prebuilt'] == True
+        assert engine.state['services.base_platform.postgres.use_prebuilt'] == True
         assert engine.state['services.base_platform.postgres.require_password'] == False
         assert engine.state['services.base_platform.postgres.port'] == 5433
 

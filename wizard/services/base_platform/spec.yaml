@@ -23,8 +23,8 @@ steps:
   - id: postgres_prebuilt
     type: boolean
     prompt: "Use prebuilt PostgreSQL image?"
-    state_key: services.base_platform.postgres.prebuilt
-    default_from: services.base_platform.postgres.prebuilt
+    state_key: services.base_platform.postgres.use_prebuilt
+    default_from: services.base_platform.postgres.use_prebuilt
     default_value: false
     next: postgres_auth
 

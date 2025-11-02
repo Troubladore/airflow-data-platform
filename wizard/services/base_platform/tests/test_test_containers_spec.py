@@ -64,14 +64,14 @@ class TestPostgresTestSteps:
         return {s['id']: s for s in spec['steps']}
 
     def test_has_postgres_test_prebuilt_step(self, steps):
-        """Should have postgres_test_prebuilt boolean step."""
+        """Should have postgres_test_prebuilt boolean step using 'use_prebuilt' for consistency."""
         assert 'postgres_test_prebuilt' in steps, "should have postgres_test_prebuilt step"
 
         step = steps['postgres_test_prebuilt']
         assert step['type'] == 'boolean', "postgres_test_prebuilt should be type 'boolean'"
         assert 'state_key' in step, "postgres_test_prebuilt should have state_key"
-        assert step['state_key'] == 'services.base_platform.test_containers.postgres_test.prebuilt', \
-            "state_key should be services.base_platform.test_containers.postgres_test.prebuilt"
+        assert step['state_key'] == 'services.base_platform.test_containers.postgres_test.use_prebuilt', \
+            "state_key should be services.base_platform.test_containers.postgres_test.use_prebuilt (not .prebuilt) for consistency"
         assert 'default_value' in step, "postgres_test_prebuilt should have default_value"
         assert step['default_value'] is False, "default should be false (build from source)"
 
@@ -104,14 +104,14 @@ class TestSqlcmdTestSteps:
         return {s['id']: s for s in spec['steps']}
 
     def test_has_sqlcmd_test_prebuilt_step(self, steps):
-        """Should have sqlcmd_test_prebuilt boolean step."""
+        """Should have sqlcmd_test_prebuilt boolean step using 'use_prebuilt' for consistency."""
         assert 'sqlcmd_test_prebuilt' in steps, "should have sqlcmd_test_prebuilt step"
 
         step = steps['sqlcmd_test_prebuilt']
         assert step['type'] == 'boolean', "sqlcmd_test_prebuilt should be type 'boolean'"
         assert 'state_key' in step, "sqlcmd_test_prebuilt should have state_key"
-        assert step['state_key'] == 'services.base_platform.test_containers.sqlcmd_test.prebuilt', \
-            "state_key should be services.base_platform.test_containers.sqlcmd_test.prebuilt"
+        assert step['state_key'] == 'services.base_platform.test_containers.sqlcmd_test.use_prebuilt', \
+            "state_key should be services.base_platform.test_containers.sqlcmd_test.use_prebuilt (not .prebuilt) for consistency"
         assert 'default_value' in step, "sqlcmd_test_prebuilt should have default_value"
         assert step['default_value'] is False, "default should be false (build from source)"
 
