@@ -63,6 +63,7 @@ platform-bootstrap/kerberos-sidecar/.env
 layer1-base-image/.env
 .env
 platform-config.yaml
+.platform-custom-images
 
 # Corporate secrets
 platform-bootstrap/.secrets/
@@ -76,6 +77,7 @@ platform-bootstrap/.secrets/
 platform-bootstrap/diagnostic-context.md
 platform-bootstrap/diagnostic-context.json
 .worktrees/
+diagnostic_*.log
 postgres_diagnostic_*.log
 
 # Git cleanup audit reports (if error reporting is added in future)

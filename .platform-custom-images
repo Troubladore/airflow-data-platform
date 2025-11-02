@@ -1,3 +1,0 @@
-mycorp.jfrog.io/docker-mirror/mycorp-approved-images/postgres/17.5:2025.10.01
-mycorp.jfrog.io/docker-mirror/mycorp-approved-images/kerberos-base:latest
-artifactory.corp.net/docker-public/openmetadata/server:1.5.11-approved
