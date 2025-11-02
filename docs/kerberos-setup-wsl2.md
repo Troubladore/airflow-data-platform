@@ -135,9 +135,12 @@ cd airflow-data-platform/platform-bootstrap
 # KERBEROS_CACHE_TICKET=krb5cc_1000
 # ----------------------------------------
 
-# Copy the values to .env
+# Run the platform setup wizard to generate .env from platform-config.yaml
 cd platform-bootstrap
-cp .env.example .env
+./platform setup
+
+# The wizard creates platform-config.yaml and generates .env automatically
+# You can then paste the diagnostic values into your .env file
 nano .env  # Paste the values shown by diagnostic
 
 # Or use the automatic update command the diagnostic provides
@@ -306,7 +309,7 @@ This script will:
 
 ## 🔧 Diagnostic Tool
 
-**The diagnostic tool is your best friend for Kerberos setup!** It automatically detects your configuration and tells you exactly what to put in your `.env` file:
+**The diagnostic tool is your best friend for Kerberos setup!** It automatically detects your configuration and tells you exactly what to add to your `.env` file:
 
 ```bash
 cd airflow-data-platform/platform-bootstrap

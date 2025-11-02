@@ -1,5 +1,7 @@
 # Base Platform Refactor and Test Container Configuration
 
+NOTE: This plan references .env.example which has since been removed. The platform now uses ./platform setup wizard and platform-config.yaml instead.
+
 **Date:** 2025-11-01
 **Status:** Design Approved
 **Implementation:** Two-phase approach

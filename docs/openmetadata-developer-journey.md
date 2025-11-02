@@ -60,7 +60,7 @@ platform-bootstrap/
 ├── docker-compose.openmetadata.yml    ← NEW!
 ├── postgres/
 │   └── init-databases.sh              ← NEW!
-├── .env.example                        (updated)
+├── platform-config.yaml                (updated via setup wizard)
 └── Makefile                            (updated)
 ```
 

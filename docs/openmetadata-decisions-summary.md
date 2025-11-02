@@ -55,7 +55,7 @@ IMAGE_POSTGRES=artifactory.company.com/docker-remote/library/postgres:15
 - Requires `docker login artifactory.company.com` (standard practice)
 
 **Implementation impact:**
-- `.env.example` shows public default images
+- `platform-config.yaml` configuration managed by setup wizard
 - Documentation includes corporate configuration section
 - Setup wizard prompts for Artifactory paths if in corporate mode
 
@@ -217,7 +217,7 @@ Different workloads, different databases!
 **Phase 1 (Shared Infrastructure + Pagila Ingestion DAG):**
 - [ ] `platform-bootstrap/docker-compose.openmetadata.yml` (3 services!)
 - [ ] `platform-bootstrap/postgres/init-databases.sh` (multi-database setup)
-- [ ] Updated `platform-bootstrap/.env.example`
+- [ ] Setup wizard integration for OpenMetadata configuration
 - [ ] Updated `platform-bootstrap/Makefile` (platform-start includes OM)
 - [ ] `examples/openmetadata-ingestion/dags/ingest_pagila_metadata.py` (DAG!)
 - [ ] `examples/openmetadata-ingestion/requirements.txt` (openmetadata-ingestion SDK)
@@ -247,7 +247,7 @@ Different workloads, different databases!
 **Tasks:**
 1. Create shared PostgreSQL with init script
 2. Create `docker-compose.openmetadata.yml` (3 services)
-3. Update `.env.example` with variables
+3. Integrate OpenMetadata configuration in setup wizard
 4. Update `Makefile` for always-on deployment
 5. Test startup: `make platform-start`
 6. Access UI: http://localhost:8585
@@ -501,7 +501,7 @@ All architectural decisions made. Documentation complete. Implementation path cl
 cd ~/repos/airflow-data-platform/platform-bootstrap
 
 # Create docker-compose.openmetadata.yml
-# Update .env.example
+# Run setup wizard: ./platform setup
 # Update Makefile
 # Test: make platform-start
 ```

@@ -28,7 +28,7 @@ class TestSetupHappyPath:
 
         # Verify defaults were used
         assert engine.state['services.base_platform.postgres.image'] == 'postgres:17.5-alpine'
-        assert engine.state['services.base_platform.postgres.prebuilt'] == False
+        assert engine.state['services.base_platform.postgres.use_prebuilt'] == False
         assert engine.state['services.base_platform.postgres.require_password'] == True
         assert engine.state['services.base_platform.postgres.password'] == 'changeme'
         assert engine.state['services.base_platform.postgres.port'] == 5432
@@ -51,27 +51,36 @@ class TestSetupHappyPath:
 
         # Verify custom values were stored
         assert engine.state['services.base_platform.postgres.image'] == 'postgres:16'
-        assert engine.state['services.base_platform.postgres.prebuilt'] == True
+        assert engine.state['services.base_platform.postgres.use_prebuilt'] == True
         assert engine.state['services.base_platform.postgres.require_password'] == False
         assert engine.state['services.base_platform.postgres.port'] == 5433
 
     def test_each_prompt_only_asked_once(self):
         """Each question should only be asked once (no duplicate prompts)."""
         runner = MockActionRunner()
-        runner.input_queue = ['', '', '', '', '', '', '', '']  # 3 service selection + 5 postgres prompts
+        # 3 service selection + 5 postgres prompts + 4 test container prompts
+        runner.input_queue = ['', '', '', '', '', '', '', '', '', '', '', '']
 
         engine = WizardEngine(runner=runner, base_path='wizard')
         engine.execute_flow('setup')
 
         # Count prompts for each field (use more specific matching to avoid overlaps)
-        image_prompts = [c for c in runner.calls if c[0] == 'get_input' and 'PostgreSQL Docker image' in c[1]]
-        prebuilt_prompts = [c for c in runner.calls if c[0] == 'get_input' and 'prebuilt' in c[1].lower()]
+        postgres_image_prompts = [c for c in runner.calls if c[0] == 'get_input' and 'PostgreSQL Docker image' in c[1]]
+        postgres_prebuilt_prompts = [c for c in runner.calls if c[0] == 'get_input' and 'Use prebuilt PostgreSQL image' in c[1]]
+        postgres_test_prebuilt_prompt = [c for c in runner.calls if c[0] == 'get_input' and 'Will you use a prebuilt postgres-test image' in c[1]]
+        postgres_test_image_prompt = [c for c in runner.calls if c[0] == 'get_input' and 'Enter Docker image for postgres-test' in c[1]]
+        sqlcmd_test_prebuilt_prompt = [c for c in runner.calls if c[0] == 'get_input' and 'Will you use a prebuilt sqlcmd-test image' in c[1]]
+        sqlcmd_test_image_prompt = [c for c in runner.calls if c[0] == 'get_input' and 'Enter Docker image for sqlcmd-test' in c[1]]
         password_prompts = [c for c in runner.calls if c[0] == 'get_input' and 'password' in c[1].lower()]
         port_prompts = [c for c in runner.calls if c[0] == 'get_input' and 'PostgreSQL port' in c[1]]
 
         # Each should only be asked once
-        assert len(image_prompts) == 1, f"Image prompted {len(image_prompts)} times, expected 1"
-        assert len(prebuilt_prompts) == 1, f"Prebuilt prompted {len(prebuilt_prompts)} times, expected 1"
+        assert len(postgres_image_prompts) == 1, f"PostgreSQL image prompted {len(postgres_image_prompts)} times, expected 1"
+        assert len(postgres_prebuilt_prompts) == 1, f"PostgreSQL prebuilt prompted {len(postgres_prebuilt_prompts)} times, expected 1"
+        assert len(postgres_test_prebuilt_prompt) == 1, f"postgres-test prebuilt prompted {len(postgres_test_prebuilt_prompt)} times, expected 1"
+        assert len(postgres_test_image_prompt) == 1, f"postgres-test image prompted {len(postgres_test_image_prompt)} times, expected 1"
+        assert len(sqlcmd_test_prebuilt_prompt) == 1, f"sqlcmd-test prebuilt prompted {len(sqlcmd_test_prebuilt_prompt)} times, expected 1"
+        assert len(sqlcmd_test_image_prompt) == 1, f"sqlcmd-test image prompted {len(sqlcmd_test_image_prompt)} times, expected 1"
         assert len(password_prompts) == 2, f"Password (require + actual) prompted {len(password_prompts)} times, expected 2"
         assert len(port_prompts) == 1, f"Port prompted {len(port_prompts)} times, expected 1"
 

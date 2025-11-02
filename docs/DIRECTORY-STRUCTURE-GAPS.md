@@ -47,7 +47,6 @@ The current `docs/directory-structure.md` file provides a good overview of the c
 ```
 platform-infrastructure/
 ├── docker-compose.yml          # Base platform services orchestration
-├── .env.example               # Environment configuration template
 ├── Makefile                   # Build and deployment targets
 ├── README.md                  # Infrastructure documentation
 ├── postgres/                  # PostgreSQL service configuration

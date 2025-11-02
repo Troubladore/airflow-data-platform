@@ -41,7 +41,7 @@ class TestPullImageLocal:
         # Given: A corporate image that exists locally
         ctx = {
             'services.base_platform.postgres.image': 'mycorp.jfrog.io/docker-mirror/postgres/17.5:2025.10.01',
-            'services.base_platform.postgres.prebuilt': False
+            'services.base_platform.postgres.use_prebuilt': False
         }
         runner = MockRunner()
         # Mock that image exists locally
@@ -65,7 +65,7 @@ class TestPullImageLocal:
         # Given: A corporate image that doesn't exist locally
         ctx = {
             'services.base_platform.postgres.image': 'mycorp.jfrog.io/docker-mirror/postgres/17.5:2025.10.01',
-            'services.base_platform.postgres.prebuilt': False
+            'services.base_platform.postgres.use_prebuilt': False
         }
         runner = MockRunner()
         # Mock that image doesn't exist locally
@@ -91,7 +91,7 @@ class TestPullImageLocal:
         # Given: A Docker Hub image
         ctx = {
             'services.base_platform.postgres.image': 'postgres:17.5-alpine',
-            'services.base_platform.postgres.prebuilt': False
+            'services.base_platform.postgres.use_prebuilt': False
         }
         runner = MockRunner()
 
