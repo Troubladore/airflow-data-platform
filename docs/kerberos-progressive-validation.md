@@ -78,13 +78,18 @@ sudo nano /etc/krb5.conf
 
 ```bash
 cd platform-bootstrap
-cp .env.example .env
-nano .env
+# Run the setup wizard to create platform-config.yaml and generate .env
+./platform setup
 ```
 
-**Set:**
+**The wizard will prompt you for configuration. Set:**
 ```bash
 COMPANY_DOMAIN=MYCOMPANY.COM
+```
+
+**Or manually edit the generated .env:**
+```bash
+nano .env
 ```
 
 ### 1.4 Validation
@@ -148,7 +153,8 @@ KERBEROS_CACHE_TICKET=krb5cc_1000
 ### 2.4 Update .env with Detected Values
 
 ```bash
-# Manually copy values to .env
+# The .env file was created by './platform setup' in Step 1.3
+# Now add the Kerberos-specific values to it
 nano .env
 
 # Or use the automatic command provided by diagnostic
@@ -629,9 +635,9 @@ Once all 5 steps pass:
 - No manual `kinit` needed (sidecar does it)
 
 ### For Team Rollout
-- Document your corporate-specific settings
+- Document your corporate-specific settings in platform-config.yaml
 - Share krb5.conf with team
-- Update `.env.example` with your realm
+- Update platform-config.yaml template with your realm
 - Commit to organizational fork
 
 ### For Kubernetes/Production
@@ -656,7 +662,7 @@ Once all 5 steps pass:
 ```bash
 # Step 1: Configure
 sudo nano /etc/krb5.conf
-nano platform-bootstrap/.env
+cd platform-bootstrap && ./platform setup
 
 # Step 2: Get ticket
 kinit YOUR_USERNAME@MYCOMPANY.COM

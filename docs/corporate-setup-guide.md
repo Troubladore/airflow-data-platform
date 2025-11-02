@@ -45,13 +45,16 @@ sudo systemctl restart docker
 
 ## Platform Configuration (.env)
 
-### Step 1: Create Your Corporate .env
+### Step 1: Run Platform Setup Wizard
 
 ```bash
-cd platform-bootstrap
-cp .env.example .env
-nano .env
+./platform setup
 ```
+
+The wizard will:
+- Prompt for corporate-specific settings (Artifactory URLs, image paths, etc.)
+- Generate `platform-config.yaml` with your configuration
+- Auto-generate `.env` files from the YAML configuration
 
 ### Step 2: Set Corporate Image Paths
 
@@ -94,12 +97,13 @@ git remote add upstream https://github.com/Troubladore/airflow-data-platform.git
 
 # 2. Create develop branch with corporate config
 git checkout -b develop
-cp platform-bootstrap/.env.example platform-bootstrap/.env
-# Edit .env with corporate paths
-git add platform-bootstrap/.env  # WAIT - DON'T DO THIS!
+./platform setup  # Run wizard to create platform-config.yaml
+# Optionally commit platform-config.yaml to share with team
+git add platform-config.yaml
+git commit -m "Add corporate platform configuration"
 
-# .env is in .gitignore, so it WON'T be committed
-# This is GOOD - it stays local only
+# .env is auto-generated and in .gitignore, so it WON'T be committed
+# This is GOOD - it stays local only and auto-regenerates as needed
 ```
 
 ### Merging Upstream Changes
@@ -119,7 +123,7 @@ git merge upstream/main
 ### The Pattern
 
 **Tracked in git (shared with team):**
-- `.env.example` - Template with comments
+- `platform-config.yaml` (optional - if you want to share corporate config)
 - All code, docs, scripts
 
 **NOT tracked (your personal/corp config):**

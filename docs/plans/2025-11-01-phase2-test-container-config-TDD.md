@@ -1,5 +1,7 @@
 # Phase 2: Test Container Configuration - TDD Implementation Plan
 
+NOTE: This plan references .env.example which has since been removed. The platform now uses ./platform setup wizard and platform-config.yaml instead.
+
 > **For Claude:** Use superpowers:subagent-driven-development for parallel TDD execution.
 
 **Master Branch:** `feature/test-container-config` (PR-ready branch, all task worktrees inherit from this)
