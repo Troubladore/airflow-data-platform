@@ -66,4 +66,9 @@ steps:
   - id: postgres_start
     type: action
     action: base_platform.start_service
+    next: configure_test_containers
+
+  - id: configure_test_containers
+    type: action
+    action: base_platform.invoke_test_container_spec
     next: finish
