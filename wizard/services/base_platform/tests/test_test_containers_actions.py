@@ -182,10 +182,10 @@ def test_save_test_container_config_saves_image_vars_to_env():
     # This will fail until the function is implemented
     save_test_container_config(ctx, mock_runner)
 
-    # Should write to .env file
+    # Should write to platform-bootstrap/.env file
     write_calls = [call for call in mock_runner.calls if call[0] == 'write_file']
-    env_write_calls = [call for call in write_calls if call[1] == '.env']
-    assert len(env_write_calls) == 1, "Should write to .env file exactly once"
+    env_write_calls = [call for call in write_calls if call[1] == 'platform-bootstrap/.env']
+    assert len(env_write_calls) == 1, "Should write to platform-bootstrap/.env file exactly once"
 
     call = env_write_calls[0]
     env_content = call[2]
@@ -221,10 +221,10 @@ def test_save_test_container_config_uses_defaults_when_not_configured():
     assert test_containers['sqlcmd_test']['prebuilt'] is False
     assert test_containers['sqlcmd_test']['image'] == 'alpine:latest'
 
-    # Should write defaults to .env
+    # Should write defaults to platform-bootstrap/.env
     write_calls = [call for call in mock_runner.calls if call[0] == 'write_file']
-    env_write_calls = [call for call in write_calls if call[1] == '.env']
-    assert len(env_write_calls) == 1, "Should write to .env file exactly once"
+    env_write_calls = [call for call in write_calls if call[1] == 'platform-bootstrap/.env']
+    assert len(env_write_calls) == 1, "Should write to platform-bootstrap/.env file exactly once"
 
     call = env_write_calls[0]
     env_content = call[2]
