@@ -213,6 +213,30 @@ def start_service(ctx: Dict[str, Any], runner) -> None:
 
     if result.get('returncode') == 0:
         runner.display("✓ PostgreSQL started successfully")
+
+        # Run health check
+        runner.display("")
+        runner.display("Verifying PostgreSQL health...")
+
+        service_diag = ServiceDiagnostics(runner)
+        health = service_diag.verify_postgres_health(ctx)
+
+        if health['healthy']:
+            # Display detailed success message
+            runner.display(health['summary'])
+        else:
+            # Save diagnostics and warn (but continue)
+            runner.display(f"⚠️  Health check failed: {health['error']}")
+
+            collector = DiagnosticCollector()
+            collector.record_failure('postgres', 'health_check', health['error'], {
+                'details': health['details']
+            })
+            log_file = collector.save_log()
+
+            runner.display(f"💾 Diagnostics saved to: {log_file}")
+            runner.display("   Continuing setup...")
+            runner.display("")
     else:
         runner.display("✗ PostgreSQL failed to start")
         runner.display("")

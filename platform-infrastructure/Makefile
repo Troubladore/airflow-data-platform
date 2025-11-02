@@ -5,7 +5,7 @@
 #
 # This service is the foundation - always starts before other services
 
-.PHONY: help start stop restart status logs clean build-postgres-test build-sqlcmd-test build-test-containers
+.PHONY: help start stop restart status logs clean build-postgres-test build-sqlcmd-test build-test-containers test-platform-postgres-connectivity test-pagila-connectivity test-connectivity
 
 # Load configuration from central platform-bootstrap/.env
 -include ../platform-bootstrap/.env
@@ -131,3 +131,11 @@ clean: ## Remove infrastructure (WARNING: deletes all platform databases!)
 	@$(DOCKER_COMPOSE) down -v
 	@docker network rm platform_network 2>/dev/null || true
 	@echo "✓ Infrastructure removed (containers, volumes, network deleted)"
+
+test-platform-postgres-connectivity: ## Test connectivity to platform-postgres using postgres-test
+	@bash tests/test-platform-postgres-connectivity.sh
+
+test-pagila-connectivity: ## Test connectivity to Pagila using postgres-test
+	@bash tests/test-pagila-connectivity.sh
+
+test-connectivity: test-platform-postgres-connectivity test-pagila-connectivity ## Run all connectivity tests

@@ -30,6 +30,74 @@ cp .env.example .env
 make start
 ```
 
+## Connectivity Testing
+
+Test database connectivity using the postgres-test container:
+
+### Manual Testing
+
+```bash
+# Test platform-postgres connectivity
+make test-platform-postgres-connectivity
+
+# Test Pagila connectivity (requires Pagila to be installed)
+make test-pagila-connectivity
+
+# Run all connectivity tests
+make test-connectivity
+```
+
+### Direct Script Execution
+
+Scripts can also be run directly:
+
+```bash
+# Detailed output (default)
+./tests/test-platform-postgres-connectivity.sh
+./tests/test-pagila-connectivity.sh
+
+# Brief output (for automation)
+./tests/test-platform-postgres-connectivity.sh --quiet
+./tests/test-pagila-connectivity.sh --quiet
+```
+
+### What Gets Tested
+
+**Platform Postgres:**
+- Network connectivity
+- PostgreSQL service availability
+- Authentication
+- Database existence (airflow_db, openmetadata_db)
+- Version information
+
+**Pagila:**
+- Network connectivity
+- PostgreSQL service availability
+- Authentication (auto-detects trust vs password)
+- Sample data presence (actors, films, rentals)
+- Expected row counts
+
+### Troubleshooting
+
+If connectivity tests fail:
+
+1. **Container not running:**
+   ```bash
+   docker ps | grep postgres-test
+   make -C platform-infrastructure start
+   ```
+
+2. **Network issues:**
+   ```bash
+   docker network inspect platform_network
+   docker network connect platform_network postgres-test
+   ```
+
+3. **Authentication failures:**
+   - Check platform-bootstrap/.env for POSTGRES_PASSWORD
+   - Check ../pagila/.env for Pagila password
+   - Verify pg_hba.conf configuration
+
 ## Usage
 
 ```bash
