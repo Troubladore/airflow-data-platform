@@ -463,4 +463,4 @@ def save_test_container_config(ctx: Dict[str, Any], runner) -> None:
     ]
 
     env_content = '\n'.join(env_lines)
-    runner.write_file('.env', env_content)
+    runner.write_file('platform-bootstrap/.env', env_content)
