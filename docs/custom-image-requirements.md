@@ -59,6 +59,29 @@ Ready-to-use templates for each image type with complete requirements and exampl
   - Layered vs prebuilt mode examples
   - Corporate hardened variants
 
+### Connectivity Test Containers
+
+These containers are used by the platform to verify database connectivity and are built automatically during setup:
+
+- **[PostgreSQL Test Container](../platform-infrastructure/test-containers/postgres-test/Dockerfile)** - Tests PostgreSQL connectivity
+  - Base: `alpine:latest`
+  - Purpose: Validates platform PostgreSQL database connectivity and health
+  - Components: PostgreSQL 17 client (psql), Kerberos client libraries, unixODBC
+  - Security: Runs as non-root user (testuser, uid 10001)
+  - Build: `docker build -t platform/postgres-test platform-infrastructure/test-containers/postgres-test/`
+  - Custom base: `--build-arg BASE_IMAGE=your.registry.com/alpine:3.19`
+  - Required for: Health checks during platform setup
+
+- **[SQL Server Test Container](../platform-infrastructure/test-containers/sqlcmd-test/Dockerfile)** - Tests SQL Server connectivity
+  - Base: `alpine:latest`
+  - Purpose: Validates SQL Server connectivity with Kerberos authentication
+  - Components: FreeTDS SQL Server client, Kerberos libraries, unixODBC
+  - Security: Runs as non-root user (testuser, uid 10001)
+  - Note: Uses FreeTDS (open source) instead of Microsoft proprietary tools - no EULA required
+  - Build: `docker build -t platform/sqlcmd-test platform-infrastructure/test-containers/sqlcmd-test/`
+  - Custom base: `--build-arg BASE_IMAGE=your.registry.com/alpine:3.19`
+  - Required for: SQL Server connectivity validation (future feature)
+
 ### Platform Service Images
 By default, the platform pulls from public repositories, but the setup wizard will offer you the chance to specify custom images:
 
