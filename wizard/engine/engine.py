@@ -33,6 +33,30 @@ class WizardEngine:
         self.validators: Dict[str, callable] = {}
         self.actions: Dict[str, callable] = {}
 
+    def _flatten_dict(self, d: dict, parent_key: str = '', sep: str = '.') -> Dict[str, Any]:
+        """Recursively flatten a nested dictionary.
+
+        Args:
+            d: Dictionary to flatten
+            parent_key: Parent key prefix
+            sep: Separator to use between keys
+
+        Returns:
+            Flattened dictionary with dot-separated keys
+
+        Example:
+            >>> _flatten_dict({'a': {'b': {'c': 1}}})
+            {'a.b.c': 1}
+        """
+        items = []
+        for k, v in d.items():
+            new_key = f'{parent_key}{sep}{k}' if parent_key else k
+            if isinstance(v, dict):
+                items.extend(self._flatten_dict(v, new_key, sep=sep).items())
+            else:
+                items.append((new_key, v))
+        return dict(items)
+
     def _load_existing_state(self) -> Dict[str, Any]:
         """Load existing configuration from platform-bootstrap/.env and platform-config.yaml files.
 
@@ -69,17 +93,16 @@ class WizardEngine:
                 if result.get('returncode') == 0 and result.get('stdout'):
                     config = yaml.safe_load(result['stdout'])
                     if config and 'services' in config:
-                        # Load all service configurations generically
-                        for service_name, service_config in config['services'].items():
-                            if isinstance(service_config, dict):
-                                for key, value in service_config.items():
-                                    # Skip 'enabled' flags as they are determined by the setup flow
-                                    if key != 'enabled':
-                                        state_key = f'services.{service_name}.{key}'
-                                        # Don't override PostgreSQL image from .env
-                                        if state_key == 'services.base_platform.postgres.image' and state_key in state:
-                                            continue
-                                        state[state_key] = value
+                        # Recursively flatten the entire services section
+                        flattened = self._flatten_dict(config['services'], parent_key='services')
+
+                        # Add all flattened keys to state, skipping 'enabled' flags
+                        for key, value in flattened.items():
+                            if not key.endswith('.enabled'):
+                                # Don't override PostgreSQL image from .env
+                                if key == 'services.base_platform.postgres.image' and key in state:
+                                    continue
+                                state[key] = value
             except Exception:
                 # If YAML parsing fails, continue without those settings
                 pass
@@ -224,6 +247,15 @@ class WizardEngine:
         Returns:
             The value captured from this step
         """
+        # Set headless mode for this execution if headless_inputs provided
+        if headless_inputs is not None:
+            self.headless_mode = True
+            self.headless_inputs = headless_inputs
+        elif not hasattr(self, 'headless_mode'):
+            # Initialize for first execution if not already set
+            self.headless_mode = False
+            self.headless_inputs = {}
+
         # Handle display steps
         if step.type == 'display':
             if step.prompt:
