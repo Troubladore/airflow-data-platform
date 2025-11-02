@@ -10,6 +10,74 @@ from typing import Dict, Any
 from wizard.utils.diagnostics import DiagnosticCollector, ServiceDiagnostics, create_diagnostic_summary
 
 
+def display_base_platform_header(ctx: Dict[str, Any], runner) -> None:
+    """Display 'Base Platform Configuration' section header.
+
+    This header appears after service selection to clearly indicate
+    we're entering the base platform configuration phase.
+
+    Args:
+        ctx: Context dictionary (unused)
+        runner: ActionRunner instance for display
+    """
+    runner.display("")  # Newline for visual separation
+    runner.display("Base Platform Configuration")
+    runner.display("=" * 50)
+
+
+def display_test_containers_header(ctx: Dict[str, Any], runner) -> None:
+    """Display 'Connectivity Test Containers' subsection header.
+
+    This subsection header appears before configuring postgres-test and sqlcmd-test
+    to clearly show we're setting up test containers.
+
+    Args:
+        ctx: Context dictionary (unused)
+        runner: ActionRunner instance for display
+    """
+    runner.display("")  # Newline for visual separation
+    runner.display("Connectivity Test Containers")
+    runner.display("-" * 50)
+
+
+def display_platform_database_header(ctx: Dict[str, Any], runner) -> None:
+    """Display 'Platform PostgreSQL Database' subsection header.
+
+    This subsection header appears before starting the platform postgres database
+    to clearly show we're setting up the main database.
+
+    Args:
+        ctx: Context dictionary (unused)
+        runner: ActionRunner instance for display
+    """
+    runner.display("")  # Newline for visual separation
+    runner.display("Platform PostgreSQL Database")
+    runner.display("-" * 50)
+
+
+def create_platform_network(ctx: Dict[str, Any], runner) -> None:
+    """Create platform_network if it doesn't exist.
+
+    The platform network is required for all services to communicate.
+    This must be the first infrastructure step.
+
+    Args:
+        ctx: Context dictionary (unused)
+        runner: ActionRunner instance for shell execution
+    """
+    # Check if network already exists
+    check_result = runner.run_shell(['docker', 'network', 'inspect', 'platform_network'])
+
+    if check_result.get('returncode') != 0:
+        # Network doesn't exist, create it
+        create_result = runner.run_shell(['docker', 'network', 'create', 'platform_network'])
+        if create_result.get('returncode') == 0:
+            runner.display("✓ Created platform_network")
+        else:
+            runner.display("⚠️  Failed to create platform_network")
+    # Network exists, no output needed (silent success)
+
+
 def migrate_legacy_postgres_config(ctx: Dict[str, Any], runner) -> None:
     """Migrate legacy services.base_platform.postgres.* keys to services.base_platform.postgres.*.
 
@@ -93,6 +161,7 @@ def save_config(ctx: Dict[str, Any], runner) -> None:
     # This file is loaded by both Makefile and docker-compose.yml
     env_content = _build_env_file_content(
         platform_password=password or '',
+        auth_method=auth_method,
         image=ctx.get('services.base_platform.postgres.image', 'postgres:17.5-alpine'),
         openmetadata_enabled=ctx.get('services.openmetadata.enabled', False),
         kerberos_enabled=ctx.get('services.kerberos.enabled', False),
@@ -103,6 +172,7 @@ def save_config(ctx: Dict[str, Any], runner) -> None:
 
 def _build_env_file_content(
     platform_password: str,
+    auth_method: str,
     image: str,
     openmetadata_enabled: bool = False,
     kerberos_enabled: bool = False,
@@ -112,6 +182,7 @@ def _build_env_file_content(
 
     Args:
         platform_password: PLATFORM_DB_PASSWORD value
+        auth_method: Authentication method (md5 or trust)
         image: PostgreSQL image URL (optional, only included if non-default)
         openmetadata_enabled: Whether OpenMetadata service is enabled
         kerberos_enabled: Whether Kerberos service is enabled
@@ -132,8 +203,13 @@ def _build_env_file_content(
         "",
         "# PostgreSQL Configuration",
         f"PLATFORM_DB_PASSWORD={platform_password}",
-        ""
     ]
+
+    # Add POSTGRES_HOST_AUTH_METHOD=trust when using trust authentication
+    if auth_method == 'trust':
+        lines.append("POSTGRES_HOST_AUTH_METHOD=trust")
+
+    lines.append("")  # Empty line at end
 
     # Only include service passwords if those services are enabled
     if openmetadata_enabled:
@@ -439,6 +515,71 @@ def invoke_test_container_spec(ctx: Dict[str, Any], runner) -> bool:
     # In a real implementation, this would load and run the spec through the wizard engine
     # But for the test purposes, we just need to return True when the file exists
     return True
+
+
+def build_test_containers(ctx: Dict[str, Any], runner) -> None:
+    """Build test container images (postgres-test and sqlcmd-test).
+
+    These containers are used for connectivity testing and must be built
+    before starting the platform postgres database so health checks can run.
+
+    Args:
+        ctx: Context dictionary (unused)
+        runner: ActionRunner instance for display and shell execution
+    """
+    runner.display("")
+    runner.display("Building connectivity test containers...")
+
+    # Build both test containers using the Makefile target
+    result = runner.run_shell(['make', '-C', 'platform-infrastructure', 'build-test-containers'])
+
+    if result.get('returncode') == 0:
+        runner.display("✓ Test containers built successfully")
+    else:
+        runner.display("⚠️  Test container build had issues (continuing anyway)")
+        # Don't fail setup - containers might already exist
+
+
+def start_test_containers(ctx: Dict[str, Any], runner) -> None:
+    """Start test containers as background services.
+
+    Starts postgres-test and sqlcmd-test containers that are used for
+    connectivity testing. These must be running before the health check.
+
+    Args:
+        ctx: Context dictionary (unused)
+        runner: ActionRunner instance for display and shell execution
+    """
+    runner.display("Starting test containers...")
+
+    # Network should already exist from create_platform_network step
+    # Remove any existing test containers first (ignore errors if they don't exist)
+    runner.run_shell(['docker', 'rm', '-f', 'postgres-test'])
+    runner.run_shell(['docker', 'rm', '-f', 'sqlcmd-test'])
+
+    # Start postgres-test container
+    postgres_result = runner.run_shell([
+        'docker', 'run', '-d',
+        '--name', 'postgres-test',
+        '--network', 'platform_network',
+        'platform/postgres-test:latest',
+        'sleep', 'infinity'
+    ])
+
+    # Start sqlcmd-test container
+    sqlcmd_result = runner.run_shell([
+        'docker', 'run', '-d',
+        '--name', 'sqlcmd-test',
+        '--network', 'platform_network',
+        'platform/sqlcmd-test:latest',
+        'sleep', 'infinity'
+    ])
+
+    if postgres_result.get('returncode') == 0 and sqlcmd_result.get('returncode') == 0:
+        runner.display("✓ Test containers started successfully")
+    else:
+        runner.display("⚠️  Some test containers failed to start (continuing anyway)")
+        # Don't fail setup - health check will catch this
 
 
 def save_test_container_config(ctx: Dict[str, Any], runner) -> None:

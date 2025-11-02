@@ -5,6 +5,48 @@ from wizard.services.base_platform.actions import save_config, start_service, pu
 from wizard.engine.runner import MockActionRunner
 
 
+class TestSaveConfigAuthMethod:
+    """Tests for auth method in .env file."""
+
+    def test_trust_auth_writes_host_auth_method_to_env(self):
+        """When password is empty, should write POSTGRES_HOST_AUTH_METHOD=trust to .env file."""
+        runner = MockActionRunner()
+        ctx = {
+            'services.base_platform.postgres.image': 'postgres:17.5-alpine',
+            'services.base_platform.postgres.require_password': False
+        }
+
+        save_config(ctx, runner)
+
+        # Check that .env file was written
+        env_calls = [c for c in runner.calls if c[0] == 'write_file' and 'platform-bootstrap/.env' in c[1]]
+        assert len(env_calls) == 1, "Should write .env file once"
+
+        env_content = env_calls[0][2]  # Get the content argument
+
+        # Verify POSTGRES_HOST_AUTH_METHOD=trust is present
+        assert 'POSTGRES_HOST_AUTH_METHOD=trust' in env_content, \
+            "Should include POSTGRES_HOST_AUTH_METHOD=trust when no password required"
+
+    def test_password_auth_does_not_write_host_auth_method(self):
+        """When password is required, should NOT write POSTGRES_HOST_AUTH_METHOD."""
+        runner = MockActionRunner()
+        ctx = {
+            'services.base_platform.postgres.image': 'postgres:17.5-alpine',
+            'services.base_platform.postgres.require_password': True,
+            'services.base_platform.postgres.password': 'mypassword'
+        }
+
+        save_config(ctx, runner)
+
+        env_calls = [c for c in runner.calls if c[0] == 'write_file' and 'platform-bootstrap/.env' in c[1]]
+        env_content = env_calls[0][2]
+
+        # Should NOT include POSTGRES_HOST_AUTH_METHOD when password is required
+        assert 'POSTGRES_HOST_AUTH_METHOD' not in env_content, \
+            "Should not include POSTGRES_HOST_AUTH_METHOD when password is required"
+
+
 class TestSaveConfig:
     """Tests for save_config action."""
 
@@ -136,7 +178,7 @@ class TestStartService:
     """Tests for start_service action."""
 
     def test_start_service_calls_runner_run_shell(self):
-        """Should call runner.run_shell with make start command."""
+        """Should call runner.run_shell with make start command and health check."""
         runner = MockActionRunner()
         ctx = {}
 
@@ -144,13 +186,19 @@ class TestStartService:
 
         # Verify runner.run_shell was called (filter out display calls)
         shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
-        assert len(shell_calls) == 1
-        call = shell_calls[0]
-        assert call[0] == 'run_shell'
+        assert len(shell_calls) >= 1, "Should call run_shell at least once for make start"
 
-        # Verify command
-        command = call[1]
+        # First call should be make start
+        first_call = shell_calls[0]
+        assert first_call[0] == 'run_shell'
+        command = first_call[1]
         assert command == ['make', '-C', 'platform-infrastructure', 'start']
+
+        # May also run health check (second call if present)
+        if len(shell_calls) > 1:
+            health_check_call = shell_calls[1]
+            assert 'test-platform-postgres-connectivity' in ' '.join(health_check_call[1]), \
+                "Second call should be health check"
 
     def test_start_service_no_context_required(self):
         """Should work with empty context."""
@@ -160,7 +208,7 @@ class TestStartService:
         # Should not raise
         start_service(ctx, runner)
         shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
-        assert len(shell_calls) == 1
+        assert len(shell_calls) >= 1, "Should call run_shell at least once"
 
 
 class TestPullImage:

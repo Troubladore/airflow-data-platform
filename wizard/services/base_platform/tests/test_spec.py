@@ -136,25 +136,27 @@ class TestSpecStepsValid:
                             assert target in step_ids or target in valid_terminals, \
                                 f"step {step['id']} {key}='{target}' must reference valid step or terminal"
 
-    def test_spec_has_test_container_flow_after_postgres_start(self, spec):
-        """Test container configuration should follow postgres_start in the flow."""
+    def test_spec_has_test_container_flow_before_postgres_start(self, spec):
+        """Test container configuration should come BEFORE postgres_start in the flow."""
         steps = {s['id']: s for s in spec['steps']}
         step_ids = [s['id'] for s in spec['steps']]
 
-        # postgres_start should point to first test container step
-        postgres_start_step = steps['postgres_start']
-        assert postgres_start_step['next'] == 'postgres_test_prebuilt', \
-            "postgres_start should point to postgres_test_prebuilt (test container config)"
-
-        # Test container steps should come after postgres_start
+        # Test container steps should come before postgres_start
         postgres_start_idx = step_ids.index('postgres_start')
-        postgres_test_prebuilt_idx = step_ids.index('postgres_test_prebuilt')
-        assert postgres_test_prebuilt_idx > postgres_start_idx, \
-            "postgres_test_prebuilt should come after postgres_start"
+        postgres_test_idx = step_ids.index('postgres_test_prebuilt')
 
-        # save_test_config should point to finish
+        assert postgres_test_idx < postgres_start_idx, \
+            "postgres_test_prebuilt should come before postgres_start"
+
+        # postgres_start should now finish the flow
+        postgres_start_step = steps['postgres_start']
+        assert postgres_start_step['next'] == 'finish', \
+            "postgres_start should be the last step (next=finish)"
+
+        # save_test_config should point to database header
         save_test_config_step = steps['save_test_config']
-        assert save_test_config_step['next'] == 'finish', "save_test_config should point to finish"
+        assert save_test_config_step['next'] == 'display_platform_database_header', \
+            "save_test_config should point to display_platform_database_header"
 
     def test_spec_has_postgres_use_prebuilt_step(self, spec):
         """Should have postgres_prebuilt step using state_key 'use_prebuilt' for consistency with other services."""

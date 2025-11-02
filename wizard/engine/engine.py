@@ -699,6 +699,13 @@ class WizardEngine:
             self.actions['base_platform.pull_image'] = base_platform.pull_image
             self.actions['base_platform.start_service'] = base_platform.start_service
             self.actions['base_platform.migrate_legacy_postgres_config'] = base_platform.migrate_legacy_postgres_config
+            self.actions['base_platform.create_platform_network'] = base_platform.create_platform_network
+            self.actions['base_platform.display_base_platform_header'] = base_platform.display_base_platform_header
+            self.actions['base_platform.display_test_containers_header'] = base_platform.display_test_containers_header
+            self.actions['base_platform.display_platform_database_header'] = base_platform.display_platform_database_header
+            self.actions['base_platform.save_test_container_config'] = base_platform.save_test_container_config
+            self.actions['base_platform.build_test_containers'] = base_platform.build_test_containers
+            self.actions['base_platform.start_test_containers'] = base_platform.start_test_containers
 
             # Register postgres aliases for backward compatibility
             self.validators['postgres.validate_image_url'] = base_platform.validate_image_url
