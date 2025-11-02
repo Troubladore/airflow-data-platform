@@ -78,6 +78,7 @@ def save_config(ctx: Dict[str, Any], runner) -> None:
                 'postgres': {
                     'enabled': True,
                     'image': ctx.get('services.base_platform.postgres.image', 'postgres:17.5-alpine'),
+                    'require_password': require_password,
                     'auth_method': auth_method,
                     'password': password
                 }

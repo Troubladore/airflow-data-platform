@@ -103,6 +103,34 @@ class TestSaveConfig:
         # With trust auth, we still need .env but password can be empty or placeholder
         assert 'PLATFORM_DB_PASSWORD=' in env_content, "Should include PLATFORM_DB_PASSWORD line"
 
+    def test_save_config_persists_require_password_field(self):
+        """Should save require_password to YAML so it can be loaded as default on next run.
+
+        This ensures the user's choice (y/n for password) is remembered across
+        wizard sessions, not just the derived auth_method.
+        """
+        runner = MockActionRunner()
+        ctx = {
+            'services.base_platform.postgres.image': 'postgres:17.5-alpine',
+            'services.base_platform.postgres.require_password': False,  # User chose no password
+        }
+
+        save_config(ctx, runner)
+
+        # Verify config was saved
+        save_config_calls = [c for c in runner.calls if c[0] == 'save_config']
+        assert len(save_config_calls) == 1
+
+        config = save_config_calls[0][1]
+        postgres_config = config['services']['base_platform']['postgres']
+
+        # The config should save require_password so it can be used as default_from on next run
+        assert 'require_password' in postgres_config, "Should save require_password field"
+        assert postgres_config['require_password'] is False, "Should preserve the False value"
+
+        # Should also save the derived auth_method for the platform
+        assert postgres_config['auth_method'] == 'trust'
+
 
 class TestStartService:
     """Tests for start_service action."""

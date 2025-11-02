@@ -111,9 +111,10 @@ def test_engine_execute_action_step(mock_runner):
 
     engine._execute_step(step, headless_inputs={})
 
-    # Verify action was called via runner
-    assert len(mock_runner.calls) == 1
-    assert mock_runner.calls[0][0] == 'save_config'
+    # Verify action was called via runner (filter out config loading calls)
+    save_config_calls = [c for c in mock_runner.calls if c[0] == 'save_config']
+    assert len(save_config_calls) == 1
+    assert save_config_calls[0][0] == 'save_config'
 
 
 def test_engine_execute_step_with_validator(mock_runner):
@@ -229,3 +230,78 @@ def test_engine_headless_mode(mock_runner):
 
     assert result == 'automated_value'
     assert engine.state['user.input'] == 'automated_value'
+
+
+def test_load_existing_state_handles_nested_config():
+    """_load_existing_state should recursively flatten nested YAML config.
+
+    When platform-config.yaml contains:
+        services:
+          base_platform:
+            test_containers:
+              postgres_test:
+                image: alpine:latest
+                prebuilt: false
+
+    The state should include:
+        services.base_platform.test_containers.postgres_test.image = "alpine:latest"
+        services.base_platform.test_containers.postgres_test.prebuilt = False
+
+    Not:
+        services.base_platform.test_containers = {entire dict}
+    """
+    import yaml
+
+    # Create a mock runner
+    mock_runner = MockActionRunner()
+
+    # Create the config file content
+    config_content = {
+        'services': {
+            'base_platform': {
+                'postgres': {
+                    'enabled': True,
+                    'image': 'postgres:17.5-alpine',
+                    'auth_method': 'trust',
+                    'password': None
+                },
+                'test_containers': {
+                    'postgres_test': {
+                        'image': 'alpine:latest',
+                        'prebuilt': False
+                    },
+                    'sqlcmd_test': {
+                        'image': 'alpine:latest',
+                        'prebuilt': False
+                    }
+                }
+            }
+        }
+    }
+
+    # Set up the mock to return the config file content
+    config_yaml = yaml.dump(config_content, default_flow_style=False)
+
+    # Mock file_exists to return True for platform-config.yaml
+    mock_runner.responses['file_exists'] = {'platform-config.yaml': True}
+
+    # Mock the cat command to return the YAML content
+    mock_runner.responses['run_shell'] = {
+        tuple(['cat', 'platform-config.yaml']): {
+            'stdout': config_yaml,
+            'stderr': '',
+            'returncode': 0
+        }
+    }
+
+    # Create engine - this will call _load_existing_state
+    engine = WizardEngine(mock_runner)
+
+    # Verify nested config was flattened correctly
+    assert engine.state.get('services.base_platform.test_containers.postgres_test.image') == 'alpine:latest'
+    assert engine.state.get('services.base_platform.test_containers.postgres_test.prebuilt') is False
+    assert engine.state.get('services.base_platform.test_containers.sqlcmd_test.image') == 'alpine:latest'
+    assert engine.state.get('services.base_platform.test_containers.sqlcmd_test.prebuilt') is False
+
+    # Verify it didn't create a dict entry
+    assert 'services.base_platform.test_containers' not in engine.state
