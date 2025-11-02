@@ -43,49 +43,60 @@ Add:
 sudo systemctl restart docker
 ```
 
-## Platform Configuration (.env)
+## Platform Configuration (platform-config.yaml)
 
-### Step 1: Run Platform Setup Wizard
+### Step 1: Run the Setup Wizard
 
 ```bash
 ./platform setup
 ```
 
 The wizard will:
-- Prompt for corporate-specific settings (Artifactory URLs, image paths, etc.)
+- Prompt you for corporate-specific settings (Kerberos domain, Artifactory paths, etc.)
 - Generate `platform-config.yaml` with your configuration
-- Auto-generate `.env` files from the YAML configuration
+- Auto-generate `.env` from the YAML configuration
 
-### Step 2: Set Corporate Image Paths
+Edit `platform-config.yaml` as needed for your corporate environment.
 
-Ask your DevOps team for exact paths, or use this template:
+### Step 2: Configure Corporate Image Paths
 
-```bash
-# Kerberos (from diagnostic)
-COMPANY_DOMAIN=YOURCOMPANY.COM
-KERBEROS_CACHE_TYPE=DIR
-KERBEROS_CACHE_PATH=${HOME}/.krb5-cache
-KERBEROS_CACHE_TICKET=dev
+Ask your DevOps team for exact paths, then edit `platform-config.yaml`:
 
-# Corporate Artifactory Image Sources
-IMAGE_ALPINE=artifactory.yourcompany.com/docker-remote/library/alpine:3.19
-IMAGE_PYTHON=artifactory.yourcompany.com/docker-remote/library/python:3.11-slim
-IMAGE_ASTRONOMER=artifactory.yourcompany.com/docker-remote/astronomer/ap-airflow:11.10.0
+```yaml
+kerberos:
+  domain: YOURCOMPANY.COM
+  cache:
+    type: DIR
+    path: ${HOME}/.krb5-cache
+    ticket: dev
+
+images:
+  alpine: artifactory.yourcompany.com/docker-remote/library/alpine:3.19
+  python: artifactory.yourcompany.com/docker-remote/library/python:3.11-slim
+  astronomer: artifactory.yourcompany.com/docker-remote/astronomer/ap-airflow:11.10.0
 
 # ODBC Drivers (if mirrored)
-# ODBC_DRIVER_URL=https://artifactory.yourcompany.com/microsoft-binaries/odbc/v18.3
+# odbc:
+#   driver_url: https://artifactory.yourcompany.com/microsoft-binaries/odbc/v18.3
 ```
 
-### Step 3: IMPORTANT - Never Commit .env!
+The platform will auto-generate `.env` from this configuration when you run `./platform setup` or other platform commands.
 
-**The .env file contains YOUR corporate paths** and should stay local.
+### Step 3: IMPORTANT - Configuration File Guidance
 
-`.gitignore` now includes:
-- `platform-bootstrap/.env`
-- `**/.env`
-- `**/.secrets/`
+**platform-config.yaml** contains YOUR corporate paths and settings:
+- You MAY commit it to your corporate fork if sharing config with your team
+- OR keep it local if settings are personal/sensitive
 
-This ensures your corporate config never gets committed.
+**.env is auto-generated** and should NEVER be committed:
+- Auto-generated from platform-config.yaml
+- Regenerated on each platform command
+
+`.gitignore` includes:
+- `.env` (auto-generated, never commit)
+- `**/.secrets/` (sensitive credentials)
+
+This ensures auto-generated files and secrets never get committed.
 
 ## Preserving Config When Merging Upstream
 
@@ -97,13 +108,17 @@ git remote add upstream https://github.com/Troubladore/airflow-data-platform.git
 
 # 2. Create develop branch with corporate config
 git checkout -b develop
-./platform setup  # Run wizard to create platform-config.yaml
-# Optionally commit platform-config.yaml to share with team
-git add platform-config.yaml
+
+# 3. Run setup wizard to create platform-config.yaml
+./platform setup
+# Answer prompts with corporate-specific values
+
+# 4. Optionally commit platform-config.yaml if sharing with team
+git add platform-config.yaml  # Optional: commit if team needs shared config
 git commit -m "Add corporate platform configuration"
 
 # .env is auto-generated and in .gitignore, so it WON'T be committed
-# This is GOOD - it stays local only and auto-regenerates as needed
+# This is GOOD - it stays local and regenerates as needed
 ```
 
 ### Merging Upstream Changes
@@ -116,18 +131,19 @@ git fetch upstream main
 git checkout develop
 git merge upstream/main
 
-# Your .env is NOT tracked, so it won't conflict!
-# It stays exactly as you configured it
+# Your platform-config.yaml may need manual merge if you committed it
+# Your .env is NOT tracked and auto-regenerates, so no conflicts!
+# It regenerates from your platform-config.yaml on next platform command
 ```
 
 ### The Pattern
 
 **Tracked in git (shared with team):**
-- `platform-config.yaml` (optional - if you want to share corporate config)
+- `platform-config.yaml` - (Optional) Corporate configuration if you want to share
 - All code, docs, scripts
 
-**NOT tracked (your personal/corp config):**
-- `.env` - Your corporate Artifactory paths
+**NOT tracked (auto-generated or personal):**
+- `.env` - Auto-generated from platform-config.yaml, never commit
 - `.secrets/` - Passwords, tokens
 - `docker-compose.override.yml` - Personal overrides
 
