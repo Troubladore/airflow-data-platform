@@ -182,12 +182,52 @@ class TestRemoveImages:
         # Verify runner.run_shell was called (may also call file_exists first)
         shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
         assert len(shell_calls) >= 1
-        # Find the docker rmi call
+        # Find the docker rmi calls (should be 3: main + 2 test images)
         rmi_call = [c for c in shell_calls if 'rmi' in c[1]]
-        assert len(rmi_call) == 1
+        assert len(rmi_call) >= 1
         command = rmi_call[0][1]
         assert 'docker' in command
         assert 'rmi' in command
+
+    def test_remove_images_removes_test_container_images(self):
+        """Should remove test container images (postgres-test, sqlcmd-test) in addition to main image."""
+        from wizard.services.base_platform.teardown_actions import remove_images
+
+        runner = MockActionRunner()
+        ctx = {
+            'services.base_platform.postgres.image': 'postgres:17.5-alpine'
+        }
+
+        remove_images(ctx, runner)
+
+        # Verify runner.run_shell was called for test container images
+        shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
+        rmi_calls = [c for c in shell_calls if 'rmi' in c[1]]
+
+        # Should remove at least 5 images:
+        # 1. Main postgres image (postgres:17.5-alpine)
+        # 2. platform/postgres-test:latest
+        # 3. platform/sqlcmd-test:latest
+        # 4. test-postgres-build:latest (intermediate build image)
+        # 5. test-sqlcmd-build:latest (intermediate build image)
+        assert len(rmi_calls) >= 5, f"Expected at least 5 rmi calls, got {len(rmi_calls)}"
+
+        # Verify specific images are removed
+        all_images = []
+        for call in rmi_calls:
+            command = call[1]
+            # Extract image names from docker rmi commands
+            # Command format: ['docker', 'rmi', 'image:tag', '--force']
+            if 'rmi' in command:
+                for part in command:
+                    if ':' in part or 'platform/' in part or 'test-' in part:
+                        all_images.append(part)
+
+        assert 'postgres:17.5-alpine' in all_images, "Should remove main postgres image"
+        assert 'platform/postgres-test:latest' in all_images, "Should remove postgres-test image"
+        assert 'platform/sqlcmd-test:latest' in all_images, "Should remove sqlcmd-test image"
+        assert 'test-postgres-build:latest' in all_images, "Should remove test-postgres-build image"
+        assert 'test-sqlcmd-build:latest' in all_images, "Should remove test-sqlcmd-build image"
 
     def test_remove_images_uses_context_image(self):
         """Should use image from context."""
@@ -200,10 +240,12 @@ class TestRemoveImages:
 
         remove_images(ctx, runner)
 
-        # Find the docker rmi call (not file_exists)
+        # Find the docker rmi calls (not file_exists)
         shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
         rmi_call = [c for c in shell_calls if 'rmi' in c[1]]
-        assert len(rmi_call) == 1
+        # Should have main image + test images
+        assert len(rmi_call) >= 1
+        # First call should be for the main postgres image
         command = rmi_call[0][1]
         assert 'postgres:17.5-alpine' in command
 
@@ -216,10 +258,12 @@ class TestRemoveImages:
 
         remove_images(ctx, runner)
 
-        # Find the docker rmi call (not file_exists)
+        # Find the docker rmi calls (not file_exists)
         shell_calls = [c for c in runner.calls if c[0] == 'run_shell']
         rmi_call = [c for c in shell_calls if 'rmi' in c[1]]
-        assert len(rmi_call) == 1
+        # Should have main image + test images
+        assert len(rmi_call) >= 1
+        # First call should be for default postgres image
         command = rmi_call[0][1]
         # Should have some postgres image
         command_str = ' '.join(command)
