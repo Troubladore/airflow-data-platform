@@ -75,11 +75,12 @@ These containers are used by the platform to verify database connectivity and ar
 - **[SQL Server Test Container](../platform-infrastructure/test-containers/sqlcmd-test/Dockerfile)** - Tests SQL Server connectivity
   - Base: `alpine:latest`
   - Purpose: Validates SQL Server connectivity with Kerberos authentication
-  - Components: FreeTDS SQL Server client, Kerberos libraries, unixODBC
+  - Components: Microsoft ODBC Driver 18 (msodbcsql18), Microsoft SQL Server tools (mssql-tools18), Kerberos libraries, unixODBC
   - Security: Runs as non-root user (testuser, uid 10001)
-  - Note: Uses FreeTDS (open source) instead of Microsoft proprietary tools - no EULA required
+  - Note: Downloads Microsoft ODBC driver APKs from Microsoft's server during build
   - Build: `docker build -t platform/sqlcmd-test platform-infrastructure/test-containers/sqlcmd-test/`
   - Custom base: `--build-arg BASE_IMAGE=your.registry.com/alpine:3.19`
+  - Corporate Artifactory: `--build-arg ODBC_DRIVER_URL=https://artifactory.corp.com/mssql-drivers`
   - Required for: SQL Server connectivity validation (future feature)
 
 ### Platform Service Images
