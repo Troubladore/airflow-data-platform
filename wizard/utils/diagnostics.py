@@ -199,6 +199,101 @@ class ServiceDiagnostics:
 
         return result
 
+    def verify_postgres_health(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+        """Verify platform-postgres health using postgres-test container.
+
+        Runs test-platform-postgres-connectivity.sh with --quiet flag.
+
+        Args:
+            ctx: Service context (not currently used but kept for consistency)
+
+        Returns:
+            {
+                'healthy': bool,        # True if all tests passed
+                'summary': str,         # Brief message (from --quiet output)
+                'details': str,         # Full output from test script
+                'error': str            # Error message if unhealthy (empty if healthy)
+            }
+        """
+        # Run test script with --quiet flag for brief output
+        result = self.runner.run_shell([
+            'bash',
+            'platform-infrastructure/tests/test-platform-postgres-connectivity.sh',
+            '--quiet'
+        ])
+
+        output = result.get('stdout', '').strip()
+        stderr = result.get('stderr', '').strip()
+        returncode = result.get('returncode', 1)
+
+        if returncode == 0:
+            return {
+                'healthy': True,
+                'summary': output,
+                'details': output,
+                'error': ''
+            }
+        else:
+            # Extract error from output or stderr
+            error_msg = output if output else stderr
+            if not error_msg:
+                error_msg = "Health check failed with no output"
+
+            return {
+                'healthy': False,
+                'summary': '',
+                'details': f"{output}\n{stderr}".strip(),
+                'error': error_msg
+            }
+
+    def verify_pagila_health(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+        """Verify Pagila health using postgres-test container.
+
+        Runs test-pagila-connectivity.sh with --quiet flag.
+
+        Args:
+            ctx: Service context (not currently used but kept for consistency)
+
+        Returns:
+            Same structure as verify_postgres_health:
+            {
+                'healthy': bool,
+                'summary': str,
+                'details': str,
+                'error': str
+            }
+        """
+        # Run test script with --quiet flag for brief output
+        result = self.runner.run_shell([
+            'bash',
+            'platform-infrastructure/tests/test-pagila-connectivity.sh',
+            '--quiet'
+        ])
+
+        output = result.get('stdout', '').strip()
+        stderr = result.get('stderr', '').strip()
+        returncode = result.get('returncode', 1)
+
+        if returncode == 0:
+            return {
+                'healthy': True,
+                'summary': output,
+                'details': output,
+                'error': ''
+            }
+        else:
+            # Extract error from output or stderr
+            error_msg = output if output else stderr
+            if not error_msg:
+                error_msg = "Health check failed with no output"
+
+            return {
+                'healthy': False,
+                'summary': '',
+                'details': f"{output}\n{stderr}".strip(),
+                'error': error_msg
+            }
+
 
 def create_diagnostic_summary(failures: List[Dict], log_file: str) -> str:
     """Create user-friendly summary with clear next steps.

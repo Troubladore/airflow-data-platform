@@ -168,6 +168,69 @@ class TestServiceDiagnostics:
         assert result['repo_cloned'] is False
         assert 'Git clone may have failed' in result['diagnosis']
 
+    def test_verify_postgres_health_success(self):
+        """Should return healthy=True when script succeeds."""
+        runner = MockRunner()
+        runner.mock_responses['bash platform-infrastructure/tests/test-platform-postgres-connectivity.sh --quiet'] = {
+            'returncode': 0,
+            'stdout': '✓ Platform postgres healthy - 2 databases, PostgreSQL 17.5',
+            'stderr': ''
+        }
+
+        service_diag = ServiceDiagnostics(runner)
+        result = service_diag.verify_postgres_health({})
+
+        assert result['healthy'] is True
+        assert 'PostgreSQL 17.5' in result['summary']
+        assert result['error'] == ''
+
+    def test_verify_postgres_health_failure(self):
+        """Should return healthy=False when script fails."""
+        runner = MockRunner()
+        runner.mock_responses['bash platform-infrastructure/tests/test-platform-postgres-connectivity.sh --quiet'] = {
+            'returncode': 1,
+            'stdout': '✗ Platform postgres unhealthy - 2/5 tests passed',
+            'stderr': 'Connection refused'
+        }
+
+        service_diag = ServiceDiagnostics(runner)
+        result = service_diag.verify_postgres_health({})
+
+        assert result['healthy'] is False
+        assert 'unhealthy' in result['error']
+        assert len(result['details']) > 0
+
+    def test_verify_pagila_health_success(self):
+        """Should return healthy=True when Pagila check succeeds."""
+        runner = MockRunner()
+        runner.mock_responses['bash platform-infrastructure/tests/test-pagila-connectivity.sh --quiet'] = {
+            'returncode': 0,
+            'stdout': '✓ Pagila healthy - 200 actors, 1000 films, 16044 rentals',
+            'stderr': ''
+        }
+
+        service_diag = ServiceDiagnostics(runner)
+        result = service_diag.verify_pagila_health({})
+
+        assert result['healthy'] is True
+        assert '200 actors' in result['summary']
+        assert result['error'] == ''
+
+    def test_verify_pagila_health_failure(self):
+        """Should return healthy=False when Pagila check fails."""
+        runner = MockRunner()
+        runner.mock_responses['bash platform-infrastructure/tests/test-pagila-connectivity.sh --quiet'] = {
+            'returncode': 1,
+            'stdout': '✗ Pagila unhealthy - 3/6 tests passed',
+            'stderr': 'pagila-postgres not found'
+        }
+
+        service_diag = ServiceDiagnostics(runner)
+        result = service_diag.verify_pagila_health({})
+
+        assert result['healthy'] is False
+        assert 'unhealthy' in result['error']
+
 
 class TestDiagnosticIntegration:
     """Test the full diagnostic flow integration."""
