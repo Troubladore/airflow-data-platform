@@ -28,14 +28,34 @@ These test containers are built manually and not configurable through the wizard
 
 Currently, there's no way to configure this through the wizard.
 
+## Architecture Context
+
+The platform has two distinct architectural layers that must be clearly separated:
+
+### Configuration Layer (Wizard)
+**Location**: `wizard/services/base_platform/`
+**Purpose**: User-facing prompts, validation, state management
+**Outputs**: `platform-config.yaml`, `platform-bootstrap/.env`
+**Responsibility**: Captures what the user wants configured
+
+### Runtime/Operational Layer
+**Location**: `platform-infrastructure/`
+**Purpose**: Actual running services, Dockerfiles, compose files, build artifacts
+**Inputs**: Configuration from `platform-bootstrap/.env`
+**Responsibility**: Implements how services actually run
+
+This separation ensures configuration (what user wants) stays separate from implementation (how services run). Test containers are runtime artifacts, so they belong in `platform-infrastructure/`, not `kerberos/` (which would imply Kerberos ownership).
+
 ## Design Goals
 
 1. Correct the architectural naming (postgres → base_platform)
 2. Enable wizard configuration of test container images
-3. Provide minimal Dockerfile templates for corporate users
-4. Support both "build from base" and "use prebuilt" workflows
-5. Maintain clean migration path (no permanent backward compatibility)
-6. Store configuration persistently across wizard sessions
+3. Move test containers to proper location (`platform-infrastructure/test-containers/`)
+4. Follow established Kerberos pattern (IMAGE + PREBUILT boolean, not 3 separate properties)
+5. Support both "build from base" and "use prebuilt" workflows
+6. Simplify corporate usage (prebuilt images instead of corporate mirror complexity)
+7. Maintain clean migration path (no permanent backward compatibility)
+8. Store configuration persistently across wizard sessions
 
 ## Phase 1: Refactor to `services.base_platform`
 
@@ -161,11 +181,11 @@ Test containers are **build-time artifacts**, not runtime services:
 
 ### Components
 
-#### 1. Minimal Dockerfile Templates
+#### 1. Refactored Dockerfile Templates
 
-Provide reference implementations as templates for corporate users to customize.
+**Location Change**: Move test container Dockerfiles from `kerberos/kerberos-sidecar/` to `platform-infrastructure/test-containers/` to reflect proper ownership (these are base platform infrastructure, not Kerberos-specific).
 
-**`kerberos/kerberos-sidecar/Dockerfile.postgres-test.minimal`:**
+**`platform-infrastructure/test-containers/postgres-test/Dockerfile`:**
 ```dockerfile
 # Minimal PostgreSQL + Kerberos Test Container
 # ==============================================
@@ -175,11 +195,12 @@ Provide reference implementations as templates for corporate users to customize.
 ARG BASE_IMAGE=alpine:latest
 FROM ${BASE_IMAGE}
 
-# Install PostgreSQL client with GSSAPI + Kerberos tools
+# Install PostgreSQL client with GSSAPI + Kerberos tools + ODBC
 # Adjust package names for your base (Alpine shown)
 RUN apk update && apk add --no-cache \
     postgresql17-client \
     krb5 krb5-libs krb5-conf \
+    unixodbc unixodbc-dev \
     ca-certificates tzdata
 
 # Create non-root user
@@ -196,16 +217,18 @@ CMD ["psql --version"]
 
 **Key features:**
 - Parameterized `BASE_IMAGE` for corporate registry flexibility
-- Explicitly pinned package versions (shown in comments)
+- Uses latest package versions from Alpine repos (not pinned)
+- Includes unixODBC for ODBC-based PostgreSQL connections
 - Non-root user for security
 - Minimal layer count
 - ~50MB compressed (vs ~230MB for postgres:16-alpine)
 
-**`kerberos/kerberos-sidecar/Dockerfile.sqlcmd-test.minimal`:**
+**`platform-infrastructure/test-containers/sqlcmd-test/Dockerfile`:**
 ```dockerfile
 # Minimal SQL Server + Kerberos Test Container
 # ==============================================
-# Template for corporate environments with restricted base images
+# For corporate environments that cannot access Microsoft downloads,
+# use prebuilt images instead of building from base.
 
 ARG BASE_IMAGE=alpine:latest
 FROM ${BASE_IMAGE}
@@ -220,11 +243,10 @@ RUN apk update && apk add --no-cache \
     unixodbc unixodbc-dev \
     freetds freetds-dev
 
-# Install Microsoft SQL Server tools
-# For corporate environments, set MSSQL_TOOLS_URL to internal mirror
-ARG MSSQL_TOOLS_URL
+# Install Microsoft SQL Server tools from public source
+# Corporate environments: Use prebuilt images if download.microsoft.com is blocked
 RUN arch=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
-    base_url="${MSSQL_TOOLS_URL:-https://download.microsoft.com/download/7/6/d/76de322a-d860-4894-9945-f0cc5d6a45f8}" && \
+    base_url="https://download.microsoft.com/download/7/6/d/76de322a-d860-4894-9945-f0cc5d6a45f8" && \
     cd /tmp && \
     curl -fsSL -o msodbc.apk "${base_url}/msodbcsql18_18.4.1.1-1_${arch}.apk" && \
     curl -fsSL -o mssql-tools.apk "${base_url}/mssql-tools18_18.4.1.1-1_${arch}.apk" && \
@@ -245,7 +267,7 @@ CMD ["sqlcmd -? && odbcinst -q -d"]
 - Includes **FreeTDS** (alternative SQL Server driver)
 - Includes **unixODBC** for DSN configuration (`/etc/odbc.ini`)
 - Includes **odbcinst** for driver inspection
-- Parameterized `MSSQL_TOOLS_URL` for corporate mirrors
+- Downloads Microsoft tools from public source (no corporate mirror support)
 - Microsoft EULA acceptance documented
 - Non-root user
 
@@ -254,71 +276,51 @@ CMD ["sqlcmd -? && odbcinst -q -d"]
 - unixODBC enables DSN-based connections for cleaner connection strings
 - `odbcinst -q -d` helps troubleshoot driver registration issues
 
+**Corporate Environments:**
+- If download.microsoft.com is blocked, prebuild this image and use prebuilt mode
+- Attempting to support corporate mirrors adds too much complexity (auth tokens, etc.)
+
 #### 2. Wizard Sub-Spec
 
 **`wizard/services/base_platform/test-containers-spec.yaml`:**
+
+Following the established Kerberos pattern (IMAGE + PREBUILT boolean):
+
 ```yaml
 # Test container configuration for base platform
 # Invoked from main base_platform/spec.yaml
 
 steps:
-  - id: postgres_test_mode
+  - id: postgres_test_prebuilt
     type: boolean
-    state_key: services.base_platform.test_containers.postgres_test.build_from_base
-    default_from: services.base_platform.test_containers.postgres_test.build_from_base
-    prompt: "Build PostgreSQL test container from base image (vs. using prebuilt)?"
-    default_value: true
+    state_key: services.base_platform.test_containers.postgres_test.prebuilt
+    default_from: services.base_platform.test_containers.postgres_test.prebuilt
+    prompt: "Use prebuilt PostgreSQL test image (vs. building from base)?"
+    default_value: false
     next: postgres_test_image
 
   - id: postgres_test_image
     type: string
-    state_key: services.base_platform.test_containers.postgres_test.base_image
-    default_from: services.base_platform.test_containers.postgres_test.base_image
-    prompt: "Base image for PostgreSQL test container (e.g., alpine:3.22):"
+    state_key: services.base_platform.test_containers.postgres_test.image
+    default_from: services.base_platform.test_containers.postgres_test.image
+    prompt: "PostgreSQL test container image (base to build from, or prebuilt image path):"
     default_value: "alpine:latest"
-    condition: "state.services.base_platform.test_containers.postgres_test.build_from_base == true"
-    next: sqlcmd_test_mode
+    next: sqlcmd_test_prebuilt
 
-  - id: postgres_test_prebuilt
-    type: string
-    state_key: services.base_platform.test_containers.postgres_test.prebuilt_image
-    default_from: services.base_platform.test_containers.postgres_test.prebuilt_image
-    prompt: "Prebuilt PostgreSQL test image (e.g., mycorp.io/postgres-test:latest):"
-    condition: "state.services.base_platform.test_containers.postgres_test.build_from_base == false"
-    next: sqlcmd_test_mode
-
-  - id: sqlcmd_test_mode
+  - id: sqlcmd_test_prebuilt
     type: boolean
-    state_key: services.base_platform.test_containers.sqlcmd_test.build_from_base
-    default_from: services.base_platform.test_containers.sqlcmd_test.build_from_base
-    prompt: "Build SQL Server test container from base image (vs. using prebuilt)?"
-    default_value: true
+    state_key: services.base_platform.test_containers.sqlcmd_test.prebuilt
+    default_from: services.base_platform.test_containers.sqlcmd_test.prebuilt
+    prompt: "Use prebuilt SQL Server test image (vs. building from base)?"
+    default_value: false
     next: sqlcmd_test_image
 
   - id: sqlcmd_test_image
     type: string
-    state_key: services.base_platform.test_containers.sqlcmd_test.base_image
-    default_from: services.base_platform.test_containers.sqlcmd_test.base_image
-    prompt: "Base image for SQL Server test container (e.g., alpine:3.22):"
+    state_key: services.base_platform.test_containers.sqlcmd_test.image
+    default_from: services.base_platform.test_containers.sqlcmd_test.image
+    prompt: "SQL Server test container image (base to build from, or prebuilt image path):"
     default_value: "alpine:latest"
-    condition: "state.services.base_platform.test_containers.sqlcmd_test.build_from_base == true"
-    next: sqlcmd_tools_url
-
-  - id: sqlcmd_test_prebuilt
-    type: string
-    state_key: services.base_platform.test_containers.sqlcmd_test.prebuilt_image
-    default_from: services.base_platform.test_containers.sqlcmd_test.prebuilt_image
-    prompt: "Prebuilt SQL Server test image (e.g., mycorp.io/sqlcmd-test:latest):"
-    condition: "state.services.base_platform.test_containers.sqlcmd_test.build_from_base == false"
-    next: save_test_config
-
-  - id: sqlcmd_tools_url
-    type: string
-    state_key: services.base_platform.test_containers.sqlcmd_test.mssql_tools_url
-    default_from: services.base_platform.test_containers.sqlcmd_test.mssql_tools_url
-    prompt: "Microsoft SQL Server tools URL (leave empty for default, or corporate mirror):"
-    default_value: ""
-    condition: "state.services.base_platform.test_containers.sqlcmd_test.build_from_base == true"
     next: save_test_config
 
   - id: save_test_config
@@ -327,13 +329,16 @@ steps:
     next: finish
 ```
 
-**Flow Logic:**
-1. Ask if building from base or using prebuilt (postgres)
-2. If building: prompt for base image
-3. If prebuilt: prompt for prebuilt image path
-4. Repeat for sqlcmd
-5. For sqlcmd build mode: optionally configure MSSQL tools URL
-6. Save configuration
+**Flow Logic (Simplified):**
+1. Ask if using prebuilt PostgreSQL test image
+2. Prompt for image (interpretation depends on prebuilt flag)
+3. Ask if using prebuilt SQL Server test image
+4. Prompt for image (interpretation depends on prebuilt flag)
+5. Save configuration
+
+**Image Interpretation:**
+- If `prebuilt=false`: Image is base to build from (e.g., `alpine:latest`, `cgr.dev/chainguard/wolfi-base`)
+- If `prebuilt=true`: Image is complete prebuilt path (e.g., `mycorp.io/postgres-test:v1`)
 
 #### 3. Integration into Main Spec
 
@@ -352,6 +357,8 @@ The action `invoke_test_container_spec` loads and executes `test-containers-spec
 
 #### 4. Configuration Storage
 
+Following Kerberos pattern (IMAGE + PREBUILT boolean):
+
 **`platform-config.yaml`:**
 ```yaml
 services:
@@ -366,16 +373,18 @@ services:
 
     test_containers:
       postgres_test:
-        build_from_base: true
-        base_image: "mycorp.jfrog.io/approved/alpine:3.22"
-        # OR
-        # build_from_base: false
-        # prebuilt_image: "mycorp.jfrog.io/test-images/postgres-test:v1"
+        image: "alpine:latest"
+        prebuilt: false
+        # For prebuilt:
+        # image: "mycorp.jfrog.io/test-images/postgres-test:v1"
+        # prebuilt: true
 
       sqlcmd_test:
-        build_from_base: true
-        base_image: "mycorp.jfrog.io/approved/alpine:3.22"
-        mssql_tools_url: "https://artifacts.mycorp.com/mssql-tools/"
+        image: "alpine:latest"
+        prebuilt: false
+        # For prebuilt:
+        # image: "mycorp.jfrog.io/test-images/sqlcmd-test:v1"
+        # prebuilt: true
 ```
 
 **`platform-bootstrap/.env`:**
@@ -385,43 +394,61 @@ IMAGE_POSTGRES=postgres:17.5-alpine
 PLATFORM_DB_USER=platform_admin
 PLATFORM_DB_PASSWORD=changeme
 
-# Test containers
-IMAGE_POSTGRES_TEST_BASE=mycorp.jfrog.io/approved/alpine:3.22
-POSTGRES_TEST_BUILD_FROM_BASE=true
-IMAGE_SQLCMD_TEST_BASE=mycorp.jfrog.io/approved/alpine:3.22
-SQLCMD_TEST_BUILD_FROM_BASE=true
-MSSQL_TOOLS_URL=https://artifacts.mycorp.com/mssql-tools/
+# Test containers (follows Kerberos pattern)
+IMAGE_POSTGRES_TEST=alpine:latest
+POSTGRES_TEST_PREBUILT=false
+
+IMAGE_SQLCMD_TEST=alpine:latest
+SQLCMD_TEST_PREBUILT=false
+
+# Example corporate configuration:
+# IMAGE_POSTGRES_TEST=mycorp.jfrog.io/approved/alpine:3.22
+# POSTGRES_TEST_PREBUILT=false  # Build from corporate base
+#
+# IMAGE_SQLCMD_TEST=mycorp.jfrog.io/test-images/sqlcmd-test:v1
+# SQLCMD_TEST_PREBUILT=true  # Use prebuilt corporate image
 ```
 
 #### 5. Build Integration
 
-Update Dockerfiles to use configured values via build args:
+**Location**: Root `Makefile` (test containers are base platform infrastructure, build targets belong at root level)
 
-**Example build command:**
-```bash
-docker build \
-  -f kerberos/kerberos-sidecar/Dockerfile.postgres-test.minimal \
-  --build-arg BASE_IMAGE=${IMAGE_POSTGRES_TEST_BASE} \
-  -t platform/postgres-test:latest .
-```
-
-**Makefile integration:**
+**Makefile targets** (handles both build and prebuilt modes):
 ```makefile
 build-postgres-test:
-	@if [ -f .env ]; then source .env; fi && \
-	docker build \
-	  -f kerberos/kerberos-sidecar/Dockerfile.postgres-test.minimal \
-	  --build-arg BASE_IMAGE=$${IMAGE_POSTGRES_TEST_BASE:-alpine:latest} \
-	  -t platform/postgres-test:latest .
+	@source platform-bootstrap/.env 2>/dev/null || true && \
+	if [ "$${POSTGRES_TEST_PREBUILT}" = "true" ]; then \
+		echo "Using prebuilt image: $${IMAGE_POSTGRES_TEST}"; \
+		docker pull $${IMAGE_POSTGRES_TEST} && \
+		docker tag $${IMAGE_POSTGRES_TEST} platform/postgres-test:latest; \
+	else \
+		echo "Building postgres-test from base: $${IMAGE_POSTGRES_TEST:-alpine:latest}"; \
+		docker build \
+		  -f platform-infrastructure/test-containers/postgres-test/Dockerfile \
+		  --build-arg BASE_IMAGE=$${IMAGE_POSTGRES_TEST:-alpine:latest} \
+		  -t platform/postgres-test:latest \
+		  platform-infrastructure/test-containers/postgres-test/; \
+	fi
 
 build-sqlcmd-test:
-	@if [ -f .env ]; then source .env; fi && \
-	docker build \
-	  -f kerberos/kerberos-sidecar/Dockerfile.sqlcmd-test.minimal \
-	  --build-arg BASE_IMAGE=$${IMAGE_SQLCMD_TEST_BASE:-alpine:latest} \
-	  --build-arg MSSQL_TOOLS_URL=$${MSSQL_TOOLS_URL:-} \
-	  -t platform/sqlcmd-test:latest .
+	@source platform-bootstrap/.env 2>/dev/null || true && \
+	if [ "$${SQLCMD_TEST_PREBUILT}" = "true" ]; then \
+		echo "Using prebuilt image: $${IMAGE_SQLCMD_TEST}"; \
+		docker pull $${IMAGE_SQLCMD_TEST} && \
+		docker tag $${IMAGE_SQLCMD_TEST} platform/sqlcmd-test:latest; \
+	else \
+		echo "Building sqlcmd-test from base: $${IMAGE_SQLCMD_TEST:-alpine:latest}"; \
+		docker build \
+		  -f platform-infrastructure/test-containers/sqlcmd-test/Dockerfile \
+		  --build-arg BASE_IMAGE=$${IMAGE_SQLCMD_TEST:-alpine:latest} \
+		  -t platform/sqlcmd-test:latest \
+		  platform-infrastructure/test-containers/sqlcmd-test/; \
+	fi
 ```
+
+**Build Logic:**
+- If `PREBUILT=true`: Pull configured image and tag as `platform/*:latest`
+- If `PREBUILT=false`: Build from configured base image using Dockerfile
 
 ### Usage Scenarios
 
@@ -496,17 +523,22 @@ Phase 2 is additive - no migration needed:
 ### Phase 2: Test Container Configuration
 
 1. Create feature branch: `feature/test-container-config`
-2. Create minimal Dockerfile templates
-3. Create test-containers-spec.yaml
-4. Implement save_test_container_config action
-5. Update main spec to invoke sub-spec
-6. Update Makefile with build targets
-7. Update .env.example with new variables
-8. Add tests
-9. Verify with custom base images
-10. Merge to main
+2. Move Dockerfiles: `kerberos/kerberos-sidecar/Dockerfile.{postgres,sqlcmd}-test` → `platform-infrastructure/test-containers/{postgres-test,sqlcmd-test}/Dockerfile`
+3. Refactor Dockerfiles: Add BASE_IMAGE build arg, add unixODBC to postgres-test, remove MSSQL_TOOLS_URL from sqlcmd-test, add non-root users
+4. Create test-containers-spec.yaml (following Kerberos IMAGE + PREBUILT pattern)
+5. Implement wizard actions: `invoke_test_container_spec` and `save_test_container_config`
+6. Update main spec to invoke sub-spec after postgres setup
+7. Add Makefile targets to root Makefile: `build-postgres-test` and `build-sqlcmd-test` (with prebuilt mode support)
+8. Update platform-bootstrap/.env.example with new variables (IMAGE_POSTGRES_TEST, POSTGRES_TEST_PREBUILT, etc.)
+9. Update documentation:
+   - Add architecture layer explanation to docs/directory-structure.md
+   - Update platform-infrastructure/README.md with test containers section
+   - Consider creating docs/ARCHITECTURE.md for high-level layer explanation
+10. Add tests (unit, integration, acceptance)
+11. Verify with custom base images and prebuilt images
+12. Merge to main
 
-**Estimated effort:** 6-8 hours
+**Estimated effort:** 8-10 hours (includes documentation updates)
 
 ## Risks and Mitigations
 

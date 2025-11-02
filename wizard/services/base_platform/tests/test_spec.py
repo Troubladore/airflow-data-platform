@@ -135,3 +135,34 @@ class TestSpecStepsValid:
                             target = next_val[key]
                             assert target in step_ids or target in valid_terminals, \
                                 f"step {step['id']} {key}='{target}' must reference valid step or terminal"
+
+    def test_spec_has_configure_test_containers_step(self, spec):
+        """Should have configure_test_containers action step after postgres_start."""
+        steps = {s['id']: s for s in spec['steps']}
+        step_ids = [s['id'] for s in spec['steps']]
+
+        # Step should exist
+        assert 'configure_test_containers' in steps, "should have configure_test_containers step"
+
+        # Should be an action step
+        step = steps['configure_test_containers']
+        assert step['type'] == 'action', "configure_test_containers should be type 'action'"
+
+        # Should call correct action
+        assert 'action' in step, "configure_test_containers should have action field"
+        assert step['action'] == 'base_platform.invoke_test_container_spec', \
+            "should use base_platform.invoke_test_container_spec action"
+
+        # Should come after postgres_start step
+        postgres_start_idx = step_ids.index('postgres_start')
+        configure_test_idx = step_ids.index('configure_test_containers')
+        assert configure_test_idx > postgres_start_idx, \
+            "configure_test_containers should come after postgres_start"
+
+        # Should point to finish
+        assert step['next'] == 'finish', "configure_test_containers should point to finish"
+
+        # postgres_start should point to configure_test_containers instead of finish
+        postgres_start_step = steps['postgres_start']
+        assert postgres_start_step['next'] == 'configure_test_containers', \
+            "postgres_start should point to configure_test_containers"
