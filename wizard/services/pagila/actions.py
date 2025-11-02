@@ -52,6 +52,30 @@ def install_pagila(ctx: dict, runner) -> None:
 
     if result.get('returncode') == 0:
         runner.display("✓ Pagila installed successfully")
+
+        # Run health check
+        runner.display("")
+        runner.display("Verifying Pagila health...")
+
+        service_diag = ServiceDiagnostics(runner)
+        health = service_diag.verify_pagila_health(ctx)
+
+        if health['healthy']:
+            # Display detailed success message
+            runner.display(health['summary'])
+        else:
+            # Save diagnostics and warn (but continue)
+            runner.display(f"⚠️  Health check failed: {health['error']}")
+
+            collector = DiagnosticCollector()
+            collector.record_failure('pagila', 'health_check', health['error'], {
+                'details': health['details']
+            })
+            log_file = collector.save_log()
+
+            runner.display(f"💾 Diagnostics saved to: {log_file}")
+            runner.display("   Continuing setup...")
+            runner.display("")
     else:
         runner.display("✗ Pagila installation failed")
 
