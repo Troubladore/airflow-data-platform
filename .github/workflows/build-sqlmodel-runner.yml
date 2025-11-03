@@ -52,6 +52,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
+            type=sha,prefix={{branch}}-
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
@@ -90,20 +91,34 @@ jobs:
       - name: Run tests
         working-directory: runners/sqlmodel-runner
         run: |
+          # Track test failures
+          TESTS_FAILED=0
+
           # Run import tests
           if [ -f tests/test_imports.py ]; then
-            python tests/test_imports.py || echo "Import tests failed - continuing"
+            echo "Running import tests..."
+            python tests/test_imports.py || TESTS_FAILED=1
           fi
 
           # Run integration tests (if Docker is available)
           if [ -f tests/test_runner_integration.py ]; then
-            python tests/test_runner_integration.py || echo "Integration tests failed - continuing"
+            echo "Running integration tests..."
+            python tests/test_runner_integration.py || TESTS_FAILED=1
           fi
 
           # Run unit tests
           if [ -f tests/test_mounted_code.py ]; then
-            python tests/test_mounted_code.py || echo "Mounted code tests failed - continuing"
+            echo "Running mounted code tests..."
+            python tests/test_mounted_code.py || TESTS_FAILED=1
           fi
+
+          # Exit with failure if any test failed
+          if [ $TESTS_FAILED -ne 0 ]; then
+            echo "Some tests failed!"
+            exit 1
+          fi
+
+          echo "All tests passed!"
 
       - name: Test Docker image build locally
         run: |

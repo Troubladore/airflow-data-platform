@@ -5,7 +5,9 @@
 # Default image name
 IMAGE_NAME ?= sqlmodel-runner
 IMAGE_TAG ?= latest
-REGISTRY ?= ghcr.io/troubladore/airflow-data-platform
+# Use GitHub repository variable if available, otherwise use default
+GITHUB_REPOSITORY ?= troubladore/airflow-data-platform
+REGISTRY ?= ghcr.io/$(shell echo $(GITHUB_REPOSITORY) | tr '[:upper:]' '[:lower:]')
 
 help: ## Show this help message
 	@echo "Usage: make [target]"

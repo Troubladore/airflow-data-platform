@@ -58,6 +58,10 @@ ENV PATH="/opt/venv/bin:$PATH" \
 # Create mount points for code and configuration
 RUN mkdir -p /app/src /app/config /app/lib /var/krb5/cache
 
+# Create non-root user for running the application
+RUN useradd -m -u 1000 -s /bin/bash runner && \
+    chown -R runner:runner /app /var/krb5/cache
+
 # Create a basic krb5.conf file (will be overridden by mounted config in production)
 RUN echo '[libdefaults]\n\
     default_realm = EXAMPLE.COM\n\
@@ -75,6 +79,9 @@ RUN echo '[libdefaults]\n\
 
 # Default working directory
 WORKDIR /app
+
+# Switch to non-root user for security
+USER runner
 
 # Entry point expects mounted code at /app/src/main.py
 # Can be overridden in KubernetesPodOperator
