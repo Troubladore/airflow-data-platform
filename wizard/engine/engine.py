@@ -98,11 +98,22 @@ class WizardEngine:
 
                         # Add all flattened keys to state, skipping 'enabled' flags
                         for key, value in flattened.items():
-                            if not key.endswith('.enabled'):
-                                # Don't override PostgreSQL image from .env
-                                if key == 'services.base_platform.postgres.image' and key in state:
-                                    continue
-                                state[key] = value
+                            if key.endswith('.enabled'):
+                                continue
+
+                            # Don't override PostgreSQL image from .env
+                            if key == 'services.base_platform.postgres.image' and key in state:
+                                continue
+
+                            state[key] = value
+
+                            # Support legacy `.prebuilt` keys by mirroring them to the
+                            # newer `.use_prebuilt` state entries so boolean prompts
+                            # pick up previously saved answers.
+                            if key.endswith('.prebuilt'):
+                                base_key, _ = key.rsplit('.', 1)
+                                use_prebuilt_key = f"{base_key}.use_prebuilt"
+                                state.setdefault(use_prebuilt_key, value)
             except Exception:
                 # If YAML parsing fails, continue without those settings
                 pass

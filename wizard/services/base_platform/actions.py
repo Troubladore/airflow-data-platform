@@ -540,6 +540,32 @@ def build_test_containers(ctx: Dict[str, Any], runner) -> None:
         # Don't fail setup - containers might already exist
 
 
+def _resolve_test_container_image(
+    ctx: Dict[str, Any],
+    container_key: str,
+    default_image: str,
+) -> str:
+    """Determine which image tag should be used for a test container.
+
+    Args:
+        ctx: Wizard context dictionary containing configuration selections.
+        container_key: Identifier for the container (e.g. "postgres_test").
+        default_image: Image tag to fall back to when building from source.
+
+    Returns:
+        The image tag that should be used when starting the container.
+    """
+
+    base_key = f"services.base_platform.test_containers.{container_key}"
+    use_prebuilt = ctx.get(f"{base_key}.use_prebuilt", False)
+    configured_image = ctx.get(f"{base_key}.image", "")
+
+    if use_prebuilt and configured_image:
+        return configured_image
+
+    return default_image
+
+
 def start_test_containers(ctx: Dict[str, Any], runner) -> None:
     """Start test containers as background services.
 
@@ -552,6 +578,20 @@ def start_test_containers(ctx: Dict[str, Any], runner) -> None:
     """
     runner.display("Starting test containers...")
 
+    postgres_image = _resolve_test_container_image(
+        ctx,
+        'postgres_test',
+        'platform/postgres-test:latest',
+    )
+    sqlcmd_image = _resolve_test_container_image(
+        ctx,
+        'sqlcmd_test',
+        'platform/sqlcmd-test:latest',
+    )
+
+    runner.display(f"  • postgres-test image: {postgres_image}")
+    runner.display(f"  • sqlcmd-test image: {sqlcmd_image}")
+
     # Network should already exist from create_platform_network step
     # Remove any existing test containers first (ignore errors if they don't exist)
     runner.run_shell(['docker', 'rm', '-f', 'postgres-test'])
@@ -562,7 +602,7 @@ def start_test_containers(ctx: Dict[str, Any], runner) -> None:
         'docker', 'run', '-d',
         '--name', 'postgres-test',
         '--network', 'platform_network',
-        'platform/postgres-test:latest',
+        postgres_image,
         'sleep', 'infinity'
     ])
 
@@ -571,7 +611,7 @@ def start_test_containers(ctx: Dict[str, Any], runner) -> None:
         'docker', 'run', '-d',
         '--name', 'sqlcmd-test',
         '--network', 'platform_network',
-        'platform/sqlcmd-test:latest',
+        sqlcmd_image,
         'sleep', 'infinity'
     ])
 

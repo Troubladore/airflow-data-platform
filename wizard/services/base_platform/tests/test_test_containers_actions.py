@@ -151,3 +151,51 @@ def test_save_test_container_config_uses_defaults_when_not_configured():
     assert 'POSTGRES_TEST_PREBUILT=false' in env_content
     assert 'IMAGE_SQLCMD_TEST=alpine:latest' in env_content
     assert 'SQLCMD_TEST_PREBUILT=false' in env_content
+
+
+def test_start_test_containers_uses_prebuilt_images_when_configured():
+    """start_test_containers should launch containers with the configured prebuilt images."""
+    from wizard.services.base_platform.actions import start_test_containers
+
+    runner = MockActionRunner()
+    ctx = {
+        'services.base_platform.test_containers.postgres_test.use_prebuilt': True,
+        'services.base_platform.test_containers.postgres_test.image': 'app/postgres-conn:1.2.3',
+        'services.base_platform.test_containers.sqlcmd_test.use_prebuilt': True,
+        'services.base_platform.test_containers.sqlcmd_test.image': 'app/sql-conn:4.5.6',
+    }
+
+    start_test_containers(ctx, runner)
+
+    run_calls = [call for call in runner.calls if call[0] == 'run_shell']
+
+    # Third call is docker run for postgres-test
+    postgres_command = run_calls[2][1]
+    assert postgres_command[7] == 'app/postgres-conn:1.2.3'
+
+    # Fourth call is docker run for sqlcmd-test
+    sqlcmd_command = run_calls[3][1]
+    assert sqlcmd_command[7] == 'app/sql-conn:4.5.6'
+
+
+def test_start_test_containers_defaults_to_platform_tags_when_not_prebuilt():
+    """start_test_containers should fall back to platform/* tags when building from source."""
+    from wizard.services.base_platform.actions import start_test_containers
+
+    runner = MockActionRunner()
+    ctx = {
+        'services.base_platform.test_containers.postgres_test.use_prebuilt': False,
+        'services.base_platform.test_containers.postgres_test.image': 'alpine:3.19',
+        'services.base_platform.test_containers.sqlcmd_test.use_prebuilt': False,
+        'services.base_platform.test_containers.sqlcmd_test.image': 'alpine:3.19',
+    }
+
+    start_test_containers(ctx, runner)
+
+    run_calls = [call for call in runner.calls if call[0] == 'run_shell']
+
+    postgres_command = run_calls[2][1]
+    assert postgres_command[7] == 'platform/postgres-test:latest'
+
+    sqlcmd_command = run_calls[3][1]
+    assert sqlcmd_command[7] == 'platform/sqlcmd-test:latest'
