@@ -523,10 +523,24 @@ def build_test_containers(ctx: Dict[str, Any], runner) -> None:
     These containers are used for connectivity testing and must be built
     before starting the platform postgres database so health checks can run.
 
+    If both containers are configured to use pre-built custom images,
+    this step is skipped entirely.
+
     Args:
-        ctx: Context dictionary (unused)
+        ctx: Context dictionary containing test container configuration
         runner: ActionRunner instance for display and shell execution
     """
+    # Check if both containers are using pre-built images
+    postgres_test_prebuilt = ctx.get('services.base_platform.test_containers.postgres_test.use_prebuilt', False)
+    sqlcmd_test_prebuilt = ctx.get('services.base_platform.test_containers.sqlcmd_test.use_prebuilt', False)
+
+    # If both are using pre-built images, skip the build step
+    if postgres_test_prebuilt and sqlcmd_test_prebuilt:
+        runner.display("")
+        runner.display("Using pre-built test container images (skipping build)...")
+        runner.display("✓ Test containers ready (using custom images)")
+        return
+
     runner.display("")
     runner.display("Building connectivity test containers...")
 

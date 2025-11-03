@@ -199,3 +199,98 @@ def test_start_test_containers_defaults_to_platform_tags_when_not_prebuilt():
 
     sqlcmd_command = run_calls[3][1]
     assert sqlcmd_command[7] == 'platform/sqlcmd-test:latest'
+
+
+def test_build_test_containers_skips_when_both_prebuilt():
+    """Test that build_test_containers skips build when both containers use pre-built images."""
+    runner = MockActionRunner()
+    ctx = {
+        'services.base_platform.test_containers.postgres_test.use_prebuilt': True,
+        'services.base_platform.test_containers.sqlcmd_test.use_prebuilt': True,
+        'services.base_platform.test_containers.postgres_test.image': 'custom/postgres:v1',
+        'services.base_platform.test_containers.sqlcmd_test.image': 'custom/sqlcmd:v1'
+    }
+
+    from wizard.services.base_platform.actions import build_test_containers
+    build_test_containers(ctx, runner)
+
+    # Should display skip messages but NOT run make
+    display_calls = [call[1] for call in runner.calls if call[0] == 'display']
+    display_text = ' '.join(display_calls)
+    assert "Using pre-built test container images (skipping build)" in display_text
+    assert "✓ Test containers ready (using custom images)" in display_text
+
+    # Verify no shell commands were run (make was not called)
+    run_calls = [call for call in runner.calls if call[0] == 'run_shell']
+    assert len(run_calls) == 0
+
+
+def test_build_test_containers_builds_when_postgres_not_prebuilt():
+    """Test that build_test_containers builds when postgres is not pre-built."""
+    runner = MockActionRunner()
+    runner.responses['run_shell'] = {'returncode': 0}  # Mock successful make
+    ctx = {
+        'services.base_platform.test_containers.postgres_test.use_prebuilt': False,
+        'services.base_platform.test_containers.sqlcmd_test.use_prebuilt': True,
+        'services.base_platform.test_containers.sqlcmd_test.image': 'custom/sqlcmd:v1'
+    }
+
+    from wizard.services.base_platform.actions import build_test_containers
+    build_test_containers(ctx, runner)
+
+    # Should display build messages
+    display_calls = [call[1] for call in runner.calls if call[0] == 'display']
+    display_text = ' '.join(display_calls)
+    assert "Building connectivity test containers..." in display_text
+    assert "✓ Test containers built successfully" in display_text
+
+    # Verify make was called
+    run_calls = [call for call in runner.calls if call[0] == 'run_shell']
+    assert len(run_calls) == 1
+    assert run_calls[0][1] == ['make', '-C', 'platform-infrastructure', 'build-test-containers']
+
+
+def test_build_test_containers_builds_when_sqlcmd_not_prebuilt():
+    """Test that build_test_containers builds when sqlcmd is not pre-built."""
+    runner = MockActionRunner()
+    runner.responses['run_shell'] = {'returncode': 0}  # Mock successful make
+    ctx = {
+        'services.base_platform.test_containers.postgres_test.use_prebuilt': True,
+        'services.base_platform.test_containers.sqlcmd_test.use_prebuilt': False,
+        'services.base_platform.test_containers.postgres_test.image': 'custom/postgres:v1'
+    }
+
+    from wizard.services.base_platform.actions import build_test_containers
+    build_test_containers(ctx, runner)
+
+    # Should display build messages
+    display_calls = [call[1] for call in runner.calls if call[0] == 'display']
+    display_text = ' '.join(display_calls)
+    assert "Building connectivity test containers..." in display_text
+    assert "✓ Test containers built successfully" in display_text
+
+    # Verify make was called
+    run_calls = [call for call in runner.calls if call[0] == 'run_shell']
+    assert len(run_calls) == 1
+    assert run_calls[0][1] == ['make', '-C', 'platform-infrastructure', 'build-test-containers']
+
+
+def test_build_test_containers_builds_when_neither_prebuilt():
+    """Test that build_test_containers builds when neither container is pre-built."""
+    runner = MockActionRunner()
+    runner.responses['run_shell'] = {'returncode': 0}  # Mock successful make
+    ctx = {}  # No pre-built configuration
+
+    from wizard.services.base_platform.actions import build_test_containers
+    build_test_containers(ctx, runner)
+
+    # Should display build messages
+    display_calls = [call[1] for call in runner.calls if call[0] == 'display']
+    display_text = ' '.join(display_calls)
+    assert "Building connectivity test containers..." in display_text
+    assert "✓ Test containers built successfully" in display_text
+
+    # Verify make was called
+    run_calls = [call for call in runner.calls if call[0] == 'run_shell']
+    assert len(run_calls) == 1
+    assert run_calls[0][1] == ['make', '-C', 'platform-infrastructure', 'build-test-containers']
