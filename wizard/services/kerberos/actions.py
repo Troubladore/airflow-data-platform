@@ -295,121 +295,98 @@ def test_kerberos(ctx: Dict[str, Any], runner):
     import os
     import re
 
-    runner.display("\nTesting Kerberos configuration...")
+    runner.display("\nChecking Kerberos configuration...")
 
     # Create detector for testing
     detector = KerberosDetector(runner)
     test_results = []
+    test_failures = []
     all_passed = True
 
     # Test 1: Check klist command availability
-    runner.display("  Testing Kerberos tools...")
     klist_check = runner.run_shell(['which', 'klist'])
     if klist_check.get('returncode') == 0:
-        runner.display("    ✓ klist command found")
-        test_results.append(('klist', True))
+        test_results.append(('Test 1: klist command', True, None))
     else:
-        runner.display("    ✗ klist command not found")
-        runner.display("      Install with: sudo apt-get install krb5-user")
-        test_results.append(('klist', False))
+        test_results.append(('Test 1: klist command', False, 'klist not found - install with: sudo apt-get install krb5-user'))
+        test_failures.append('Test 1')
         all_passed = False
 
     # Test 2: Check for valid tickets
-    runner.display("  Testing Kerberos tickets...")
     tickets_check = runner.run_shell(['klist', '-s'])
     if tickets_check.get('returncode') == 0:
-        runner.display("    ✓ Valid Kerberos tickets found")
-        test_results.append(('tickets', True))
-
-        # Get ticket details
-        klist_output = runner.run_shell(['klist'])
-        if klist_output.get('returncode') == 0:
-            # Parse principal
-            principal_match = re.search(r'Default principal:\s*(.+)', klist_output.get('stdout', ''))
-            if principal_match:
-                runner.display(f"      Principal: {principal_match.group(1)}")
-
-            # Parse ticket expiry
-            expiry_match = re.search(r'krbtgt/.+@.+\s+(\d+/\d+/\d+\s+\d+:\d+:\d+)', klist_output.get('stdout', ''))
-            if expiry_match:
-                runner.display(f"      Expires: {expiry_match.group(1)}")
+        test_results.append(('Test 2: Kerberos tickets', True, None))
     else:
-        runner.display("    ✗ No valid Kerberos tickets")
-        test_results.append(('tickets', False))
+        domain = ctx.get('services.kerberos.domain', 'DOMAIN.COM')
+        test_results.append(('Test 2: Kerberos tickets', False, f'No valid tickets - run: kinit YOUR_USERNAME@{domain}'))
+        test_failures.append('Test 2')
         all_passed = False
 
-        # Provide kinit guidance
-        domain = ctx.get('services.kerberos.domain', 'DOMAIN.COM')
-        runner.display(f"      Run: kinit YOUR_USERNAME@{domain}")
-
     # Test 3: Check ticket cache format for Docker compatibility
-    runner.display("  Testing ticket cache compatibility...")
     cache_info = detector.detect_ticket_cache()
     if cache_info:
         if cache_info['format'] == 'KCM':
-            runner.display(f"    ⚠ KCM format detected - needs conversion for Docker")
-            runner.display("      Run: export KRB5CCNAME=FILE:/tmp/krb5cc_$(id -u)")
-            test_results.append(('cache_format', False))
+            test_results.append(('Test 3: Ticket cache format', False, 'KCM format needs conversion - run: export KRB5CCNAME=FILE:/tmp/krb5cc_$(id -u)'))
+            test_failures.append('Test 3')
             all_passed = False
         else:
-            runner.display(f"    ✓ {cache_info['format']} format is Docker-compatible")
-            test_results.append(('cache_format', True))
-
-            # Verify the cache file/directory exists
-            if cache_info['directory'] and os.path.exists(cache_info['directory']):
-                runner.display(f"      Cache directory: {cache_info['directory']}")
-            elif cache_info['path'] and os.path.exists(cache_info['path']):
-                runner.display(f"      Cache path: {cache_info['path']}")
+            test_results.append(('Test 3: Ticket cache format', True, None))
     else:
-        runner.display("    ⚠ No ticket cache detected")
-        test_results.append(('cache_format', False))
+        test_results.append(('Test 3: Ticket cache format', False, 'No ticket cache detected'))
+        test_failures.append('Test 3')
 
     # Test 4: Test domain connectivity (if in corporate environment)
     domain = ctx.get('services.kerberos.domain')
     if domain and domain != 'MOCK.LOCAL':
-        runner.display(f"  Testing domain connectivity ({domain})...")
-
-        # Try to resolve KDC via DNS
         kdc_check = runner.run_shell(['nslookup', f'_kerberos._tcp.{domain.lower()}'])
         if kdc_check.get('returncode') == 0:
-            runner.display(f"    ✓ Domain {domain} is resolvable")
-            test_results.append(('domain', True))
+            test_results.append(('Test 4: Domain connectivity', True, None))
         else:
-            runner.display(f"    ⚠ Could not resolve {domain} (may need VPN)")
-            test_results.append(('domain', False))
+            test_results.append(('Test 4: Domain connectivity', False, f'Could not resolve {domain} (may need VPN)'))
+            test_failures.append('Test 4')
 
     # Test 5: Check if krb5.conf exists
-    runner.display("  Testing Kerberos configuration files...")
     krb5_paths = ['/etc/krb5.conf', '/usr/local/etc/krb5.conf']
     krb5_found = False
     for path in krb5_paths:
         check = runner.run_shell(['test', '-f', path])
         if check.get('returncode') == 0:
-            runner.display(f"    ✓ krb5.conf found at {path}")
             krb5_found = True
-            test_results.append(('krb5.conf', True))
             break
 
-    if not krb5_found:
-        runner.display("    ⚠ krb5.conf not found")
-        runner.display("      Kerberos will use default configuration")
-        test_results.append(('krb5.conf', False))
+    if krb5_found:
+        test_results.append(('Test 5: krb5.conf', True, None))
+    else:
+        test_results.append(('Test 5: krb5.conf', False, 'krb5.conf not found - using defaults'))
+        # Note: missing krb5.conf is a warning, not a failure
 
-    # Summary
-    runner.display("\nTest Summary:")
-    passed = sum(1 for _, result in test_results if result)
+    # Only show output if there are failures
+    passed = sum(1 for _, result, _ in test_results if result)
     total = len(test_results)
 
     if all_passed:
-        runner.display(f"✓ All {total} tests passed - Kerberos is ready!")
+        runner.display(f"✓ Kerberos tests passed ({total}/{total})")
         result = {'returncode': 0, 'stdout': 'All tests passed', 'stderr': ''}
-    elif passed > 0:
-        runner.display(f"⚠ {passed}/{total} tests passed - Kerberos partially configured")
-        runner.display("  Review the warnings above for full functionality")
-        result = {'returncode': 0, 'stdout': 'Partial success', 'stderr': ''}
     else:
-        runner.display(f"✗ {passed}/{total} tests passed - Kerberos needs configuration")
-        result = {'returncode': 1, 'stdout': '', 'stderr': 'Tests failed'}
+        # Show detailed failure information
+        runner.display(f"\n✗ Kerberos tests failed ({passed}/{total} passed)")
+
+        # Show summary line with test status
+        status_line = "  Tests: "
+        for i, (name, passed, _) in enumerate(test_results, 1):
+            status_line += f"{i}.{name.split(':')[1].strip()} {'✓' if passed else '✗'} "
+        runner.display(status_line)
+
+        # Show detailed failure messages
+        runner.display("\nFailed tests:")
+        for name, passed, message in test_results:
+            if not passed and message:
+                runner.display(f"  ✗ {name}: {message}")
+
+        if passed > 0:
+            result = {'returncode': 0, 'stdout': 'Partial success', 'stderr': ''}
+        else:
+            result = {'returncode': 1, 'stdout': '', 'stderr': 'Tests failed'}
 
     # Store test results in context for later reference
     ctx['services.kerberos.test_results'] = test_results

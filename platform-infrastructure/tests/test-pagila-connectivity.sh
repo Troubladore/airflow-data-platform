@@ -15,10 +15,11 @@ if [[ "$1" == "--quiet" ]]; then
     QUIET_MODE=true
 fi
 
-print_header "Pagila Database Connectivity Test"
-
-# Check prerequisites
-print_section "Prerequisites"
+# Only show header in verbose mode
+if [ "$QUIET_MODE" = false ]; then
+    print_header "Pagila Database Connectivity Test"
+    print_section "Prerequisites"
+fi
 
 TESTS_PASSED=0
 TESTS_TOTAL=0
@@ -54,10 +55,11 @@ check_prerequisite() {
     local command="$2"
 
     if eval "$command" >/dev/null 2>&1; then
-        print_check "PASS" "$name"
+        [ "$QUIET_MODE" = false ] && print_check "PASS" "$name"
         record_test "$name" "PASS"
         return 0
     else
+        # Always show failures
         print_check "FAIL" "$name"
         record_test "$name" "FAIL" "$name failed"
         return 1
@@ -79,7 +81,7 @@ if ! check_prerequisite "Test 2: pagila-postgres container running" "docker ps -
 fi
 
 # Test 3: Wait for Pagila PostgreSQL to be healthy (not just container running)
-print_info "Test 3: Checking Pagila PostgreSQL readiness..."
+[ "$QUIET_MODE" = false ] && print_info "Test 3: Checking Pagila PostgreSQL readiness..."
 WAIT_SECONDS=0
 MAX_WAIT=$POSTGRES_WAIT_TIMEOUT
 # Check Docker health status if available
@@ -106,7 +108,11 @@ elif [ "$HEALTH_STATUS" = "unhealthy" ]; then
     exit 1
 else
     # Starting or unknown state, wait for it
-    print_info "Waiting for Pagila PostgreSQL to be ready (timeout: ${POSTGRES_WAIT_TIMEOUT}s)..."
+    if [ "$QUIET_MODE" = true ]; then
+        echo "Waiting for Pagila PostgreSQL (timeout: ${POSTGRES_WAIT_TIMEOUT}s)..."
+    else
+        print_info "Waiting for Pagila PostgreSQL to be ready (timeout: ${POSTGRES_WAIT_TIMEOUT}s)..."
+    fi
     while [ $WAIT_SECONDS -lt $MAX_WAIT ]; do
         HEALTH_STATUS=$(docker inspect pagila-postgres --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}no-health-check{{end}}' 2>/dev/null)
 
@@ -126,7 +132,11 @@ else
         # Show countdown
         if [ $((WAIT_SECONDS % 10)) -eq 0 ] && [ $WAIT_SECONDS -gt 0 ]; then
             REMAINING=$((MAX_WAIT - WAIT_SECONDS))
-            print_info "Still waiting for Pagila PostgreSQL... (${REMAINING}s remaining)"
+            if [ "$QUIET_MODE" = true ]; then
+                echo "Waiting... (${REMAINING}s remaining)"
+            else
+                print_info "Still waiting for Pagila PostgreSQL... (${REMAINING}s remaining)"
+            fi
         fi
 
         sleep 1
