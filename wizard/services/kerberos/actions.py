@@ -6,6 +6,159 @@ from wizard.services.kerberos.detection import KerberosDetector
 from wizard.services.kerberos.progressive_tests import KerberosProgressiveTester
 
 
+def display_kerberos_header(ctx: Dict[str, Any], runner) -> None:
+    """Display 'Kerberos Configuration' section header."""
+    runner.display("")
+    runner.display("Kerberos Configuration")
+    runner.display("=" * 50)
+
+
+def display_sql_test_header(ctx: Dict[str, Any], runner) -> None:
+    """Display 'SQL Server Connection Test' subsection header."""
+    runner.display("")
+    runner.display("SQL Server Connection Test")
+    runner.display("-" * 50)
+
+
+def display_postgres_test_header(ctx: Dict[str, Any], runner) -> None:
+    """Display 'PostgreSQL Connection Test' subsection header."""
+    runner.display("")
+    runner.display("PostgreSQL Connection Test")
+    runner.display("-" * 50)
+
+
+def test_sql_server_connection(ctx: Dict[str, Any], runner) -> None:
+    """Test SQL Server connection using sqlcmd-test container."""
+    fqdn = ctx.get('services.kerberos.sql_server_fqdn')
+    ticket_dir = ctx.get('services.kerberos.ticket_dir', '/tmp/krb5cc_1000')
+
+    runner.display(f"Testing SQL Server connection to {fqdn}...")
+
+    # Run sqlcmd-test container with Kerberos ticket mount
+    cmd = [
+        'docker', 'run', '--rm',
+        '--network', 'platform_network',
+        '-v', f'{ticket_dir}:/tmp/krb5cc_1000:ro',
+        '-v', '/etc/krb5.conf:/etc/krb5.conf:ro',
+        '-e', 'KRB5CCNAME=/tmp/krb5cc_1000',
+        'platform/sqlcmd-test:latest',
+        '/opt/mssql-tools18/bin/sqlcmd',
+        '-S', fqdn,
+        '-C',  # Trust server certificate (for SQL 2025 preview)
+        '-E',  # Windows authentication
+        '-Q', 'SELECT @@VERSION'
+    ]
+
+    result = runner.run_shell(cmd)
+
+    if result['returncode'] == 0:
+        runner.display(f"✅ SQL Server connection successful to {fqdn}")
+    else:
+        diagnose_sql_failure(ctx, runner, result)
+
+
+def diagnose_sql_failure(ctx: Dict[str, Any], runner, result: Dict[str, Any]) -> None:
+    """Diagnose SQL Server connection failure."""
+    from wizard.services.kerberos.diagnostics import parse_krb5_config, parse_ticket_status
+
+    runner.display("❌ SQL Server Connection Failed")
+    runner.display("━" * 50)
+
+    # Display the error
+    error_msg = result.get('stderr', '') or result.get('stdout', 'Unknown error')
+    runner.display(f"Primary Error: {error_msg}")
+
+    # Check Kerberos tickets
+    klist_result = runner.run_shell(['klist'])
+    ticket_status = parse_ticket_status(klist_result)
+    runner.display(f"Kerberos Status: {ticket_status}")
+
+    # Parse krb5.conf for configuration check
+    krb5_config = parse_krb5_config()
+    if krb5_config:
+        runner.display(f"Configuration Check:")
+        if 'default_realm' in krb5_config:
+            runner.display(f"  ✓ Default realm: {krb5_config['default_realm']}")
+        else:
+            runner.display(f"  ✗ No default realm configured")
+
+    # Common SQL Server Kerberos errors and suggestions
+    if 'Login failed' in error_msg:
+        runner.display("\n💡 Suggestions:")
+        runner.display("  • Verify Kerberos ticket is valid (run: klist)")
+        runner.display("  • Check SQL Server SPN registration")
+        runner.display("  • Ensure user has SQL Server permissions")
+    elif 'Cannot generate SSPI context' in error_msg:
+        runner.display("\n💡 Suggestions:")
+        runner.display("  • SPN registration issue - check with: setspn -L <sql_service_account>")
+        runner.display("  • Time sync issue - ensure client and server clocks are synchronized")
+        runner.display("  • Check DNS resolution of SQL Server FQDN")
+    elif 'Connection timeout' in error_msg or 'Network error' in error_msg:
+        runner.display("\n💡 Suggestions:")
+        runner.display("  • Verify network connectivity to SQL Server")
+        runner.display("  • Check firewall rules for port 1433")
+        runner.display("  • Ensure SQL Server is configured for remote connections")
+
+    runner.display("\n🔍 Run extended diagnostics for more details")
+
+
+def test_postgres_connection(ctx: Dict[str, Any], runner) -> None:
+    """Test PostgreSQL connection using postgres-test container."""
+    fqdn = ctx.get('services.kerberos.postgres_fqdn')
+    ticket_dir = ctx.get('services.kerberos.ticket_dir', '/tmp/krb5cc_1000')
+
+    runner.display(f"Testing PostgreSQL connection to {fqdn}...")
+
+    cmd = [
+        'docker', 'run', '--rm',
+        '--network', 'platform_network',
+        '-v', f'{ticket_dir}:/tmp/krb5cc_1000:ro',
+        '-v', '/etc/krb5.conf:/etc/krb5.conf:ro',
+        '-e', 'KRB5CCNAME=/tmp/krb5cc_1000',
+        'platform/postgres-test:latest',
+        'psql',
+        '-h', fqdn,
+        '-U', 'postgres',
+        '-c', 'SELECT version()'
+    ]
+
+    result = runner.run_shell(cmd)
+
+    if result['returncode'] == 0:
+        runner.display(f"✅ PostgreSQL connection successful to {fqdn}")
+    else:
+        diagnose_postgres_failure(ctx, runner, result)
+
+
+def diagnose_postgres_failure(ctx: Dict[str, Any], runner, result: Dict[str, Any]) -> None:
+    """Diagnose PostgreSQL connection failure."""
+    runner.display("❌ PostgreSQL Connection Failed")
+    runner.display("━" * 50)
+
+    # Display the error
+    error_msg = result.get('stderr', '') or result.get('stdout', 'Unknown error')
+    runner.display(f"Primary Error: {error_msg}")
+
+    # Common PostgreSQL Kerberos errors and suggestions
+    if 'GSSAPI' in error_msg or 'authentication failed' in error_msg:
+        runner.display("\n💡 Suggestions:")
+        runner.display("  • Verify Kerberos ticket is valid (run: klist)")
+        runner.display("  • Check PostgreSQL pg_hba.conf for GSSAPI authentication")
+        runner.display("  • Verify PostgreSQL service principal in keytab")
+    elif 'could not connect' in error_msg or 'Connection refused' in error_msg:
+        runner.display("\n💡 Suggestions:")
+        runner.display("  • Verify PostgreSQL is running and listening")
+        runner.display("  • Check firewall rules for port 5432")
+        runner.display("  • Ensure PostgreSQL allows remote connections")
+    elif 'FATAL: no pg_hba.conf entry' in error_msg:
+        runner.display("\n💡 Suggestions:")
+        runner.display("  • PostgreSQL not configured for Kerberos authentication")
+        runner.display("  • Add GSSAPI entry to pg_hba.conf")
+        runner.display("  • Example: host all all 0.0.0.0/0 gss include_realm=0")
+
+    runner.display("\n🔍 Run extended diagnostics for more details")
+
+
 def detect_configuration(ctx: Dict[str, Any], runner) -> None:
     """Auto-detect Kerberos configuration from the system.
 

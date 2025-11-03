@@ -11,6 +11,11 @@ steps:
   - id: detect_kerberos_action
     type: action
     action: kerberos.detect_configuration
+    next: display_kerberos_header
+
+  - id: display_kerberos_header
+    type: action
+    action: kerberos.display_kerberos_header
     next: domain_input
 
   - id: domain_input
@@ -51,18 +56,58 @@ steps:
   - id: start_service_action
     type: action
     action: kerberos.start_service
-    next: run_progressive_tests_prompt
+    next: sql_server_test_prompt
 
-  - id: run_progressive_tests_prompt
+  - id: sql_server_test_prompt
     type: boolean
-    state_key: services.kerberos.run_progressive_tests
-    prompt: "Would you like to run progressive connectivity tests? (recommended for first-time setup)"
-    default_value: true
-    next: progressive_tests_action
+    state_key: services.kerberos.test_sql_server
+    prompt: "Do you have a SQL Server instance to test Kerberos authentication against?"
+    default_value: false
+    next:
+      when_value:
+        true: sql_server_fqdn_input
+        false: postgres_test_prompt
 
-  - id: progressive_tests_action
+  - id: sql_server_fqdn_input
+    type: string
+    state_key: services.kerberos.sql_server_fqdn
+    prompt: "Enter SQL Server FQDN (e.g., sqlserver.company.com):"
+    next: display_sql_test_header
+
+  - id: display_sql_test_header
     type: action
-    action: kerberos.run_progressive_tests_conditional
+    action: kerberos.display_sql_test_header
+    next: sql_server_test_action
+
+  - id: sql_server_test_action
+    type: action
+    action: kerberos.test_sql_server_connection
+    next: postgres_test_prompt
+
+  - id: postgres_test_prompt
+    type: boolean
+    state_key: services.kerberos.test_postgres
+    prompt: "Do you have a PostgreSQL instance to test Kerberos authentication against?"
+    default_value: false
+    next:
+      when_value:
+        true: postgres_fqdn_input
+        false: complete_section
+
+  - id: postgres_fqdn_input
+    type: string
+    state_key: services.kerberos.postgres_fqdn
+    prompt: "Enter PostgreSQL FQDN (e.g., postgres.company.com):"
+    next: display_postgres_test_header
+
+  - id: display_postgres_test_header
+    type: action
+    action: kerberos.display_postgres_test_header
+    next: postgres_test_action
+
+  - id: postgres_test_action
+    type: action
+    action: kerberos.test_postgres_connection
     next: complete_section
 
   - id: complete_section
