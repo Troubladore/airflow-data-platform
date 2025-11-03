@@ -292,6 +292,8 @@ class ServiceDiagnostics:
         """Verify Pagila health using postgres-test container.
 
         Runs test-pagila-connectivity.sh with --quiet flag.
+        If the test fails, automatically runs the diagnostic script to provide
+        detailed troubleshooting information.
 
         Args:
             ctx: Service context (not currently used but kept for consistency)
@@ -302,7 +304,8 @@ class ServiceDiagnostics:
                 'healthy': bool,
                 'summary': str,
                 'details': str,
-                'error': str
+                'error': str,
+                'diagnostics': str
             }
         """
         # Run test script with --quiet flag for brief output
@@ -321,7 +324,8 @@ class ServiceDiagnostics:
                 'healthy': True,
                 'summary': output,
                 'details': output,
-                'error': ''
+                'error': '',
+                'diagnostics': ''
             }
         else:
             # Extract error from output or stderr
@@ -329,11 +333,49 @@ class ServiceDiagnostics:
             if not error_msg:
                 error_msg = "Health check failed with no output"
 
+            # Automatically run diagnostic script for detailed troubleshooting
+            self.runner.display("")
+            self.runner.display("Running Pagila diagnostics to identify the issue...")
+            self.runner.display("")
+
+            diag_result = self.runner.run_shell([
+                'bash',
+                'platform-infrastructure/tests/diagnose-pagila-issue.sh'
+            ])
+
+            diagnostics = diag_result.get('stdout', '') + '\n' + diag_result.get('stderr', '')
+
+            # If diagnostics show everything is healthy, try the connection one more time
+            # This handles the race condition where Pagila just became ready
+            if 'Pagila PostgreSQL is healthy' in diagnostics or 'Health Status: healthy' in diagnostics:
+                self.runner.display("")
+                self.runner.display("Diagnostics show Pagila is healthy now - retrying connection...")
+
+                retry_result = self.runner.run_shell([
+                    'bash',
+                    'platform-infrastructure/tests/test-pagila-connectivity.sh',
+                    '--quiet'
+                ])
+
+                retry_output = retry_result.get('stdout', '').strip()
+                retry_returncode = retry_result.get('returncode', 1)
+
+                if retry_returncode == 0:
+                    # Success on retry!
+                    return {
+                        'healthy': True,
+                        'summary': retry_output if retry_output else '✓ Pagila healthy (after retry)',
+                        'details': retry_output,
+                        'error': '',
+                        'diagnostics': 'Initially failed but succeeded after Pagila became ready'
+                    }
+
             return {
                 'healthy': False,
                 'summary': '',
                 'details': f"{output}\n{stderr}".strip(),
-                'error': error_msg
+                'error': error_msg,
+                'diagnostics': diagnostics
             }
 
 
