@@ -47,15 +47,19 @@ cd airflow-data-platform/platform-bootstrap
 # 2. Run the setup wizard
 ./dev-tools/setup-kerberos.sh
 
-# The wizard will:
-# ✓ Check prerequisites (Docker, krb5-user, etc.)
-# ✓ Validate your krb5.conf configuration
-# ✓ Help you obtain Kerberos tickets
-# ✓ Auto-detect ticket location and type
-# ✓ Configure .env file automatically
-# ✓ Build and start all platform services
-# ✓ Test ticket sharing with containers
-# ✓ Optionally test SQL Server connection
+# The wizard will guide you through:
+# ✓ Prerequisites check (Docker, krb5-user, etc.)
+# ✓ Kerberos configuration validation
+# ✓ Ticket authentication setup
+# ✓ Platform services configuration
+# ✓ Optional database connection testing
+
+# Key features:
+# • Visual section headers for clear navigation
+# • Comprehensive diagnostics on failures
+# • Automatic krb5.conf parsing and validation
+# • Support for both SQL Server and PostgreSQL testing
+# • Detailed troubleshooting suggestions
 
 # 3. Setup test data (optional but recommended for examples)
 make setup-pagila
@@ -128,7 +132,8 @@ Now that platform services are running, explore how to use them:
 
 **Validate Kerberos (if using SQL Server):**
 - Test: `./diagnostics/test-sql-direct.sh sqlserver01.company.com TestDB`
-- Advanced: [Kerberos Progressive Validation](kerberos-progressive-validation.md)
+- Wizard Guide: [Kerberos Wizard Experience](kerberos-wizard-experience.md) for understanding the setup process
+- Advanced: [Kerberos Progressive Validation](kerberos-progressive-validation.md) for detailed troubleshooting
 
 **Explore Examples:**
 - [Hello World](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/hello-world) - Simple Astronomer project

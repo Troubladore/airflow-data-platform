@@ -36,9 +36,11 @@ Welcome to the documentation hub for the Airflow Data Platform. This platform pr
 3. Configure services as needed
 
 ### For Teams Using Kerberos/SQL Server
-1. Setup [Kerberos for WSL2](kerberos-setup-wsl2.md)
-2. Review [Kerberos Bronze Example](../sqlmodel-framework/examples/kerberos_bronze/)
-3. Deploy Kerberos sidecar service
+1. Follow [Kerberos Wizard Experience](kerberos-wizard-experience.md) for guided setup
+2. Setup [Kerberos for WSL2](kerberos-setup-wsl2.md) for manual configuration
+3. Use [Kerberos Progressive Validation](kerberos-progressive-validation.md) for troubleshooting
+4. Review [Kerberos Bronze Example](../sqlmodel-framework/examples/kerberos_bronze/)
+5. Deploy Kerberos sidecar service
 
 ## 📚 Documentation Structure
 
