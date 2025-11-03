@@ -53,6 +53,45 @@ if ! check_prerequisite "pagila-postgres container running" "docker ps --filter 
     exit 1
 fi
 
+# Wait for Pagila PostgreSQL to be healthy (not just container running)
+print_info "Waiting for Pagila PostgreSQL to be ready..."
+WAIT_SECONDS=0
+MAX_WAIT=30
+while [ $WAIT_SECONDS -lt $MAX_WAIT ]; do
+    # Check Docker health status if available
+    HEALTH_STATUS=$(docker inspect pagila-postgres --format='{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
+
+    if [ "$HEALTH_STATUS" = "healthy" ]; then
+        print_check "PASS" "Pagila PostgreSQL is healthy"
+        break
+    elif [ "$HEALTH_STATUS" = "unhealthy" ]; then
+        print_check "FAIL" "Pagila PostgreSQL is unhealthy"
+        print_error "Check logs: docker logs pagila-postgres"
+        exit 1
+    elif [ "$HEALTH_STATUS" = "unknown" ] || [ -z "$HEALTH_STATUS" ]; then
+        # No health check defined or old Docker version, fall back to pg_isready
+        if docker exec pagila-postgres pg_isready -q 2>/dev/null; then
+            print_check "PASS" "Pagila PostgreSQL is ready (pg_isready)"
+            break
+        fi
+    fi
+
+    # Show progress
+    if [ $((WAIT_SECONDS % 5)) -eq 0 ] && [ $WAIT_SECONDS -gt 0 ]; then
+        print_info "Still waiting... ($WAIT_SECONDS/$MAX_WAIT seconds, status: $HEALTH_STATUS)"
+    fi
+
+    sleep 1
+    WAIT_SECONDS=$((WAIT_SECONDS + 1))
+done
+
+if [ $WAIT_SECONDS -ge $MAX_WAIT ]; then
+    print_check "FAIL" "Pagila PostgreSQL did not become ready in $MAX_WAIT seconds"
+    print_info "Current status: $HEALTH_STATUS"
+    print_info "Check logs: docker logs pagila-postgres"
+    exit 1
+fi
+
 # Verify both containers on platform_network
 if ! check_prerequisite "Containers on platform_network" "docker network inspect platform_network -f '{{range .Containers}}{{.Name}} {{end}}' | grep -q 'postgres-test' && docker network inspect platform_network -f '{{range .Containers}}{{.Name}} {{end}}' | grep -q 'pagila-postgres'"; then
     print_error "Containers not on same network"
@@ -112,22 +151,40 @@ run_test() {
     return 1
 }
 
-# Test 1: Network connectivity
-if ! run_test "Network connectivity" "docker exec postgres-test ping -c 1 -W 2 pagila-postgres"; then
-    print_error "Cannot reach pagila-postgres from postgres-test"
-    exit 1
-fi
-
-# Test 2: PostgreSQL service ready
-if ! run_test "PostgreSQL service ready" "docker exec postgres-test pg_isready -h pagila-postgres -U postgres -q"; then
-    print_error "PostgreSQL service not accepting connections"
-    exit 1
-fi
-
-# Test 3: Database authentication
+# Test 1: Database authentication (the actual goal)
 if ! run_test "Database authentication" "docker exec -e PGPASSWORD=\"$POSTGRES_PASSWORD\" postgres-test psql -h pagila-postgres -U postgres -d pagila -c 'SELECT 1' -t -A" "^1$"; then
     print_error "Authentication failed"
+
+    # Only if the main test fails, run diagnostics
+    print_section "Diagnostic Information"
+
+    # Test network connectivity (may not work in all containers)
+    if docker exec postgres-test which ping >/dev/null 2>&1; then
+        if run_test "Network connectivity (ping)" "docker exec postgres-test ping -c 1 -W 2 pagila-postgres" >/dev/null 2>&1; then
+            print_check "PASS" "Network connectivity (ping)"
+        else
+            print_check "FAIL" "Network connectivity (ping)"
+            print_error "Cannot reach pagila-postgres from postgres-test"
+        fi
+    else
+        print_info "Ping not available in container, skipping network test"
+    fi
+
+    # Test PostgreSQL service ready
+    if ! run_test "PostgreSQL service ready" "docker exec postgres-test pg_isready -h pagila-postgres -U postgres -q"; then
+        print_error "PostgreSQL service not accepting connections"
+    fi
+
+    # Try to get more diagnostic info
+    print_info "Attempting to get PostgreSQL error details:"
+    docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" postgres-test psql -h pagila-postgres -U postgres -d pagila -c 'SELECT 1' 2>&1 | head -5
+
     exit 1
+fi
+
+# Test 2: PostgreSQL service ready (quick check after successful auth)
+if ! run_test "PostgreSQL service ready" "docker exec postgres-test pg_isready -h pagila-postgres -U postgres -q"; then
+    print_warning "pg_isready check failed despite successful authentication"
 fi
 
 # Data validation tests

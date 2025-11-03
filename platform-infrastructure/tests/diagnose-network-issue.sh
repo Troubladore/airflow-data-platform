@@ -49,9 +49,22 @@ for container in postgres-test sqlcmd-test platform-postgres; do
         IMAGE=$(docker inspect $container --format '{{.Config.Image}}')
         NETWORK=$(docker inspect $container --format '{{range .NetworkSettings.Networks}}{{.NetworkID}}{{end}}' | cut -c1-12)
         IP=$(docker inspect $container --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+        HEALTH_STATUS=$(docker inspect $container --format '{{.State.Health.Status}}' 2>/dev/null || echo "N/A")
         print_info "  Image: $IMAGE"
         print_info "  Network ID: $NETWORK"
         print_info "  IP Address: $IP"
+        print_info "  Health Status: $HEALTH_STATUS"
+
+        # If unhealthy or starting, show additional info
+        if [ "$HEALTH_STATUS" = "starting" ]; then
+            print_warning "  Container is still initializing - this may cause connection failures"
+        elif [ "$HEALTH_STATUS" = "unhealthy" ]; then
+            print_error "  Container health check is failing"
+            HEALTH_LOG=$(docker inspect $container --format '{{range .State.Health.Log}}{{.Output}}{{end}}' 2>/dev/null | head -1)
+            if [ -n "$HEALTH_LOG" ]; then
+                print_info "  Last health check output: $HEALTH_LOG"
+            fi
+        fi
     else
         print_check "FAIL" "$container is not running"
         # Check if it exists but stopped
