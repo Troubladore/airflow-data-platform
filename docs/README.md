@@ -1,98 +1,116 @@
 # Airflow Data Platform - Documentation
 
-Welcome to the complete documentation for the Airflow Data Platform framework.
+Welcome to the documentation hub for the Airflow Data Platform. This platform provides enterprise patterns and framework components on top of Astronomer for data engineering teams.
 
-## 🚀 Getting Started
+## 🎯 Progressive Discovery - Start Here
 
-**New to the platform?** Start here:
+### Level 1: What Is This? (Overview)
+- **[Main README](../README.md)** - Platform overview and philosophy
+- **[Platform Setup Guide](getting-started-simple.md)** - Deploy the platform with Astronomer
 
-- **[Platform Setup](getting-started.md)** - Complete setup guide for development and testing
+### Level 2: How Do I Use It? (Getting Started)
+- **[Framework Getting Started](../sqlmodel-framework/GETTING_STARTED.md)** - Build your first datakit
+- **[Framework Examples](../sqlmodel-framework/examples/)** - Working code examples
+- **[Hello World Example](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/hello-world)** - Simplest Airflow example
 
-## 📚 Documentation Index
+### Level 3: Why Does It Work This Way? (Patterns & Concepts)
+- **[SQLModel Patterns](patterns/sqlmodel-patterns.md)** - Data engineering patterns with SQLModel
+- **[Runtime Patterns](patterns/runtime-patterns.md)** - Team isolation and dependency management
+- **[Directory Structure](directory-structure.md)** - Repository organization
 
-### **User Guides**
-- **[Platform Setup](getting-started.md)** - Environment setup and prerequisites
-- **[Technical Reference](technical-reference.md)** - Framework APIs and architecture details
+### Level 4: How Do I Customize It? (Reference & Advanced)
+- **[Framework API Reference](../sqlmodel-framework/API_REFERENCE.md)** - Complete class and method documentation
+- **[Framework Architecture](../sqlmodel-framework/README.md)** - Technical architecture details
+- **[Kerberos Setup for WSL2](kerberos-setup-wsl2.md)** - Enterprise authentication
 
-### **Architecture & Design**
-- **[Technical Architecture](TECHNICAL-ARCHITECTURE.md)** - Framework internals and deployment patterns
-- **[Why This Architecture](WHY-THIS-ARCHITECTURE.md)** - Design decisions and trade-offs
-- **[Ecosystem Overview](ECOSYSTEM-OVERVIEW.md)** - Component relationships and integration
+## 🚀 Quick Start Paths
 
-### **Security & Operations**
-- **[Security Risk Acceptance](SECURITY-RISK-ACCEPTANCE.md)** - Security model and risk management
+### For Data Engineers Building Datakits
+1. Read [Framework Getting Started](../sqlmodel-framework/GETTING_STARTED.md)
+2. Review [Simple PostgreSQL Example](../sqlmodel-framework/examples/simple_postgres_bronze/)
+3. Check [API Reference](../sqlmodel-framework/API_REFERENCE.md) for specific needs
 
-## 🎯 Quick Navigation by Use Case
+### For Platform Administrators
+1. Follow [Platform Setup Guide](getting-started-simple.md)
+2. Review [Runtime Patterns](patterns/runtime-patterns.md)
+3. Configure services as needed
 
-### **Testing PR #6 (Layer 2 Data Processing)**
-1. **Start here** → [Platform Setup](getting-started.md)
-2. Follow the 3-step setup process
-3. Use the collapsed **🧪 Iterative Testing Workflow** for development cycles
-4. Reference collapsed **🚨 Troubleshooting** if you encounter issues
+### For Teams Using Kerberos/SQL Server
+1. Setup [Kerberos for WSL2](kerberos-setup-wsl2.md)
+2. Review [Kerberos Bronze Example](../sqlmodel-framework/examples/kerberos_bronze/)
+3. Deploy Kerberos sidecar service
 
-### **Platform Development**
-1. **Architecture overview** → [Technical Architecture](TECHNICAL-ARCHITECTURE.md)
-2. **Framework details** → [Technical Reference](technical-reference.md)
-3. **Design rationale** → [Why This Architecture](WHY-THIS-ARCHITECTURE.md)
-
-### **Production Deployment**
-1. **Security model** → [Security Risk Acceptance](SECURITY-RISK-ACCEPTANCE.md)
-2. **Component integration** → [Ecosystem Overview](ECOSYSTEM-OVERVIEW.md)
-3. **Framework internals** → [Technical Architecture](TECHNICAL-ARCHITECTURE.md)
-
-## ⚡ Quick Commands
-
-Once you've completed the [Platform Setup](getting-started.md):
-
-```bash
-# Complete platform setup
-ansible-playbook -i ansible/inventory/local-dev.ini ansible/site.yml --ask-become-pass
-
-# Validate everything is working
-ansible-playbook -i ansible/inventory/local-dev.ini ansible/validate-all.yml --ask-become-pass
-
-# Clean teardown for testing (keeps certificates)
-./scripts/teardown.sh  # Choose option 1
-
-# Test endpoints manually
-curl -k https://traefik.localhost
-curl -k https://registry.localhost/v2/_catalog
-```
-
-## 🏗️ Repository Structure
+## 📚 Documentation Structure
 
 ```
-airflow-data-platform/
-├── docs/                           # Documentation (you are here)
-│   ├── getting-started.md         # Platform setup guide
-│   ├── technical-reference.md     # Framework APIs and architecture
-│   └── *.md                       # Architecture and design docs
-├── data-platform/                 # SQLModel framework
-│   └── sqlmodel-workspace/
-│       └── sqlmodel-framework/    # Core platform library
-├── layer1-platform/               # Docker infrastructure
-├── layer2-datakits/               # Generic data processing patterns
-├── layer3-warehouses/             # Data warehouse patterns
-├── ansible/                       # Automation playbooks
-└── scripts/                       # Development utilities
+docs/
+├── README.md                      # This file - documentation hub
+├── getting-started-simple.md      # Platform setup with Astronomer
+├── patterns/                      # Design patterns and best practices
+│   ├── sqlmodel-patterns.md      # Data engineering patterns
+│   └── runtime-patterns.md       # Dependency isolation
+├── directory-structure.md         # Repository organization
+├── kerberos-setup-wsl2.md        # Enterprise auth setup
+└── archive/                       # Historical docs (deprecated)
+
+sqlmodel-framework/
+├── GETTING_STARTED.md            # Framework quick start guide
+├── API_REFERENCE.md              # Complete API documentation
+├── README.md                     # Framework architecture
+└── examples/                     # Working examples
+    ├── simple_postgres_bronze/   # Basic Bronze extraction
+    └── kerberos_bronze/         # Enterprise auth example
 ```
 
-## 📖 Documentation Standards
+## 🏗️ Key Platform Components
 
-This documentation follows [data-eng-template](https://github.com/Troubladore/data-eng-template) standards:
-- **Lowercase with dashes** for file names (`getting-started.md`)
-- **Clear hierarchical structure** with main entry point
-- **Use case oriented navigation** for quick access
-- **Complete teardown/rebuild instructions** for iterative development
+### SQLModel Framework
+The core framework providing:
+- **Database Connectors** - PostgreSQL, SQL Server with Kerberos
+- **Table Mixins** - BronzeMetadata, ReferenceTable, TransactionalTable
+- **Data Pipelines** - BronzeIngestionPipeline base classes
+- **Testing Utilities** - Multi-database deployment and validation
+
+[Learn more →](../sqlmodel-framework/README.md)
+
+### Optional Services
+- **OpenMetadata** - Data catalog and discovery
+- **Kerberos Sidecar** - Enterprise authentication
+- **Pagila Database** - PostgreSQL sample data
+
+[Service setup →](getting-started-simple.md)
+
+## 🎨 Documentation Philosophy
+
+### Integrative with Progressive Discovery
+- **High-level concepts** float to the top (overviews, philosophies)
+- **Implementation details** available when needed (API references)
+- **Clear navigation paths** for different user journeys
+- **No redundancy** - each concept documented once, referenced many
+
+### Current and Actionable
+- All examples are tested and working
+- Documentation reflects the latest architecture
+- Deprecated content clearly marked and archived
+- Links are validated and functional
+
+## 🔄 Recent Updates
+
+- ✅ Added comprehensive Framework documentation (GETTING_STARTED.md, API_REFERENCE.md)
+- ✅ Created working examples with PostgreSQL and Kerberos
+- ✅ Updated main README with Framework Quick Reference
+- ✅ Consolidated redundant documentation
+- ✅ Improved progressive discovery navigation
 
 ## 🤝 Contributing to Documentation
 
 When updating documentation:
-1. **Keep getting-started.md current** - This is the primary entry point
-2. **Update quick reference commands** if workflows change
-3. **Test documentation flows** before committing
-4. **Follow naming conventions** (lowercase-with-dashes)
+1. **Follow progressive discovery** - Overview → Getting Started → Patterns → Reference
+2. **Avoid redundancy** - Link to existing docs rather than duplicating
+3. **Test all examples** - Ensure code samples actually work
+4. **Update navigation** - Keep this README's links current
+5. **Archive outdated content** - Move to `archive/` with deprecation notice
 
 ---
 
-**Questions or issues?** Create an issue or check the troubleshooting sections in the guides above.
+**Need help?** Check the documentation path above that matches your use case, or open an issue on GitHub.

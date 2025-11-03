@@ -9,6 +9,18 @@ This framework provides the foundational patterns and utilities for our entire d
 
 Extracted and adapted from medallion-demo patterns for enterprise-scale data platform operations.
 
+## 📚 Documentation
+
+### For New Users
+1. **[Getting Started Guide](GETTING_STARTED.md)** - Step-by-step guide to building your first datakit
+2. **[Examples](examples/)** - Working examples with PostgreSQL and Kerberos
+3. **[API Reference](API_REFERENCE.md)** - Complete documentation of all classes and methods
+
+### Quick Navigation
+- **Need to build a Bronze datakit?** → [Getting Started](GETTING_STARTED.md)
+- **Looking for specific classes?** → [API Reference](API_REFERENCE.md)
+- **Want to see it in action?** → [Examples](examples/)
+
 ## 🎯 Architecture Philosophy
 
 - **Layer 2 Use**: Deploy individual datakit objects to disposable test databases for unit testing
