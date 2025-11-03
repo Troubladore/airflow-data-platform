@@ -1,0 +1,17 @@
+[project]
+name = "kerberos-bronze-example"
+version = "0.1.0"
+description = "Bronze layer extraction with Kerberos authentication using SQLModel Framework"
+requires-python = ">=3.9"
+dependencies = [
+    "sqlmodel-framework @ git+https://github.com/Troubladore/airflow-data-platform.git@main#subdirectory=sqlmodel-framework",
+    "pandas>=2.0.0",
+    "psycopg2-binary>=2.9.0",
+    "python-dotenv>=1.0.0",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]

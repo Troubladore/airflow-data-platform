@@ -91,6 +91,52 @@ make setup    # Interactive wizard detects environment, configures services
 1. **[Platform Setup Guide](docs/getting-started-simple.md)** - Deploy the enhancement services
 2. **[Hello World Example](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/hello-world)** - Your first project
 
+## 🎨 Building Datakits with the SQLModel Framework
+
+**Don't rebuild what's already in the framework!** The SQLModel Framework provides battle-tested base classes for common data engineering patterns.
+
+### Framework Quick Reference
+
+| Component | Import From | Use For |
+|-----------|-------------|---------|
+| `PostgresConnector` | `sqlmodel_framework.base.connectors` | PostgreSQL with Kerberos support |
+| `SQLServerConnector` | `sqlmodel_framework.base.connectors` | SQL Server with Windows auth |
+| `BronzeMetadata` | `sqlmodel_framework.base.models` | Standard Bronze layer metadata fields |
+| `ReferenceTable` | `sqlmodel_framework.base.models` | Reference data with audit columns |
+| `TransactionalTable` | `sqlmodel_framework.base.models` | Transactional data with full audit |
+| `BronzeIngestionPipeline` | `sqlmodel_framework.base.loaders` | Bronze ETL pipeline base class |
+| `PostgresEngine` | `sqlmodel_framework.engines` | PostgreSQL connection factories |
+| `SQLiteEngine` | `sqlmodel_framework.engines` | SQLite for fast testing |
+
+### Quick Example
+
+```python
+from sqlmodel_framework.base.connectors import PostgresConnector, PostgresConfig
+from sqlmodel_framework.base.models import BronzeMetadata
+from sqlmodel import SQLModel, Field
+
+# Framework handles Kerberos authentication automatically!
+config = PostgresConfig(host="db.example.com", database="mydb", use_kerberos=True)
+connector = PostgresConnector(config)
+
+# Framework provides Bronze metadata fields - no need to define them
+class FilmBronze(SQLModel, BronzeMetadata, table=True):
+    __tablename__ = "bronze_film"
+
+    film_id: int = Field(primary_key=True)
+    title: str
+    # BronzeMetadata automatically adds:
+    # - bronze_load_timestamp, bronze_source_system
+    # - bronze_source_table, bronze_source_host, bronze_extraction_method
+```
+
+### Framework Documentation
+
+- **[Getting Started with Framework](sqlmodel-framework/GETTING_STARTED.md)** - Step-by-step guide to building datakits
+- **[API Reference](sqlmodel-framework/API_REFERENCE.md)** - Complete documentation of all classes and methods
+- **[Framework Examples](sqlmodel-framework/examples/)** - Working examples with PostgreSQL and Kerberos
+- **[Framework README](sqlmodel-framework/README.md)** - Architecture and deployment patterns
+
 ## 📚 Documentation
 
 ### Setup & Configuration
