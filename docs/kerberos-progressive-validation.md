@@ -78,19 +78,25 @@ sudo nano /etc/krb5.conf
 
 ```bash
 cd platform-bootstrap
-# Run the setup wizard to create platform-config.yaml and generate .env
-./platform setup
+# Run the enhanced setup wizard with visual feedback
+./dev-tools/setup-kerberos.sh
 ```
 
-**The wizard will prompt you for configuration. Set:**
-```bash
-COMPANY_DOMAIN=MYCOMPANY.COM
-```
+**The wizard features:**
+- Clear section headers for each configuration step
+- Automatic krb5.conf parsing and validation
+- Built-in diagnostics for troubleshooting
+- Support for testing both SQL Server and PostgreSQL connections
 
-**Or manually edit the generated .env:**
-```bash
-nano .env
-```
+**When prompted, you'll configure:**
+- Kerberos domain (e.g., `MYCOMPANY.COM`)
+- Docker image selection (standard or corporate)
+- Prebuilt mode for corporate images
+- Optional database connection testing
+
+**The wizard automatically creates:**
+- `platform-config.yaml` with your settings
+- `.env` file with all necessary environment variables
 
 ### 1.4 Validation
 ```bash
