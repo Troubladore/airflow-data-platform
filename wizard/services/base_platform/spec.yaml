@@ -19,7 +19,18 @@ steps:
   - id: display_base_platform_header
     type: action
     action: base_platform.display_base_platform_header
-    next: display_test_containers_header
+    next: check_existing_base_platform
+
+  - id: check_existing_base_platform
+    type: action
+    action: base_platform.check_and_prompt_reinstall_base_platform
+    next: skip_install_check
+
+  - id: skip_install_check
+    type: conditional
+    condition: services.base_platform.skip_install
+    when_true: health_check
+    when_false: display_test_containers_header
 
   - id: display_test_containers_header
     type: action

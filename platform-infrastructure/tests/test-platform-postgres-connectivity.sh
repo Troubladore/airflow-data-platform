@@ -15,10 +15,11 @@ if [[ "$1" == "--quiet" ]]; then
     QUIET_MODE=true
 fi
 
-print_header "Platform PostgreSQL Connectivity Test"
-
-# Check prerequisites
-print_section "Prerequisites"
+# Only show header in verbose mode
+if [ "$QUIET_MODE" = false ]; then
+    print_header "Platform PostgreSQL Connectivity Test"
+    print_section "Prerequisites"
+fi
 
 TESTS_PASSED=0
 TESTS_TOTAL=0
@@ -54,10 +55,11 @@ check_prerequisite() {
     local command="$2"
 
     if eval "$command" >/dev/null 2>&1; then
-        print_check "PASS" "$name"
+        [ "$QUIET_MODE" = false ] && print_check "PASS" "$name"
         record_test "$name" "PASS"
         return 0
     else
+        # Always show failures, even in quiet mode
         print_check "FAIL" "$name"
         record_test "$name" "FAIL" "$name failed"
         return 1
@@ -79,7 +81,7 @@ if ! check_prerequisite "Test 2: platform-postgres container running" "docker ps
 fi
 
 # Test 3: PostgreSQL readiness (with proper fallback for containers without health checks)
-print_info "Test 3: Checking PostgreSQL readiness..."
+[ "$QUIET_MODE" = false ] && print_info "Test 3: Checking PostgreSQL readiness..."
 
 # Check if container has health check defined
 HEALTH_STATUS=$(docker inspect platform-postgres --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}no-health-check{{end}}' 2>/dev/null || echo "error")
@@ -87,7 +89,7 @@ HEALTH_STATUS=$(docker inspect platform-postgres --format='{{if .State.Health}}{
 if [ "$HEALTH_STATUS" = "no-health-check" ]; then
     # No health check defined, use pg_isready directly
     if docker exec platform-postgres pg_isready >/dev/null 2>&1; then
-        print_check "PASS" "Test 3: PostgreSQL is ready (pg_isready)"
+        [ "$QUIET_MODE" = false ] && print_check "PASS" "Test 3: PostgreSQL is ready (pg_isready)"
         record_test "Test 3: PostgreSQL readiness" "PASS"
     else
         print_check "FAIL" "Test 3: PostgreSQL not ready"
@@ -96,7 +98,7 @@ if [ "$HEALTH_STATUS" = "no-health-check" ]; then
         exit 1
     fi
 elif [ "$HEALTH_STATUS" = "healthy" ]; then
-    print_check "PASS" "Test 3: PostgreSQL is healthy"
+    [ "$QUIET_MODE" = false ] && print_check "PASS" "Test 3: PostgreSQL is healthy"
     record_test "Test 3: PostgreSQL readiness" "PASS"
 elif [ "$HEALTH_STATUS" = "unhealthy" ]; then
     print_check "FAIL" "Test 3: PostgreSQL is unhealthy"
@@ -105,7 +107,11 @@ elif [ "$HEALTH_STATUS" = "unhealthy" ]; then
     exit 1
 else
     # Starting or unknown state, wait for it
-    print_info "Waiting for PostgreSQL to be ready (timeout: ${POSTGRES_WAIT_TIMEOUT}s)..."
+    if [ "$QUIET_MODE" = true ]; then
+        echo "Waiting for PostgreSQL (timeout: ${POSTGRES_WAIT_TIMEOUT}s)..."
+    else
+        print_info "Waiting for PostgreSQL to be ready (timeout: ${POSTGRES_WAIT_TIMEOUT}s)..."
+    fi
     WAIT_SECONDS=0
     MAX_WAIT=$POSTGRES_WAIT_TIMEOUT
     while [ $WAIT_SECONDS -lt $MAX_WAIT ]; do
@@ -113,7 +119,7 @@ else
 
         if [ "$HEALTH_STATUS" = "healthy" ] || [ "$HEALTH_STATUS" = "no-health-check" ]; then
             if docker exec platform-postgres pg_isready >/dev/null 2>&1; then
-                print_check "PASS" "Test 3: PostgreSQL is ready"
+                [ "$QUIET_MODE" = false ] && print_check "PASS" "Test 3: PostgreSQL is ready"
                 record_test "Test 3: PostgreSQL readiness" "PASS"
                 break
             fi
@@ -126,7 +132,12 @@ else
 
         if [ $((WAIT_SECONDS % 10)) -eq 0 ] && [ $WAIT_SECONDS -gt 0 ]; then
             REMAINING=$((MAX_WAIT - WAIT_SECONDS))
-            print_info "Still waiting for PostgreSQL... (${REMAINING}s remaining)"
+            if [ "$QUIET_MODE" = true ]; then
+                # Simple countdown in quiet mode
+                echo "Waiting... (${REMAINING}s remaining)"
+            else
+                print_info "Still waiting for PostgreSQL... (${REMAINING}s remaining)"
+            fi
         fi
 
         sleep 1
@@ -149,7 +160,7 @@ if ! check_prerequisite "Test 4: Containers on platform_network" "docker network
 fi
 
 # Detect authentication configuration
-print_section "Authentication Configuration"
+[ "$QUIET_MODE" = false ] && print_section "Authentication Configuration"
 
 ENV_FILE="$REPO_ROOT/platform-bootstrap/.env"
 POSTGRES_PASSWORD=""
@@ -300,8 +311,7 @@ echo ""
 if [ "$QUIET_MODE" = true ]; then
     # Brief output for wizard integration - now with enumerated test results
     if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then
-        echo "✓ Platform postgres healthy - All $TESTS_TOTAL tests passed"
-        echo "  Tests: 1.postgres-test ✓ 2.platform-postgres ✓ 3.pg-ready ✓ 4.network ✓ 5.auth ✓ 6.service ✓ 7.databases ✓ 8.version ✓"
+        echo "✓ Platform postgres healthy"
         exit 0
     else
         # Build enumerated test summary showing which tests failed
