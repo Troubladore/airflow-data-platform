@@ -203,6 +203,8 @@ class ServiceDiagnostics:
         """Verify platform-postgres health using postgres-test container.
 
         Runs test-platform-postgres-connectivity.sh with --quiet flag.
+        If the test fails, automatically runs the diagnostic script to provide
+        detailed troubleshooting information.
 
         Args:
             ctx: Service context (not currently used but kept for consistency)
@@ -212,7 +214,8 @@ class ServiceDiagnostics:
                 'healthy': bool,        # True if all tests passed
                 'summary': str,         # Brief message (from --quiet output)
                 'details': str,         # Full output from test script
-                'error': str            # Error message if unhealthy (empty if healthy)
+                'error': str,           # Error message if unhealthy (empty if healthy)
+                'diagnostics': str      # Output from diagnostic script if test failed
             }
         """
         # Run test script with --quiet flag for brief output
@@ -231,7 +234,8 @@ class ServiceDiagnostics:
                 'healthy': True,
                 'summary': output,
                 'details': output,
-                'error': ''
+                'error': '',
+                'diagnostics': ''
             }
         else:
             # Extract error from output or stderr
@@ -239,11 +243,24 @@ class ServiceDiagnostics:
             if not error_msg:
                 error_msg = "Health check failed with no output"
 
+            # Automatically run diagnostic script for detailed troubleshooting
+            self.runner.display("")
+            self.runner.display("Running network diagnostics to identify the issue...")
+            self.runner.display("")
+
+            diag_result = self.runner.run_shell([
+                'bash',
+                'platform-infrastructure/tests/diagnose-network-issue.sh'
+            ])
+
+            diagnostics = diag_result.get('stdout', '') + '\n' + diag_result.get('stderr', '')
+
             return {
                 'healthy': False,
                 'summary': '',
                 'details': f"{output}\n{stderr}".strip(),
-                'error': error_msg
+                'error': error_msg,
+                'diagnostics': diagnostics
             }
 
     def verify_pagila_health(self, ctx: Dict[str, Any]) -> Dict[str, Any]:

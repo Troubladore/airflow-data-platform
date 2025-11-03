@@ -304,13 +304,24 @@ def start_service(ctx: Dict[str, Any], runner) -> None:
             # Save diagnostics and warn (but continue)
             runner.display(f"⚠️  Health check failed: {health['error']}")
 
+            # Display diagnostic output if available (automatically run on failure)
+            if health.get('diagnostics'):
+                runner.display("")
+                # The diagnostic script output is already formatted nicely,
+                # just display it as-is
+                for line in health['diagnostics'].split('\n'):
+                    if line.strip():
+                        runner.display(line)
+                runner.display("")
+
             collector = DiagnosticCollector()
             collector.record_failure('postgres', 'health_check', health['error'], {
-                'details': health['details']
+                'details': health['details'],
+                'diagnostics': health.get('diagnostics', '')
             })
             log_file = collector.save_log()
 
-            runner.display(f"💾 Diagnostics saved to: {log_file}")
+            runner.display(f"💾 Full diagnostics saved to: {log_file}")
             runner.display("   Continuing setup...")
             runner.display("")
     else:

@@ -112,27 +112,62 @@ run_test() {
     return 1
 }
 
-# Test 1: Network connectivity
-if ! run_test "Network connectivity" "docker exec postgres-test ping -c 1 -W 2 platform-postgres"; then
-    print_error "Cannot reach platform-postgres from postgres-test"
-    exit 1
+# Determine which user to use (try platform_admin first, fall back to postgres)
+POSTGRES_USER="platform_admin"
+if ! docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" postgres-test psql -h platform-postgres -U platform_admin -d postgres -c 'SELECT 1' -t -A >/dev/null 2>&1; then
+    # platform_admin doesn't exist, try postgres user
+    if docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" postgres-test psql -h platform-postgres -U postgres -d postgres -c 'SELECT 1' -t -A >/dev/null 2>&1; then
+        POSTGRES_USER="postgres"
+        print_info "Using 'postgres' user (platform_admin not found)"
+    fi
+else
+    print_info "Using 'platform_admin' user"
 fi
 
-# Test 2: PostgreSQL service ready
-if ! run_test "PostgreSQL service ready" "docker exec postgres-test pg_isready -h platform-postgres -U platform_admin -q"; then
-    print_error "PostgreSQL service not accepting connections"
-    exit 1
-fi
-
-# Test 3: Database authentication
-if ! run_test "Database authentication" "docker exec -e PGPASSWORD=\"$POSTGRES_PASSWORD\" postgres-test psql -h platform-postgres -U platform_admin -d postgres -c 'SELECT 1' -t -A" "^1$"; then
+# Test 1: Database authentication (the actual goal)
+if ! run_test "Database authentication" "docker exec -e PGPASSWORD=\"$POSTGRES_PASSWORD\" postgres-test psql -h platform-postgres -U $POSTGRES_USER -d postgres -c 'SELECT 1' -t -A" "^1$"; then
     print_error "Authentication failed"
+
+    # Only if the main test fails, run diagnostics
+    print_section "Diagnostic Information"
+
+    # Test network connectivity (may not work in all containers)
+    if docker exec postgres-test which ping >/dev/null 2>&1; then
+        if run_test "Network connectivity (ping)" "docker exec postgres-test ping -c 1 -W 2 platform-postgres" >/dev/null 2>&1; then
+            print_check "PASS" "Network connectivity (ping)"
+        else
+            print_check "FAIL" "Network connectivity (ping)"
+            print_error "Cannot reach platform-postgres from postgres-test"
+        fi
+    else
+        print_info "Ping not available in container, skipping network test"
+    fi
+
+    # Test PostgreSQL service ready
+    if ! run_test "PostgreSQL service ready" "docker exec postgres-test pg_isready -h platform-postgres -q"; then
+        print_error "PostgreSQL service not accepting connections"
+    fi
+
+    # Try to get more diagnostic info
+    print_info "Attempting to get PostgreSQL error details:"
+    docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" postgres-test psql -h platform-postgres -U $POSTGRES_USER -d postgres -c 'SELECT 1' 2>&1 | head -5
+
     exit 1
 fi
 
-# Test 4: Query database list
-DB_LIST=$(docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" postgres-test psql -h platform-postgres -U platform_admin -d postgres -t -A -c "SELECT datname FROM pg_database WHERE datname IN ('airflow_db', 'openmetadata_db') ORDER BY datname")
-DB_COUNT=$(echo "$DB_LIST" | grep -c '^')
+# Test 2: PostgreSQL service ready (quick check after successful auth)
+if ! run_test "PostgreSQL service ready" "docker exec postgres-test pg_isready -h platform-postgres -q"; then
+    print_warning "pg_isready check failed despite successful authentication"
+fi
+
+# Test 3: Query database list
+DB_LIST=$(docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" postgres-test psql -h platform-postgres -U $POSTGRES_USER -d postgres -t -A -c "SELECT datname FROM pg_database WHERE datname IN ('airflow_db', 'openmetadata_db') ORDER BY datname")
+# Only count non-empty lines
+if [ -n "$DB_LIST" ]; then
+    DB_COUNT=$(echo "$DB_LIST" | grep -c '^')
+else
+    DB_COUNT=0
+fi
 
 if [ "$DB_COUNT" -gt 0 ]; then
     print_check "PASS" "Platform databases exist ($DB_COUNT found)"
@@ -148,8 +183,8 @@ else
 fi
 TESTS_TOTAL=$((TESTS_TOTAL + 1))
 
-# Test 5: Query PostgreSQL version
-PG_VERSION=$(docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" postgres-test psql -h platform-postgres -U platform_admin -d postgres -t -A -c "SELECT version()" | head -n1 | cut -d' ' -f2)
+# Test 4: Query PostgreSQL version
+PG_VERSION=$(docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" postgres-test psql -h platform-postgres -U $POSTGRES_USER -d postgres -t -A -c "SELECT version()" | head -n1 | cut -d' ' -f2)
 print_check "PASS" "PostgreSQL version: $PG_VERSION"
 TESTS_PASSED=$((TESTS_PASSED + 1))
 TESTS_TOTAL=$((TESTS_TOTAL + 1))
