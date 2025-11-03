@@ -23,73 +23,122 @@ print_section "Prerequisites"
 TESTS_PASSED=0
 TESTS_TOTAL=0
 
+# Arrays to track test results
+declare -a TEST_NAMES
+declare -a TEST_STATUSES  # PASS, FAIL, or WARN
+declare -a TEST_MESSAGES
+TEST_INDEX=0
+
+# Allow configurable timeout (default 60 seconds)
+POSTGRES_WAIT_TIMEOUT=${POSTGRES_WAIT_TIMEOUT:-60}
+
+# Function to record test results
+record_test() {
+    local name="$1"
+    local status="$2"  # PASS, FAIL, or WARN
+    local message="${3:-}"
+
+    TEST_NAMES[$TEST_INDEX]="$name"
+    TEST_STATUSES[$TEST_INDEX]="$status"
+    TEST_MESSAGES[$TEST_INDEX]="$message"
+    TEST_INDEX=$((TEST_INDEX + 1))
+
+    TESTS_TOTAL=$((TESTS_TOTAL + 1))
+    if [ "$status" = "PASS" ] || [ "$status" = "WARN" ]; then
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+    fi
+}
+
 check_prerequisite() {
     local name="$1"
     local command="$2"
 
-    TESTS_TOTAL=$((TESTS_TOTAL + 1))
-
     if eval "$command" >/dev/null 2>&1; then
         print_check "PASS" "$name"
-        TESTS_PASSED=$((TESTS_PASSED + 1))
+        record_test "$name" "PASS"
         return 0
     else
         print_check "FAIL" "$name"
+        record_test "$name" "FAIL" "$name failed"
         return 1
     fi
 }
 
-# Verify postgres-test container exists and is running
-if ! check_prerequisite "postgres-test container running" "docker ps --filter 'name=postgres-test' --filter 'status=running' --format '{{.Names}}' | grep -q '^postgres-test$'"; then
-    print_error "postgres-test container not found or not running"
+# Test 1: Verify postgres-test container exists and is running
+if ! check_prerequisite "Test 1: postgres-test container running" "docker ps --filter 'name=postgres-test' --filter 'status=running' --format '{{.Names}}' | grep -q '^postgres-test$'"; then
+    print_error "Test 1 FAILED: postgres-test container not found or not running"
     print_info "Create test containers with: ./platform setup"
     exit 1
 fi
 
-# Verify pagila-postgres container exists and is running
-if ! check_prerequisite "pagila-postgres container running" "docker ps --filter 'name=pagila-postgres' --filter 'status=running' --format '{{.Names}}' | grep -q '^pagila-postgres$'"; then
+# Test 2: Verify pagila-postgres container exists and is running
+if ! check_prerequisite "Test 2: pagila-postgres container running" "docker ps --filter 'name=pagila-postgres' --filter 'status=running' --format '{{.Names}}' | grep -q '^pagila-postgres$'"; then
     print_error "pagila-postgres container not found or not running"
     print_info "Install Pagila with: ./platform setup pagila"
     exit 1
 fi
 
-# Wait for Pagila PostgreSQL to be healthy (not just container running)
-print_info "Waiting for Pagila PostgreSQL to be ready..."
+# Test 3: Wait for Pagila PostgreSQL to be healthy (not just container running)
+print_info "Test 3: Checking Pagila PostgreSQL readiness..."
 WAIT_SECONDS=0
-MAX_WAIT=30
-while [ $WAIT_SECONDS -lt $MAX_WAIT ]; do
-    # Check Docker health status if available
-    HEALTH_STATUS=$(docker inspect pagila-postgres --format='{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
+MAX_WAIT=$POSTGRES_WAIT_TIMEOUT
+# Check Docker health status if available
+HEALTH_STATUS=$(docker inspect pagila-postgres --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}no-health-check{{end}}' 2>/dev/null || echo "error")
 
-    if [ "$HEALTH_STATUS" = "healthy" ]; then
-        print_check "PASS" "Pagila PostgreSQL is healthy"
-        break
-    elif [ "$HEALTH_STATUS" = "unhealthy" ]; then
-        print_check "FAIL" "Pagila PostgreSQL is unhealthy"
-        print_error "Check logs: docker logs pagila-postgres"
+if [ "$HEALTH_STATUS" = "no-health-check" ]; then
+    # No health check defined, use pg_isready directly
+    if docker exec pagila-postgres pg_isready >/dev/null 2>&1; then
+        print_check "PASS" "Test 3: Pagila PostgreSQL is ready (pg_isready)"
+        record_test "Test 3: Pagila PostgreSQL readiness" "PASS"
+    else
+        print_check "FAIL" "Test 3: Pagila PostgreSQL not ready"
+        record_test "Test 3: Pagila PostgreSQL readiness" "FAIL" "PostgreSQL service not responding"
+        print_error "PostgreSQL service not responding to pg_isready"
         exit 1
-    elif [ "$HEALTH_STATUS" = "unknown" ] || [ -z "$HEALTH_STATUS" ]; then
-        # No health check defined or old Docker version, fall back to pg_isready
-        if docker exec pagila-postgres pg_isready -q 2>/dev/null; then
-            print_check "PASS" "Pagila PostgreSQL is ready (pg_isready)"
-            break
-        fi
     fi
-
-    # Show progress
-    if [ $((WAIT_SECONDS % 5)) -eq 0 ] && [ $WAIT_SECONDS -gt 0 ]; then
-        print_info "Still waiting... ($WAIT_SECONDS/$MAX_WAIT seconds, status: $HEALTH_STATUS)"
-    fi
-
-    sleep 1
-    WAIT_SECONDS=$((WAIT_SECONDS + 1))
-done
-
-if [ $WAIT_SECONDS -ge $MAX_WAIT ]; then
-    print_check "FAIL" "Pagila PostgreSQL did not become ready in $MAX_WAIT seconds"
-    print_info "Current status: $HEALTH_STATUS"
-    print_info "Check logs: docker logs pagila-postgres"
+elif [ "$HEALTH_STATUS" = "healthy" ]; then
+    print_check "PASS" "Test 3: Pagila PostgreSQL is healthy"
+    record_test "Test 3: Pagila PostgreSQL readiness" "PASS"
+elif [ "$HEALTH_STATUS" = "unhealthy" ]; then
+    print_check "FAIL" "Test 3: Pagila PostgreSQL is unhealthy"
+    record_test "Test 3: Pagila PostgreSQL readiness" "FAIL" "Container health check failed"
+    print_error "Check logs: docker logs pagila-postgres"
     exit 1
+else
+    # Starting or unknown state, wait for it
+    print_info "Waiting for Pagila PostgreSQL to be ready (timeout: ${POSTGRES_WAIT_TIMEOUT}s)..."
+    while [ $WAIT_SECONDS -lt $MAX_WAIT ]; do
+        HEALTH_STATUS=$(docker inspect pagila-postgres --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}no-health-check{{end}}' 2>/dev/null)
+
+        if [ "$HEALTH_STATUS" = "healthy" ] || [ "$HEALTH_STATUS" = "no-health-check" ]; then
+            if docker exec pagila-postgres pg_isready >/dev/null 2>&1; then
+                print_check "PASS" "Test 3: Pagila PostgreSQL is ready"
+                record_test "Test 3: Pagila PostgreSQL readiness" "PASS"
+                break
+            fi
+        elif [ "$HEALTH_STATUS" = "unhealthy" ]; then
+            print_check "FAIL" "Test 3: Pagila PostgreSQL is unhealthy"
+            record_test "Test 3: Pagila PostgreSQL readiness" "FAIL" "Container health check failed"
+            print_error "Check logs: docker logs pagila-postgres"
+            exit 1
+        fi
+
+        # Show countdown
+        if [ $((WAIT_SECONDS % 10)) -eq 0 ] && [ $WAIT_SECONDS -gt 0 ]; then
+            REMAINING=$((MAX_WAIT - WAIT_SECONDS))
+            print_info "Still waiting for Pagila PostgreSQL... (${REMAINING}s remaining)"
+        fi
+
+        sleep 1
+        WAIT_SECONDS=$((WAIT_SECONDS + 1))
+    done
+
+    if [ $WAIT_SECONDS -ge $MAX_WAIT ]; then
+        print_check "FAIL" "Test 3: Pagila PostgreSQL did not become ready in $MAX_WAIT seconds"
+        record_test "Test 3: Pagila PostgreSQL readiness" "FAIL" "Timeout waiting for PostgreSQL"
+        print_info "Check logs: docker logs pagila-postgres"
+        exit 1
+    fi
 fi
 
 # Verify both containers on platform_network
