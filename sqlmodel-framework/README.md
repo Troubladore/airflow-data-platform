@@ -48,6 +48,15 @@ python scripts/deploy_datakit.py --list-targets
 
 ```
 data-platform-framework/
+├── base/                       # Base classes and patterns
+│   ├── connectors/            # Database connectors
+│   │   ├── base.py           # BaseConnector abstract class
+│   │   └── postgres.py       # PostgresConnector with Kerberos
+│   ├── models/                # Table mixins and patterns
+│   │   ├── table_mixins.py   # Reference, Transactional, Temporal
+│   │   └── bronze_metadata.py # Bronze layer metadata mixin
+│   └── loaders/               # Data loading pipelines
+│       └── bronze_ingestion.py # Bronze layer ingestion base
 ├── engines/                    # Database engine factories
 │   ├── postgres_engine.py     # PostgreSQL connections & containers
 │   ├── mysql_engine.py        # MySQL connections & containers
@@ -87,6 +96,95 @@ data-platform-framework/
 - **In-memory**: Fastest for unit tests (`:memory:`)
 - **File-based**: Persistent testing in temp directories
 - **No setup**: Zero configuration required
+
+## 🥉 Bronze Layer Base Classes
+
+### Database Connectors with Kerberos Support
+
+The framework provides base classes for database connectivity, including Kerberos authentication support critical for containerized environments:
+
+```python
+from sqlmodel_framework.base.connectors import PostgresConnector, PostgresConfig
+
+# Configure PostgreSQL with Kerberos
+config = PostgresConfig(
+    host="pgserver.example.com",
+    database="pagila",
+    use_kerberos=True,
+    gssencmode="require"
+)
+
+# Connect and extract tables
+connector = PostgresConnector(config)
+if connector.test_connection():
+    tables = connector.get_tables(schema="public")
+    with connector.connection_context() as conn:
+        # Use connection for data extraction
+        pass
+```
+
+### Bronze Metadata Mixin
+
+Add standard Bronze layer metadata to any table:
+
+```python
+from sqlmodel import SQLModel, Field
+from sqlmodel_framework.base.models import BronzeMetadata
+
+class FilmBronze(BronzeMetadata, SQLModel, table=True):
+    """Bronze layer film table with metadata"""
+    __tablename__ = "film_bronze"
+
+    film_id: int = Field(primary_key=True)
+    title: str
+    description: str
+    release_year: int
+    # BronzeMetadata adds:
+    # - bronze_load_timestamp
+    # - bronze_source_system
+    # - bronze_source_table
+    # - bronze_source_host
+    # - bronze_extraction_method
+```
+
+### Bronze Ingestion Pipeline
+
+Base class for Bronze layer data ingestion:
+
+```python
+from sqlmodel_framework.base.loaders import BronzeIngestionPipeline
+import pandas as pd
+
+class PagilaBronzeLoader(BronzeIngestionPipeline):
+    """Custom Bronze loader for Pagila database"""
+
+    def extract_table(self, table_name: str) -> pd.DataFrame:
+        """Extract data from source table"""
+        with self.connector.connection_context() as conn:
+            return pd.read_sql(f"SELECT * FROM {table_name}", conn)
+
+# Usage
+connector = PostgresConnector(config)
+loader = PagilaBronzeLoader(connector, bronze_path=Path("/data/bronze"))
+
+# Extract and add metadata
+df = loader.extract_table("film")
+df = loader.add_bronze_metadata(
+    df,
+    source_system="pagila_kerberos",
+    source_table="film",
+    source_host="pgserver.example.com",
+    extraction_method="full_snapshot"
+)
+
+# Write to Bronze storage
+paths = loader.write_bronze(
+    df,
+    source_system="pagila_kerberos",
+    table_name="film",
+    formats=["parquet", "json"]
+)
+```
 
 ## 📦 Framework API
 
