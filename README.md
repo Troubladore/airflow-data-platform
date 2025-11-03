@@ -102,6 +102,9 @@ make setup    # Interactive wizard detects environment, configures services
 - **[Runtime Environment Patterns](docs/patterns/runtime-patterns.md)** - Dependency isolation
 - **[Directory Structure](docs/directory-structure.md)** - Repository organization
 
+### Platform Runners
+- **[SQLModel Runner](runners/sqlmodel-runner/README.md)** - Pre-built container for Bronze layer ETL with SQLModel, pandas, and database drivers
+
 ### Examples & Tutorials
 - **[Hello World](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/hello-world)** - Simplest example
 - **[Hello Kerberos](https://github.com/Troubladore/airflow-data-platform-examples/tree/main/hello-kerberos)** - SQL Server auth
@@ -112,6 +115,7 @@ make setup    # Interactive wizard detects environment, configures services
 | Component | Status | Purpose |
 |-----------|--------|---------|
 | SQLModel Framework | ✅ Production Ready | Table mixins, triggers, deployment |
+| SQLModel Runner | ✅ Production Ready | Pre-built container for Bronze layer ETL |
 | Kerberos Ticket Sharer | ✅ Production Ready | SQL Server auth without passwords |
 | OpenMetadata | ✅ Phase 1 Complete | Data cataloging and discovery |
 | Pagila Test Database | ✅ Available | PostgreSQL sample data |
