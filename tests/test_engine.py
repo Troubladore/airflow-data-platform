@@ -300,8 +300,10 @@ def test_load_existing_state_handles_nested_config():
     # Verify nested config was flattened correctly
     assert engine.state.get('services.base_platform.test_containers.postgres_test.image') == 'alpine:latest'
     assert engine.state.get('services.base_platform.test_containers.postgres_test.prebuilt') is False
+    assert engine.state.get('services.base_platform.test_containers.postgres_test.use_prebuilt') is False
     assert engine.state.get('services.base_platform.test_containers.sqlcmd_test.image') == 'alpine:latest'
     assert engine.state.get('services.base_platform.test_containers.sqlcmd_test.prebuilt') is False
+    assert engine.state.get('services.base_platform.test_containers.sqlcmd_test.use_prebuilt') is False
 
     # Verify it didn't create a dict entry
     assert 'services.base_platform.test_containers' not in engine.state
