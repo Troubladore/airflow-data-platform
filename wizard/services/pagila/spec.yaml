@@ -52,31 +52,9 @@ steps:
   - id: pagila_install
     type: action
     action: pagila.install_pagila
-    next: pagila_test_prebuilt
+    next: pagila_save_config
 
-  - id: pagila_test_prebuilt
-    type: boolean
-    state_key: services.pagila.test_containers.pagila_test.use_prebuilt
-    prompt: "Will you use a prebuilt pagila-test image with packages already installed?"
-    default_from: services.pagila.test_containers.pagila_test.use_prebuilt
-    default_value: false
-    next: pagila_test_image
-
-  - id: pagila_test_image
-    type: string
-    state_key: services.pagila.test_containers.pagila_test.image
-    prompt: "Enter Docker image for pagila-test (e.g., alpine:latest or mycompany/pagila-test:latest for prebuilt):"
-    default_from: services.pagila.test_containers.pagila_test.image
-    default_value: "alpine:latest"
-    validator: pagila.validate_postgres_image_url
-    next: pagila_save_test_config
-
-  - id: pagila_save_test_config
+  - id: pagila_save_config
     type: action
-    action: pagila.save_pagila_test_config
-    next: pagila_verify_connection
-
-  - id: pagila_verify_connection
-    type: action
-    action: pagila.verify_pagila_connection
+    action: pagila.save_config
     next: finish
