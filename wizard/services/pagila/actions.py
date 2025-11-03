@@ -1,7 +1,60 @@
 # Pagila actions
 
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
 from wizard.utils.diagnostics import DiagnosticCollector, ServiceDiagnostics, create_diagnostic_summary
+
+
+def detect_existing_pagila(ctx: Dict[str, Any], runner) -> Tuple[bool, bool]:
+    """Detect if Pagila service already exists and is healthy.
+
+    Returns:
+        Tuple of (exists, healthy)
+    """
+    # Check if pagila-postgres container exists and is running
+    containers_check = runner.run_shell(['docker', 'ps', '--format', '{{.Names}}'])
+    if containers_check.get('returncode') != 0:
+        return False, False
+
+    running_containers = containers_check.get('stdout', '').split('\n')
+    exists = 'pagila-postgres' in running_containers
+
+    if not exists:
+        return False, False
+
+    # Check health
+    health_check = runner.run_shell([
+        'bash',
+        'platform-infrastructure/tests/test-pagila-connectivity.sh',
+        '--quiet'
+    ])
+    healthy = health_check.get('returncode') == 0
+
+    return exists, healthy
+
+
+def check_and_prompt_reinstall_pagila(ctx: Dict[str, Any], runner) -> None:
+    """Check if Pagila exists and prompt for reinstall if it does."""
+    exists, healthy = detect_existing_pagila(ctx, runner)
+
+    if exists:
+        if healthy:
+            runner.display("\n✓ Pagila is already installed and healthy")
+            response = runner.prompt(
+                "Reinstall Pagila? (y/N)",
+                default="n"
+            )
+            if response.lower() != 'y':
+                ctx['services.pagila.skip_install'] = True
+                runner.display("Skipping Pagila installation")
+        else:
+            runner.display("\n⚠ Pagila exists but is not healthy")
+            response = runner.prompt(
+                "Reinstall Pagila to fix issues? (Y/n)",
+                default="y"
+            )
+            if response.lower() == 'n':
+                ctx['services.pagila.skip_install'] = True
+                runner.display("Skipping Pagila installation")
 
 
 def save_config(ctx: dict, runner) -> None:

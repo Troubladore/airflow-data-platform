@@ -1,9 +1,54 @@
 """Kerberos actions - GREEN phase implementation."""
 
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
 from wizard.utils.diagnostics import DiagnosticCollector, ServiceDiagnostics, create_diagnostic_summary
 from wizard.services.kerberos.detection import KerberosDetector
 from wizard.services.kerberos.progressive_tests import KerberosProgressiveTester
+
+
+def detect_existing_kerberos(ctx: Dict[str, Any], runner) -> Tuple[bool, bool]:
+    """Detect if Kerberos service already exists and is healthy.
+
+    Returns:
+        Tuple of (exists, healthy)
+    """
+    # Check if kerberos container exists and is running
+    containers_check = runner.run_shell(['docker', 'ps', '--format', '{{.Names}}'])
+    if containers_check.get('returncode') != 0:
+        return False, False
+
+    running_containers = containers_check.get('stdout', '').split('\n')
+
+    # Look for kerberos-sidecar or kerberos-platform
+    kerberos_container = None
+    for container in running_containers:
+        if 'kerberos' in container:
+            kerberos_container = container
+            break
+
+    exists = kerberos_container is not None
+
+    if not exists:
+        return False, False
+
+    # For Kerberos, we consider it healthy if the container is running
+    # More detailed health checks happen during test_kerberos
+    return exists, True
+
+
+def check_and_prompt_reinstall_kerberos(ctx: Dict[str, Any], runner) -> None:
+    """Check if Kerberos exists and prompt for reinstall if it does."""
+    exists, healthy = detect_existing_kerberos(ctx, runner)
+
+    if exists:
+        runner.display("\n✓ Kerberos is already installed")
+        response = runner.prompt(
+            "Reinstall Kerberos? (y/N)",
+            default="n"
+        )
+        if response.lower() != 'y':
+            ctx['services.kerberos.skip_install'] = True
+            runner.display("Skipping Kerberos installation")
 
 
 def display_kerberos_header(ctx: Dict[str, Any], runner) -> None:

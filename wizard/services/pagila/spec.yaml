@@ -7,6 +7,17 @@ provides:
   - sample.pagila
 
 steps:
+  - id: check_existing_pagila
+    type: action
+    action: pagila.check_and_prompt_reinstall_pagila
+    next: skip_install_check
+
+  - id: skip_install_check
+    type: conditional
+    condition: services.pagila.skip_install
+    when_true: END
+    when_false: pagila_repo_url
+
   - id: pagila_repo_url
     type: string
     prompt: "Pagila repository URL:"

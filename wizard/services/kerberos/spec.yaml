@@ -16,7 +16,18 @@ steps:
   - id: display_kerberos_header
     type: action
     action: kerberos.display_kerberos_header
-    next: domain_input
+    next: check_existing_kerberos
+
+  - id: check_existing_kerberos
+    type: action
+    action: kerberos.check_and_prompt_reinstall_kerberos
+    next: skip_install_check
+
+  - id: skip_install_check
+    type: conditional
+    condition: services.kerberos.skip_install
+    when_true: END
+    when_false: domain_input
 
   - id: domain_input
     type: string
