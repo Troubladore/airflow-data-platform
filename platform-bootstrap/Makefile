@@ -73,6 +73,9 @@ setup-pagila: ## Setup pagila test database (idempotent)
 setup-pagila-reset: ## Remove and reinstall pagila test database
 	@./setup-scripts/setup-pagila.sh --reset
 
+build-pagila-test: ## Build pagila-test container for connection testing
+	@$(MAKE) -C ../pagila build-pagila-test
+
 # ==========================================
 # Platform Services
 # ==========================================
