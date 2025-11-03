@@ -61,27 +61,30 @@ Ready-to-use templates for each image type with complete requirements and exampl
 
 ### Connectivity Test Containers
 
-These containers are used by the platform to verify database connectivity and are built automatically during setup:
+These containers are used by the platform to verify database connectivity and are **built automatically** by the wizard during the setup process. You don't need to build them manually - the wizard handles this for you:
 
 - **[PostgreSQL Test Container](../platform-infrastructure/test-containers/postgres-test/Dockerfile)** - Tests PostgreSQL connectivity
   - Base: `alpine:latest`
   - Purpose: Validates platform PostgreSQL database connectivity and health
   - Components: PostgreSQL 17 client (psql), Kerberos client libraries, unixODBC
   - Security: Runs as non-root user (testuser, uid 10001)
-  - Build: `docker build -t platform/postgres-test platform-infrastructure/test-containers/postgres-test/`
+  - Build (automatic): The wizard runs `make build-test-containers` during setup
+  - Manual build: `docker build -t platform/postgres-test platform-infrastructure/test-containers/postgres-test/`
   - Custom base: `--build-arg BASE_IMAGE=your.registry.com/alpine:3.19`
-  - Required for: Health checks during platform setup
+  - Required for: Health checks during platform setup and PostgreSQL Kerberos testing
 
 - **[SQL Server Test Container](../platform-infrastructure/test-containers/sqlcmd-test/Dockerfile)** - Tests SQL Server connectivity
   - Base: `alpine:latest`
   - Purpose: Validates SQL Server connectivity with Kerberos authentication
   - Components: Microsoft ODBC Driver 18 (msodbcsql18), Microsoft SQL Server tools (mssql-tools18), Kerberos libraries, unixODBC
   - Security: Runs as non-root user (testuser, uid 10001)
+  - sqlcmd Location: `/opt/mssql-tools18/bin/sqlcmd` (Microsoft's standard path)
   - Note: Downloads Microsoft ODBC driver APKs from Microsoft's server during build
-  - Build: `docker build -t platform/sqlcmd-test platform-infrastructure/test-containers/sqlcmd-test/`
+  - Build (automatic): The wizard runs `make build-test-containers` during setup
+  - Manual build: `docker build -t platform/sqlcmd-test platform-infrastructure/test-containers/sqlcmd-test/`
   - Custom base: `--build-arg BASE_IMAGE=your.registry.com/alpine:3.19`
   - Corporate Artifactory: `--build-arg ODBC_DRIVER_URL=https://artifactory.corp.com/mssql-drivers`
-  - Required for: SQL Server connectivity validation (future feature)
+  - Required for: SQL Server connectivity validation in Kerberos wizard (PR #151)
 
 ### Platform Service Images
 By default, the platform pulls from public repositories, but the setup wizard will offer you the chance to specify custom images:

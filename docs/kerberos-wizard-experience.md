@@ -141,6 +141,12 @@ The wizard saves state and can resume:
 - Verify your ticket: `klist`
 - Test network connectivity to the database server
 
+**"sqlcmd: not found" or SQL Server test fails**
+- The test containers are built automatically during setup
+- Verify containers exist: `docker images | grep platform`
+- Rebuild if needed: `make -C platform-infrastructure build-test-containers`
+- sqlcmd is at: `/opt/mssql-tools18/bin/sqlcmd` (Microsoft's standard location)
+
 ## 🔗 Related Documentation
 
 - **[Getting Started](getting-started-simple.md)** - Main setup guide
