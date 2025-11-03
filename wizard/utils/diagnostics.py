@@ -255,6 +255,31 @@ class ServiceDiagnostics:
 
             diagnostics = diag_result.get('stdout', '') + '\n' + diag_result.get('stderr', '')
 
+            # If diagnostics show everything is healthy, try the connection one more time
+            # This handles the race condition where PostgreSQL just became ready
+            if 'PostgreSQL is healthy' in diagnostics or 'Health Status: healthy' in diagnostics:
+                self.runner.display("")
+                self.runner.display("Diagnostics show PostgreSQL is healthy now - retrying connection...")
+
+                retry_result = self.runner.run_shell([
+                    'bash',
+                    'platform-infrastructure/tests/test-platform-postgres-connectivity.sh',
+                    '--quiet'
+                ])
+
+                retry_output = retry_result.get('stdout', '').strip()
+                retry_returncode = retry_result.get('returncode', 1)
+
+                if retry_returncode == 0:
+                    # Success on retry!
+                    return {
+                        'healthy': True,
+                        'summary': retry_output if retry_output else '✓ Platform postgres healthy (after retry)',
+                        'details': retry_output,
+                        'error': '',
+                        'diagnostics': 'Initially failed but succeeded after PostgreSQL became ready'
+                    }
+
             return {
                 'healthy': False,
                 'summary': '',

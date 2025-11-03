@@ -53,6 +53,44 @@ if ! check_prerequisite "platform-postgres container running" "docker ps --filte
     exit 1
 fi
 
+# Wait for PostgreSQL to be healthy (not just container running)
+print_info "Waiting for PostgreSQL to be ready..."
+WAIT_SECONDS=0
+MAX_WAIT=30
+while [ $WAIT_SECONDS -lt $MAX_WAIT ]; do
+    HEALTH_STATUS=$(docker inspect platform-postgres --format='{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
+
+    if [ "$HEALTH_STATUS" = "healthy" ]; then
+        print_check "PASS" "PostgreSQL is healthy"
+        break
+    elif [ "$HEALTH_STATUS" = "unhealthy" ]; then
+        print_check "FAIL" "PostgreSQL is unhealthy"
+        print_error "Check logs: docker logs platform-postgres"
+        exit 1
+    elif [ "$HEALTH_STATUS" = "unknown" ] || [ -z "$HEALTH_STATUS" ]; then
+        # No health check defined or old Docker version, fall back to pg_isready
+        if docker exec platform-postgres pg_isready -q 2>/dev/null; then
+            print_check "PASS" "PostgreSQL is ready (pg_isready)"
+            break
+        fi
+    fi
+
+    # Show progress
+    if [ $((WAIT_SECONDS % 5)) -eq 0 ] && [ $WAIT_SECONDS -gt 0 ]; then
+        print_info "Still waiting... ($WAIT_SECONDS/$MAX_WAIT seconds, status: $HEALTH_STATUS)"
+    fi
+
+    sleep 1
+    WAIT_SECONDS=$((WAIT_SECONDS + 1))
+done
+
+if [ $WAIT_SECONDS -ge $MAX_WAIT ]; then
+    print_check "FAIL" "PostgreSQL did not become ready in $MAX_WAIT seconds"
+    print_info "Current status: $HEALTH_STATUS"
+    print_info "Check logs: docker logs platform-postgres"
+    exit 1
+fi
+
 # Verify both containers on platform_network
 if ! check_prerequisite "Containers on platform_network" "docker network inspect platform_network -f '{{range .Containers}}{{.Name}} {{end}}' | grep -q 'postgres-test' && docker network inspect platform_network -f '{{range .Containers}}{{.Name}} {{end}}' | grep -q 'platform-postgres'"; then
     print_error "Containers not on same network"
