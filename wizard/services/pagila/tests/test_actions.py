@@ -470,3 +470,217 @@ def test_install_pagila_backward_compatible_no_branch():
     # Assert command was executed successfully
     run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
     assert len(run_shell_calls) == 1
+
+
+# ============================================================================
+# PAGILA TEST CONTAINER ACTIONS TESTS - RED PHASE
+# ============================================================================
+
+def test_save_pagila_test_config_exists():
+    """save_pagila_test_config function must exist and be callable."""
+    from wizard.services.pagila.actions import save_pagila_test_config
+
+    # Should be callable with (ctx, runner) signature
+    assert callable(save_pagila_test_config)
+
+
+def test_save_pagila_test_config_saves_to_platform_config():
+    """save_pagila_test_config should save pagila_test config to platform-config.yaml."""
+    from wizard.services.pagila.actions import save_pagila_test_config
+
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.pagila.test_containers.pagila_test.use_prebuilt': True,
+        'services.pagila.test_containers.pagila_test.image': 'mycompany/pagila-test:latest'
+    }
+
+    save_pagila_test_config(ctx, mock_runner)
+
+    # Should call save_config
+    save_config_calls = [call for call in mock_runner.calls if call[0] == 'save_config']
+    assert len(save_config_calls) == 1, "Should call save_config exactly once"
+
+    call = save_config_calls[0]
+    config = call[1]
+    path = call[2]
+
+    # Should save to platform-config.yaml
+    assert path == 'platform-config.yaml', "Should save to platform-config.yaml"
+
+    # Should have test_containers configuration
+    assert 'services' in config
+    assert 'pagila' in config['services']
+    assert 'test_containers' in config['services']['pagila']
+    assert 'pagila_test' in config['services']['pagila']['test_containers']
+
+    pagila_config = config['services']['pagila']['test_containers']['pagila_test']
+    assert pagila_config['prebuilt'] is True
+    assert pagila_config['image'] == 'mycompany/pagila-test:latest'
+
+
+def test_save_pagila_test_config_saves_image_vars_to_env():
+    """save_pagila_test_config should save image variables to .env file."""
+    from wizard.services.pagila.actions import save_pagila_test_config
+
+    mock_runner = MockActionRunner()
+    ctx = {
+        'services.pagila.test_containers.pagila_test.use_prebuilt': True,
+        'services.pagila.test_containers.pagila_test.image': 'mycompany/pagila-test:latest'
+    }
+
+    save_pagila_test_config(ctx, mock_runner)
+
+    # Should write to platform-bootstrap/.env file
+    write_calls = [call for call in mock_runner.calls if call[0] == 'write_file']
+    env_write_calls = [call for call in write_calls if call[1] == 'platform-bootstrap/.env']
+    assert len(env_write_calls) >= 1, "Should write to platform-bootstrap/.env file"
+
+    # Check if any of the write calls contains the expected content
+    found_correct_content = False
+    for call in env_write_calls:
+        env_content = call[2]
+        if 'IMAGE_PAGILA_TEST=mycompany/pagila-test:latest' in env_content and \
+           'PAGILA_TEST_PREBUILT=true' in env_content:
+            found_correct_content = True
+            break
+
+    assert found_correct_content, "Should contain IMAGE_PAGILA_TEST and PAGILA_TEST_PREBUILT variables"
+
+
+def test_save_pagila_test_config_uses_defaults_when_not_configured():
+    """save_pagila_test_config should use defaults (alpine:latest, false) if not configured."""
+    from wizard.services.pagila.actions import save_pagila_test_config
+
+    mock_runner = MockActionRunner()
+    ctx = {}  # Empty context - should use defaults
+
+    save_pagila_test_config(ctx, mock_runner)
+
+    # Should call save_config
+    save_config_calls = [call for call in mock_runner.calls if call[0] == 'save_config']
+    assert len(save_config_calls) == 1, "Should call save_config exactly once"
+
+    call = save_config_calls[0]
+    config = call[1]
+
+    # Should use default values
+    test_containers = config['services']['pagila']['test_containers']
+    assert test_containers['pagila_test']['prebuilt'] is False
+    assert test_containers['pagila_test']['image'] == 'alpine:latest'
+
+    # Should write defaults to platform-bootstrap/.env
+    write_calls = [call for call in mock_runner.calls if call[0] == 'write_file']
+    env_write_calls = [call for call in write_calls if call[1] == 'platform-bootstrap/.env']
+    assert len(env_write_calls) >= 1, "Should write to platform-bootstrap/.env file"
+
+    # Check if any of the write calls contains the expected content
+    found_correct_content = False
+    for call in env_write_calls:
+        env_content = call[2]
+        if 'IMAGE_PAGILA_TEST=alpine:latest' in env_content and \
+           'PAGILA_TEST_PREBUILT=false' in env_content:
+            found_correct_content = True
+            break
+
+    assert found_correct_content, "Should contain default IMAGE_PAGILA_TEST and PAGILA_TEST_PREBUILT variables"
+
+
+# ============================================================================
+# VERIFY PAGILA CONNECTION TESTS - RED PHASE
+# ============================================================================
+
+def test_verify_pagila_connection_exists():
+    """verify_pagila_connection function must exist and be callable."""
+    from wizard.services.pagila.actions import verify_pagila_connection
+
+    # Should be callable with (ctx, runner) signature
+    assert callable(verify_pagila_connection)
+
+
+def test_verify_pagila_connection_tests_database():
+    """verify_pagila_connection should test connection to Pagila database."""
+    from wizard.services.pagila.actions import verify_pagila_connection
+
+    mock_runner = MockActionRunner()
+    mock_runner.responses['run_shell'] = {
+        'stdout': 'pagila',
+        'stderr': '',
+        'returncode': 0
+    }
+    ctx = {}
+
+    verify_pagila_connection(ctx, mock_runner)
+
+    # Should run commands to test connection
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    assert len(run_shell_calls) >= 1, "Should run at least one shell command to test connection"
+
+    # Should check for pagila database
+    commands_str = ' '.join([' '.join(call[1]) for call in run_shell_calls])
+    assert 'pagila' in commands_str.lower(), "Should check for pagila database"
+
+
+def test_verify_pagila_connection_checks_tables():
+    """verify_pagila_connection should verify Pagila tables exist."""
+    from wizard.services.pagila.actions import verify_pagila_connection
+
+    mock_runner = MockActionRunner()
+    # The mock response needs to satisfy multiple checks:
+    # 1. Database existence check (looks for 'pagila')
+    # 2. Table check (looks for actor, film, etc.)
+    mock_runner.responses['run_shell'] = {
+        'stdout': 'pagila\nactor\ncategory\nfilm\ncustomer',
+        'stderr': '',
+        'returncode': 0
+    }
+    ctx = {}
+
+    verify_pagila_connection(ctx, mock_runner)
+
+    # Should display success message
+    display_calls = [call for call in mock_runner.calls if call[0] == 'display']
+    success_messages = [call[1] for call in display_calls if 'success' in str(call[1]).lower() or '✓' in str(call[1])]
+    assert len(success_messages) > 0, "Should display success message when connection works"
+
+
+def test_verify_pagila_connection_handles_failure():
+    """verify_pagila_connection should handle connection failures gracefully."""
+    from wizard.services.pagila.actions import verify_pagila_connection
+
+    mock_runner = MockActionRunner()
+    mock_runner.responses['run_shell'] = {
+        'stdout': '',
+        'stderr': 'FATAL: database "pagila" does not exist',
+        'returncode': 1
+    }
+    ctx = {}
+
+    verify_pagila_connection(ctx, mock_runner)
+
+    # Should display error message
+    display_calls = [call for call in mock_runner.calls if call[0] == 'display']
+    error_messages = [call[1] for call in display_calls if 'error' in str(call[1]).lower() or 'fail' in str(call[1]).lower() or '✗' in str(call[1])]
+    assert len(error_messages) > 0, "Should display error message when connection fails"
+
+
+def test_verify_pagila_connection_uses_test_container():
+    """verify_pagila_connection should use pagila-test container for testing."""
+    from wizard.services.pagila.actions import verify_pagila_connection
+
+    mock_runner = MockActionRunner()
+    mock_runner.responses['run_shell'] = {
+        'stdout': 'pagila',
+        'stderr': '',
+        'returncode': 0
+    }
+    ctx = {}
+
+    verify_pagila_connection(ctx, mock_runner)
+
+    # Should use docker run with pagila-test container
+    run_shell_calls = [call for call in mock_runner.calls if call[0] == 'run_shell']
+    commands_str = ' '.join([' '.join(call[1]) for call in run_shell_calls])
+
+    # Should either build the test container or use it
+    assert ('pagila-test' in commands_str or 'build-pagila-test' in commands_str), \
+        "Should use pagila-test container for connection testing"

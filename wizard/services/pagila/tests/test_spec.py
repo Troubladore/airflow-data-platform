@@ -292,3 +292,203 @@ def test_spec_branch_step_comes_after_repo_url():
     assert branch_index is not None, "No branch step found"
     assert branch_index > repo_index, \
         f"Branch step (index {branch_index}) should come after repo URL step (index {repo_index})"
+
+
+# ============================================================================
+# PAGILA TEST CONTAINER SPEC TESTS - RED PHASE
+# ============================================================================
+
+def test_spec_has_pagila_test_prebuilt_step():
+    """spec.yaml should have a step for pagila_test prebuilt configuration"""
+    spec_path = Path(__file__).parent.parent / "spec.yaml"
+
+    with open(spec_path, 'r') as f:
+        spec = yaml.safe_load(f)
+
+    steps = spec.get('steps', [])
+    step_ids = [step.get('id') for step in steps]
+
+    # Should have a step for pagila test prebuilt configuration
+    assert 'pagila_test_prebuilt' in step_ids, \
+        f"No pagila_test_prebuilt step found in step IDs: {step_ids}"
+
+
+def test_spec_has_pagila_test_image_step():
+    """spec.yaml should have a step for pagila_test image configuration"""
+    spec_path = Path(__file__).parent.parent / "spec.yaml"
+
+    with open(spec_path, 'r') as f:
+        spec = yaml.safe_load(f)
+
+    steps = spec.get('steps', [])
+    step_ids = [step.get('id') for step in steps]
+
+    # Should have a step for pagila test image
+    assert 'pagila_test_image' in step_ids, \
+        f"No pagila_test_image step found in step IDs: {step_ids}"
+
+
+def test_spec_pagila_test_prebuilt_step_configuration():
+    """pagila_test_prebuilt step should be properly configured"""
+    spec_path = Path(__file__).parent.parent / "spec.yaml"
+
+    with open(spec_path, 'r') as f:
+        spec = yaml.safe_load(f)
+
+    steps = spec.get('steps', [])
+
+    # Find pagila_test_prebuilt step
+    prebuilt_step = None
+    for step in steps:
+        if step.get('id') == 'pagila_test_prebuilt':
+            prebuilt_step = step
+            break
+
+    assert prebuilt_step is not None, "pagila_test_prebuilt step not found"
+    assert prebuilt_step['type'] == 'boolean', "Should be a boolean type"
+    assert 'state_key' in prebuilt_step, "Should have state_key"
+    assert prebuilt_step['state_key'] == 'services.pagila.test_containers.pagila_test.use_prebuilt'
+    assert prebuilt_step.get('default_value') == False, "Should default to False"
+    assert 'prompt' in prebuilt_step, "Should have a prompt"
+    assert 'next' in prebuilt_step, "Should have next step defined"
+
+
+def test_spec_pagila_test_image_step_configuration():
+    """pagila_test_image step should be properly configured"""
+    spec_path = Path(__file__).parent.parent / "spec.yaml"
+
+    with open(spec_path, 'r') as f:
+        spec = yaml.safe_load(f)
+
+    steps = spec.get('steps', [])
+
+    # Find pagila_test_image step
+    image_step = None
+    for step in steps:
+        if step.get('id') == 'pagila_test_image':
+            image_step = step
+            break
+
+    assert image_step is not None, "pagila_test_image step not found"
+    assert image_step['type'] == 'string', "Should be a string type"
+    assert 'state_key' in image_step, "Should have state_key"
+    assert image_step['state_key'] == 'services.pagila.test_containers.pagila_test.image'
+    assert image_step.get('default_value') == 'alpine:latest', "Should default to alpine:latest"
+    assert 'validator' in image_step, "Should have image URL validator"
+    assert 'validate' in image_step['validator'] and 'image' in image_step['validator']
+    assert 'prompt' in image_step, "Should have a prompt"
+    assert 'next' in image_step, "Should have next step defined"
+
+
+def test_spec_has_save_pagila_test_config_step():
+    """spec.yaml should have a step that saves pagila test configuration"""
+    spec_path = Path(__file__).parent.parent / "spec.yaml"
+
+    with open(spec_path, 'r') as f:
+        spec = yaml.safe_load(f)
+
+    steps = spec.get('steps', [])
+    step_ids = [step.get('id') for step in steps]
+
+    # Should have a pagila_save_test_config step
+    assert 'pagila_save_test_config' in step_ids, \
+        f"No pagila_save_test_config step found in step IDs: {step_ids}"
+
+
+def test_spec_save_pagila_test_config_step_configuration():
+    """pagila_save_test_config step should be properly configured"""
+    spec_path = Path(__file__).parent.parent / "spec.yaml"
+
+    with open(spec_path, 'r') as f:
+        spec = yaml.safe_load(f)
+
+    steps = spec.get('steps', [])
+
+    # Find pagila_save_test_config step
+    save_step = None
+    for step in steps:
+        if step.get('id') == 'pagila_save_test_config':
+            save_step = step
+            break
+
+    assert save_step is not None, "pagila_save_test_config step not found"
+    assert save_step['type'] == 'action', "Should be an action type"
+    assert save_step['action'] == 'pagila.save_pagila_test_config'
+    assert 'next' in save_step, "Should have next step defined"
+
+
+def test_spec_has_verify_pagila_connection_step():
+    """spec.yaml should have a step that verifies Pagila connection"""
+    spec_path = Path(__file__).parent.parent / "spec.yaml"
+
+    with open(spec_path, 'r') as f:
+        spec = yaml.safe_load(f)
+
+    steps = spec.get('steps', [])
+    step_ids = [step.get('id') for step in steps]
+
+    # Should have a pagila_verify_connection step
+    assert 'pagila_verify_connection' in step_ids, \
+        f"No pagila_verify_connection step found in step IDs: {step_ids}"
+
+
+def test_spec_verify_pagila_connection_step_configuration():
+    """pagila_verify_connection step should be properly configured"""
+    spec_path = Path(__file__).parent.parent / "spec.yaml"
+
+    with open(spec_path, 'r') as f:
+        spec = yaml.safe_load(f)
+
+    steps = spec.get('steps', [])
+
+    # Find pagila_verify_connection step
+    verify_step = None
+    for step in steps:
+        if step.get('id') == 'pagila_verify_connection':
+            verify_step = step
+            break
+
+    assert verify_step is not None, "pagila_verify_connection step not found"
+    assert verify_step['type'] == 'action', "Should be an action type"
+    assert verify_step['action'] == 'pagila.verify_pagila_connection'
+    assert 'next' in verify_step, "Should have next step defined"
+
+
+def test_spec_test_container_flow_after_pagila_install():
+    """Test container configuration should follow pagila_install in the flow"""
+    spec_path = Path(__file__).parent.parent / "spec.yaml"
+
+    with open(spec_path, 'r') as f:
+        spec = yaml.safe_load(f)
+
+    steps = {s['id']: s for s in spec['steps']}
+
+    # pagila_install should lead to pagila_test_prebuilt
+    assert 'pagila_install' in steps, "pagila_install step not found"
+    install_step = steps['pagila_install']
+    assert install_step.get('next') == 'pagila_test_prebuilt', \
+        f"pagila_install should lead to pagila_test_prebuilt, but leads to {install_step.get('next')}"
+
+    # pagila_test_prebuilt should lead to pagila_test_image
+    assert 'pagila_test_prebuilt' in steps, "pagila_test_prebuilt step not found"
+    prebuilt_step = steps['pagila_test_prebuilt']
+    assert prebuilt_step.get('next') == 'pagila_test_image', \
+        f"pagila_test_prebuilt should lead to pagila_test_image, but leads to {prebuilt_step.get('next')}"
+
+    # pagila_test_image should lead to pagila_save_test_config
+    assert 'pagila_test_image' in steps, "pagila_test_image step not found"
+    image_step = steps['pagila_test_image']
+    assert image_step.get('next') == 'pagila_save_test_config', \
+        f"pagila_test_image should lead to pagila_save_test_config, but leads to {image_step.get('next')}"
+
+    # pagila_save_test_config should lead to pagila_verify_connection
+    assert 'pagila_save_test_config' in steps, "pagila_save_test_config step not found"
+    save_step = steps['pagila_save_test_config']
+    assert save_step.get('next') == 'pagila_verify_connection', \
+        f"pagila_save_test_config should lead to pagila_verify_connection, but leads to {save_step.get('next')}"
+
+    # pagila_verify_connection should lead to finish
+    assert 'pagila_verify_connection' in steps, "pagila_verify_connection step not found"
+    verify_step = steps['pagila_verify_connection']
+    assert verify_step.get('next') == 'finish', \
+        f"pagila_verify_connection should lead to finish, but leads to {verify_step.get('next')}"
