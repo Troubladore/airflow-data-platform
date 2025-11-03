@@ -6,8 +6,110 @@ PostgreSQL simply uses the provided image as-is with configuration through
 environment variables and mounted initialization scripts.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
 from wizard.utils.diagnostics import DiagnosticCollector, ServiceDiagnostics, create_diagnostic_summary
+
+
+def detect_existing_base_platform(ctx: Dict[str, Any], runner) -> Tuple[bool, bool]:
+    """Detect if base platform components already exist and are healthy.
+
+    Checks for:
+    - platform_network
+    - postgres-test container
+    - sqlcmd-test container
+    - platform-postgres container
+    - Health status of platform-postgres
+
+    Args:
+        ctx: Context dictionary
+        runner: ActionRunner instance
+
+    Returns:
+        Tuple of (exists, healthy) where:
+        - exists: True if all components exist
+        - healthy: True if all components are running and healthy
+    """
+    required_components = {
+        'network': False,
+        'postgres-test': False,
+        'sqlcmd-test': False,
+        'platform-postgres': False,
+        'postgres-healthy': False
+    }
+
+    # Check network
+    network_check = runner.run_shell(['docker', 'network', 'inspect', 'platform_network'])
+    if network_check.get('returncode') == 0:
+        required_components['network'] = True
+
+    # Check containers
+    containers_check = runner.run_shell(['docker', 'ps', '--format', '{{.Names}}'])
+    if containers_check.get('returncode') == 0:
+        running_containers = containers_check.get('stdout', '').split('\n')
+        if 'postgres-test' in running_containers:
+            required_components['postgres-test'] = True
+        if 'sqlcmd-test' in running_containers:
+            required_components['sqlcmd-test'] = True
+        if 'platform-postgres' in running_containers:
+            required_components['platform-postgres'] = True
+
+            # Check health of platform-postgres
+            health_check = runner.run_shell([
+                'bash',
+                'platform-infrastructure/tests/test-platform-postgres-connectivity.sh',
+                '--quiet'
+            ])
+            if health_check.get('returncode') == 0:
+                required_components['postgres-healthy'] = True
+
+    # All components exist?
+    all_exist = all([
+        required_components['network'],
+        required_components['postgres-test'],
+        required_components['sqlcmd-test'],
+        required_components['platform-postgres']
+    ])
+
+    # All healthy?
+    all_healthy = all_exist and required_components['postgres-healthy']
+
+    return all_exist, all_healthy
+
+
+def check_and_prompt_reinstall_base_platform(ctx: Dict[str, Any], runner) -> None:
+    """Check if base platform exists and prompt for reinstall if it does.
+
+    If all components exist and are healthy, prompts user:
+    'Base platform is already installed and healthy. Reinstall? (y/N)'
+
+    If user chooses not to reinstall, sets skip flag in context.
+
+    Args:
+        ctx: Context dictionary - sets services.base_platform.skip_install if needed
+        runner: ActionRunner instance
+    """
+    exists, healthy = detect_existing_base_platform(ctx, runner)
+
+    if exists:
+        if healthy:
+            runner.display("\n✓ Base platform is already installed and healthy")
+            response = runner.prompt(
+                "Reinstall base platform? (y/N)",
+                default="n"
+            )
+            if response.lower() != 'y':
+                ctx['services.base_platform.skip_install'] = True
+                runner.display("Skipping base platform installation")
+        else:
+            runner.display("\n⚠ Base platform exists but is not healthy")
+            response = runner.prompt(
+                "Reinstall base platform to fix issues? (Y/n)",
+                default="y"
+            )
+            if response.lower() == 'n':
+                ctx['services.base_platform.skip_install'] = True
+                runner.display("Skipping base platform installation")
+    # If nothing exists, proceed normally without prompting
 
 
 def display_base_platform_header(ctx: Dict[str, Any], runner) -> None:
